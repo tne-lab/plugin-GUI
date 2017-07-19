@@ -1,0 +1,236 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{01D5D00F-B1FC-4E48-A8C0-3037344855DB}</ProjectGuid>
+    <RootNamespace>PhaseCalculator</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\Plugin_Debug32.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\Plugin_Debug64.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\Plugin_Release32.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\Plugin_Release64.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory)\fftw-dll32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(MSBuildProjectDirectory)\fftw-dll32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libfftw3-3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>cd fftw-dll32
+lib /machine:x86 /def:libfftw3-3.def
+cd ..</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>Creating FFTW import library</Message>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>%(Command);
+copy /Y "$(MSBuildProjectDirectory)\fftw-dll32\libfftw3-3.dll" "$(PluginDir)\..\"</Command>
+      <Message>Copying FFTW DLL to executable folder</Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory)\fftw-dll64;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(MSBuildProjectDirectory)\fftw-dll64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libfftw3-3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>cd fftw-dll64
+lib /machine:x64 /def:libfftw3-3.def
+cd ..</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>Creating FFTW import library</Message>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>%(Command);
+copy /Y "$(MSBuildProjectDirectory)\fftw-dll64\libfftw3-3.dll" "$(PluginDir)\..\"</Command>
+      <Message>Copying FFTW DLL to executable folder</Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory)\fftw-dll32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalLibraryDirectories>$(MSBuildProjectDirectory)\fftw-dll32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libfftw3-3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>cd fftw-dll32
+lib /machine:x86 /def:libfftw3-3.def
+cd ..</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>Creating FFTW import library</Message>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>%(Command);
+copy /Y "$(MSBuildProjectDirectory)\fftw-dll32\libfftw3-3.dll" "$(PluginDir)\..\"</Command>
+      <Message>Copying FFTW DLL to executable folder</Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory)\fftw-dll64;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalLibraryDirectories>$(MSBuildProjectDirectory)\fftw-dll64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libfftw3-3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>cd fftw-dll64
+lib /machine:x64 /def:libfftw3-3.def
+cd ..</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>Creating FFTW import library</Message>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>%(Command);
+copy /Y "$(MSBuildProjectDirectory)\fftw-dll64\libfftw3-3.dll" "$(PluginDir)\..\"</Command>
+      <Message>Copying FFTW DLL to executable folder</Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\burg.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Bessel.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Biquad.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Butterworth.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Cascade.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\ChebyshevI.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\ChebyshevII.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Custom.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Design.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Documentation.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Elliptic.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Filter.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Legendre.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Param.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\PoleFilter.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\RBJ.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\RootFinder.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\State.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\OpenEphysLib.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculator.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorEditor.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\burg.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Bessel.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Biquad.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Butterworth.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Cascade.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\ChebyshevI.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\ChebyshevII.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Common.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Custom.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Design.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Dsp.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Elliptic.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Filter.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Layout.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Legendre.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\MathSupplement.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Params.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\PoleFilter.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\RBJ.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\RootFinder.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\SmoothedFilter.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\State.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Types.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Utilities.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\FFTWWrapper.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculator.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorEditor.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
