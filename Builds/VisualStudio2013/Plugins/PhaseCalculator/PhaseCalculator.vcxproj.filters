@@ -13,9 +13,6 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Source Files\Dsp">
-      <UniqueIdentifier>{1bfd1a1c-a3dd-4712-94ed-be0afb4adef0}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\burg.cpp">
@@ -30,57 +27,6 @@
     <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorEditor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Bessel.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Biquad.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Butterworth.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Cascade.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\ChebyshevI.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\ChebyshevII.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Custom.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Design.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Documentation.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Elliptic.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Filter.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Legendre.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Param.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\PoleFilter.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\RBJ.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\RootFinder.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\State.cpp">
-      <Filter>Source Files\Dsp</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\burg.h">
@@ -94,75 +40,6 @@
     </ClInclude>
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorEditor.h">
       <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Bessel.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Biquad.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Butterworth.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Cascade.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\ChebyshevI.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\ChebyshevII.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Common.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Custom.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Design.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Dsp.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Elliptic.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Filter.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Layout.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Legendre.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\MathSupplement.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Params.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\PoleFilter.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\RBJ.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\RootFinder.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\SmoothedFilter.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\State.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Types.h">
-      <Filter>Source Files\Dsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Utilities.h">
-      <Filter>Source Files\Dsp</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

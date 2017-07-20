@@ -180,52 +180,12 @@ copy /Y "$(MSBuildProjectDirectory)\fftw-dll64\libfftw3-3.dll" "$(PluginDir)\..\
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\burg.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Bessel.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Biquad.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Butterworth.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Cascade.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\ChebyshevI.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\ChebyshevII.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Custom.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Design.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Documentation.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Elliptic.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Filter.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Legendre.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Param.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\PoleFilter.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\RBJ.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\RootFinder.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\State.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\OpenEphysLib.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculator.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorEditor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\burg.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Bessel.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Biquad.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Butterworth.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Cascade.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\ChebyshevI.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\ChebyshevII.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Common.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Custom.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Design.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Dsp.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Elliptic.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Filter.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Layout.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Legendre.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\MathSupplement.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Params.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\PoleFilter.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\RBJ.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\RootFinder.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\SmoothedFilter.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\State.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Types.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\Dsp\Utilities.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\FFTWWrapper.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculator.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorEditor.h" />
