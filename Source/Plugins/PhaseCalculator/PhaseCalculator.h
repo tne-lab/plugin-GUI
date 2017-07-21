@@ -49,9 +49,9 @@ given a bandpass-filtered signal.
 #include <ProcessorHeaders.h>
 #include <cstring>       // memset
 #include <numeric>       // inner_product
+#include <DspLib\Dsp.h>     // Filtering
 #include "FFTWWrapper.h" // Fourier transform
 #include "burg.h"        // Autoregressive modeling
-#include "Dsp\Dsp.h"     // Filtering
 
 // log2(starting length of the processing buffer)
 #define START_PLEN_POW 13
@@ -119,7 +119,7 @@ public:
 
     void setParameter(int parameterIndex, float newValue) override;
 
-    void process(AudioSampleBuffer& buffer, MidiBuffer& events) override;
+    void process(AudioSampleBuffer& buffer) override;
 
     void updateSettings() override;
 
@@ -148,8 +148,8 @@ public:
     // thread code - recalculates AR parameters.
     void run() override;
 
-    void saveCustomChannelParametersToXml(XmlElement* channelInfo, int channelNumber, bool isEventChannel) override;
-    void loadCustomChannelParametersFromXml(XmlElement* channelInfo, bool isEventChannel) override;
+    void saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType) override;
+    void loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType) override;
 
 private:
 

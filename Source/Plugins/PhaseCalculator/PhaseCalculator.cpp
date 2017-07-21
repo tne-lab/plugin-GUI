@@ -200,7 +200,7 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
     }
 }
 
-void PhaseCalculator::process(AudioSampleBuffer& buffer, MidiBuffer& events)
+void PhaseCalculator::process(AudioSampleBuffer& buffer)
 {
     // let's calculate some phases!
 
@@ -215,8 +215,8 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer, MidiBuffer& events)
             continue;
         
         // "+ADC/AUX" button
-        ChannelType type = channels[chan]->getType();
-        if (!processADC && (type == ADC_CHANNEL || type == AUX_CHANNEL))
+        DataChannel::DataChannelTypes type = getDataChannel(chan)->getChannelType();
+        if (!processADC && (type == DataChannel::ADC_CHANNEL || type == DataChannel::AUX_CHANNEL))
             continue;
 
         int nSamples = getNumSamples(chan);
@@ -436,10 +436,10 @@ void PhaseCalculator::setFilterParameters()
     for (int chan = 0; chan < nChan; chan++)
     {
         Dsp::Params params;
-        params[0] = channels[chan]->sampleRate;     // sample rate
-        params[1] = 2;                              // order
-        params[2] = (highCut + lowCut) / 2;         // center frequency
-        params[3] = highCut - lowCut;               // bandwidth
+        params[0] = getDataChannel(chan)->getSampleRate();  // sample rate
+        params[1] = 2;                                      // order
+        params[2] = (highCut + lowCut) / 2;                 // center frequency
+        params[3] = highCut - lowCut;                       // bandwidth
 
         if (forwardFilters.size() > chan)
             forwardFilters[chan]->setParams(params);
@@ -612,20 +612,20 @@ void PhaseCalculator::run()
     }
 }
 
-void PhaseCalculator::saveCustomChannelParametersToXml(XmlElement* channelInfo, int channelNumber, bool isEventChannel)
+void PhaseCalculator::saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType)
 {
-    if (!isEventChannel)
+    if (channelType == InfoObjectCommon::DATA_CHANNEL)
     {
-        XmlElement* channelParams = channelInfo->createNewChildElement("PARAMETERS");
+        XmlElement* channelParams = channelElement->createNewChildElement("PARAMETERS");
         channelParams->setAttribute("shouldProcess", shouldProcessChannel[channelNumber]);
     }
 }
 
-void PhaseCalculator::loadCustomChannelParametersFromXml(XmlElement* channelInfo, bool isEventChannel)
+void PhaseCalculator::loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType)
 {
-    int channelNum = channelInfo->getIntAttribute("number");
+    int channelNum = channelElement->getIntAttribute("number");
 
-    forEachXmlChildElement(*channelInfo, subnode)
+    forEachXmlChildElement(*channelElement, subnode)
     {
         if (subnode->hasTagName("PARAMETERS"))
         {
