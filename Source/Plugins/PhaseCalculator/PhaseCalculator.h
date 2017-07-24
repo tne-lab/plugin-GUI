@@ -36,11 +36,11 @@ given a bandpass-filtered signal.
 
 // debugging options
 
-/* MARK_BUFFERS: For each input channel in the range 1-8, triggers an event on the corresponding event channel
- * that starts at the first sample of each processing buffer and ends halfway between the first and last samples.
+/* MARK_BUFFERS: Triggers an event on event channel 1 that starts at the first sample of each
+ * processing buffer of input channel 1 and ends halfway between the first and last samples.
  * Aids in determining how features in the output (e.g. glitches) interact with edges between buffers.
  */
-//#define MARK_BUFFERS
+#define MARK_BUFFERS
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -65,11 +65,7 @@ given a bandpass-filtered signal.
 #define START_GL 200
 
 // how often to recalculate AR model, in ms (initial value)
-#ifndef _DEBUG
 #define START_AR_INTERVAL 50
-#else
-#define START_AR_INTERVAL 2000
-#endif // _DEBUG
 
 // order of the AR model
 #define AR_ORDER 20
@@ -108,6 +104,8 @@ enum ChannelState {NOT_FULL, FULL_NO_AR, FULL_AR};
 
 class PhaseCalculator : public GenericProcessor, public Thread
 {
+    friend class PhaseCalculatorEditor;
+    friend class ProcessBufferSlider;
 public:
 
     PhaseCalculator();
@@ -117,6 +115,13 @@ public:
 
     AudioProcessorEditor* createEditor() override;
 
+#ifdef MARK_BUFFERS
+    void createEventChannels() override;
+private:
+    EventChannel* eventChannelPtr;
+public:
+#endif
+
     void setParameter(int parameterIndex, float newValue) override;
 
     void process(AudioSampleBuffer& buffer) override;
@@ -125,22 +130,6 @@ public:
 
     bool enable() override;
     bool disable() override;
-
-    bool getProcessADC();
-
-    // whether given channel is set to be processed
-    bool getEnabledStateForChannel(int chan);
-
-    int getProcessLength();
-
-    int getNumFuture();
-
-    int getCalcInterval();
-
-    int getGlitchLimit();
-
-    double getLowCut();
-    double getHighCut();
 
     // calculate the fraction of the processing length is AR-predicted data points (i.e. numFuture / processLength)
     float getRatioFuture();
@@ -169,6 +158,31 @@ private:
 
     // Update the filters. From FilterNode code.
     void setFilterParameters();
+
+    // ---- static utility methods ----
+
+    /*
+    * arPredict: use autoregressive model of order to predict future data.
+    * Input params is an array of coefficients of an AR model of length AR_ORDER.
+    * Writes writeNum future data values starting at location writeStart.
+    * *** assumes there are at least AR_ORDER existing data points *before* writeStart
+    * to use to calculate future data points.
+    */
+    static void arPredict(double* writeStart, int writeNum, const double* params);
+
+    /*
+    * hilbertManip: Hilbert transforms data in the frequency domain (including normalization by length of data).
+    * Modifies fftData in place.
+    */
+    static void hilbertManip(FFTWArray<complex<double>>& fftData);
+
+    /*
+    * copyToFifo: move nData floats, starting at index "start", from an AudioBuffer to
+    * a fifo constructed of an AudioBuffer and AbstractFifo
+    * TODO: clean this up
+    */
+    void copyToFifo(AbstractFifo* af, const AudioSampleBuffer& from, int chanFrom,
+        AudioSampleBuffer& to, int chanTo, int start, int nData);
 
     // ---- customizable parameters ------
     

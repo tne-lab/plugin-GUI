@@ -28,97 +28,17 @@ const double PI = 3.1415926535897;
 
 unsigned int PhaseCalculator::numInstances = 0;
 
-// local functions
-
-namespace {
-
-    /* 
-     * arPredict: use autoregressive model of order to predict future data.
-     * Input params is an array of coefficients of an AR model of length AR_ORDER.
-     * Writes writeNum future data values starting at location writeStart.
-     * *** assumes there are at least AR_ORDER existing data points *before* writeStart
-     * to use to calculate future data points.
-     */
-    void arPredict(double* writeStart, int writeNum, double* params)
-    {
-        reverse_iterator<double*> dataIter;
-        int i;
-        for (i = 0; i < writeNum; i++)
-        {
-            dataIter = reverse_iterator<double*>(writeStart + i); // the reverse iterator actually starts out pointing at element i-1
-            writeStart[i] = -inner_product<double*, reverse_iterator<double*>, double>(params, params + AR_ORDER, dataIter, 0);
-        }
-    }
-
-    /*
-    * hilbertManip: Hilbert transforms data in the frequency domain (including normalization by n)
-    * Input n is the length of fft_data.
-    */
-    void hilbertManip(FFTWArray<complex<double>>& fftData)
-    {
-        int n = fftData.getLength();
-
-        // Normalize DC and Nyquist, normalize and double prositive freqs, and set negative freqs to 0.
-        int lastPosFreq = (int) round(ceil(n / 2.0) - 1);
-        int firstNegFreq = (int) round(floor(n / 2.0) + 1);
-        complex<double>* wp = fftData.getWritePointer();
-
-        for (int i = 0; i < n; i++) {
-            if (i > 0 && i <= lastPosFreq)
-                // normalize and double
-                wp[i] *= (2.0 / (double)n);
-            else if (i < firstNegFreq)
-                // normalize but don't double
-                wp[i] /= (double)n;
-            else
-                // set to 0
-                wp[i] = 0;
-        }
-    }
-
-    /*
-     * moveToFifo: move nData floats, starting at index "start", from an AudioBuffer to
-     * a fifo constructed of an AudioBuffer and AbstractFifo
-     */
-    void moveToFifo(AbstractFifo* af, AudioSampleBuffer& from, int chanFrom,
-        AudioSampleBuffer& to, int chanTo, int start, size_t nData)
-    {
-        // Tell abstract fifo we're about to add data, and get start positions and sizes to transfer.
-        int start1, size1, start2, size2;
-        af->prepareToWrite(nData, start1, size1, start2, size2);
-
-        // Copy the first section
-        const float* rp = from.getReadPointer(chanFrom, start);
-        float* wp = to.getWritePointer(chanTo, start1);
-
-        for (int i = 0; i < size1; i++)
-            wp[i] = rp[i];
-
-        // Copy the second section
-        if (size2 > 0)
-        {
-            rp = from.getReadPointer(chanFrom, start + size1);
-            wp = to.getWritePointer(chanTo, start2);
-
-            for (int i = 0; i < size2; i++)
-                wp[i] = rp[i];
-        }
-        
-        // Tell abstract fifo how much data has been added
-        af->finishedWrite(nData);
-    }
-}
-
-// member functions
-
-// public:
-
-PhaseCalculator::PhaseCalculator() :
-GenericProcessor("Phase Calculator"), Thread("AR Modeler"),
-processLength(1 << START_PLEN_POW), numFuture(START_NUM_FUTURE),
-calcInterval(START_AR_INTERVAL), glitchLimit(START_GL),
-processADC(false), haveSentWarning(false),
-lowCut(START_LOW_CUT), highCut(START_HIGH_CUT)
+PhaseCalculator::PhaseCalculator()
+    : GenericProcessor  ("Phase Calculator")
+    , Thread            ("AR Modeler")
+    , processLength     (1 << START_PLEN_POW)
+    , numFuture         (START_NUM_FUTURE)
+    , calcInterval      (START_AR_INTERVAL)
+    , glitchLimit       (START_GL)
+    , processADC        (false)
+    , haveSentWarning   (false)
+    , lowCut            (START_LOW_CUT)
+    , highCut           (START_HIGH_CUT)
 {
 	setProcessorType(PROCESSOR_TYPE_FILTER);
     numInstances++;
@@ -149,6 +69,31 @@ AudioProcessorEditor* PhaseCalculator::createEditor()
     return editor;
 }
 
+#ifdef MARK_BUFFERS
+void PhaseCalculator::createEventChannels()
+{
+    const DataChannel* in = getDataChannel(0);
+    if (in)
+    {
+        float sampleRate = in->getSampleRate();
+        EventChannel* chan = new EventChannel(EventChannel::TTL, 8, 1, sampleRate, this);
+        chan->setName("PhaseCalculator buffer markers");
+        chan->setDescription("Channel 1 turns on for the first half of each buffer of data channel 1");
+        chan->setIdentifier("phasecalc.buffer");
+
+        // source metadata
+        MetaDataDescriptor sourceChanDesc(MetaDataDescriptor::UINT16, 3, "Source channel",
+            "Index at source, source processor ID and subprocessor index of the channel that triggers this event",
+            "source.channel.identifier.full");
+        MetaDataValue sourceChanVal(sourceChanDesc);
+        const uint16 sourceInfo[3] = {in->getSourceIndex(), in->getSourceNodeID(), in->getSubProcessorIdx()};
+        sourceChanVal.setValue(sourceInfo);
+        chan->addMetaData(sourceChanDesc, sourceChanVal);
+
+        eventChannelPtr = eventChannelArray.add(chan);
+    }
+}
+#endif
 
 void PhaseCalculator::setParameter(int parameterIndex, float newValue)
 {
@@ -158,13 +103,13 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
     case pQueueSize:
         // precondition: acquisition is stopped.
         // resize everything
-        processLength = (int)newValue;
+        processLength = static_cast<int>(newValue);
         initialize();
         break;
 
     case pNumFuture:
         // precondition: acquisition is stopped.
-        setNumFuture((int)newValue);
+        setNumFuture(static_cast<int>(newValue));
         break;
 
     case pEnabledState:
@@ -175,11 +120,11 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
         break;
 
     case pRecalcInterval:
-        calcInterval = (int)newValue;
+        calcInterval = static_cast<int>(newValue);
         break;
 
     case pGlitchLimit:
-        glitchLimit = (int)newValue;
+        glitchLimit = static_cast<int>(newValue);
         break;
 
     case pAdcEnabled:
@@ -188,13 +133,13 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
 
     case pLowcut:
         // precondition: acquisition is stopped.
-        lowCut = (double)newValue;
+        lowCut = newValue;
         setFilterParameters();
         break;
 
     case pHighcut:
         // precondition: acquisition is stopped.
-        highCut = (double)newValue;
+        highCut = newValue;
         setFilterParameters();
         break;
     }
@@ -202,21 +147,18 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
 
 void PhaseCalculator::process(AudioSampleBuffer& buffer)
 {
-    // let's calculate some phases!
-
     int nChannels = buffer.getNumChannels();
 
     for (int chan = 0; chan < nChannels; chan++)
     {
-        // do we even need to process this channel?
-
         // "+CH" button
         if (!shouldProcessChannel[chan])
             continue;
         
         // "+ADC/AUX" button
         DataChannel::DataChannelTypes type = getDataChannel(chan)->getChannelType();
-        if (!processADC && (type == DataChannel::ADC_CHANNEL || type == DataChannel::AUX_CHANNEL))
+        if (!processADC && (type == DataChannel::ADC_CHANNEL 
+                            || type == DataChannel::AUX_CHANNEL))
             continue;
 
         int nSamples = getNumSamples(chan);
@@ -224,10 +166,20 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             continue;
 
 #ifdef MARK_BUFFERS // for debugging (see description in header file)
-        if (chan < 8)
+        if (chan == 0)
         {
-            addEvent(events, TTL, 0, 1, chan);
-            addEvent(events, TTL, nSamples / 2, 0, chan);
+            int64 ts1 = getTimestamp(0);
+            uint8 ttlData1 = 1;
+            TTLEventPtr event = TTLEvent::createTTLEvent(eventChannelPtr, ts1,
+                &ttlData1, sizeof(uint8), 0);
+            addEvent(eventChannelPtr, event, 0);
+
+            int halfway = nSamples / 2;
+            int64 ts2 = ts1 + halfway;
+            uint8 ttlData2 = 0;
+            event = TTLEvent::createTTLEvent(eventChannelPtr, ts2,
+                &ttlData2, sizeof(uint8), 0);
+            addEvent(eventChannelPtr, event, halfway);
         }
 #endif
         
@@ -264,13 +216,13 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         myAF->finishedRead(nSamplesToClear);
 
         // enqueue new data
-        moveToFifo(myAF, buffer, chan, historyFifo, chan, startIndex, nSamplesToProcess);
+        copyToFifo(myAF, buffer, chan, historyFifo, chan, startIndex, nSamplesToProcess);
 
         // If the fifo is now full, write to the sharedDataBuffer.
         // This allows the AR calculating thread to read from dataToProcess and calculate the model.
         if (chanState[chan] != NOT_FULL || willBecomeFull)
         {
-            // rotate and copy entire fifo to dataToProcess
+            // rotate and copy entire fifo to the sharedDataBuffer
             int start1, size1, start2, size2;
             myAF->prepareToRead(historyLength, start1, size1, start2, size2);
 
@@ -284,16 +236,16 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
 
                 // write first part
                 for (int i = 0; i < size1; i++)
-                    sharedDataBuffer[chan]->set(i, (double)rpFifo1[i]);
+                    sharedDataBuffer[chan]->set(i, rpFifo1[i]);
 
                 if (size2 > 0)
                     // write second part
                     for (int i = 0; i < size2; i++)
-                        sharedDataBuffer[chan]->set(size1 + i, (double)rpFifo2[i]);
+                        sharedDataBuffer[chan]->set(size1 + i, rpFifo2[i]);
             }
             // end critical section
 
-            if (chanState[chan] == NOT_FULL)
+            if (willBecomeFull)
                 // now that dataToProcess for this channel has data, let the thread start calculating the AR model.
                 chanState.set(chan, FULL_NO_AR);
         }
@@ -319,10 +271,10 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             // backward-filter the data
             //TODO: figure out why this isn't working
 
-            dataToProcess[chan]->reverse();
+            /*dataToProcess[chan]->reverse();
             double* wpProcessReverse = dataToProcess[chan]->getWritePointer();
             backwardFilters[chan]->process(processLength, &wpProcessReverse);
-            dataToProcess[chan]->reverse();
+            dataToProcess[chan]->reverse();*/
 
             //// Hilbert-transform dataToProcess
             //pForward[chan]->execute();      // reads from dataToProcess, writes to fftData
@@ -358,93 +310,6 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
 
         // keep track of last sample
         lastSample.set(chan, buffer.getSample(chan, nSamples - 1));
-    }
-}
-
-void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int chan)
-{
-    for (int startInd = 0; startInd < nSamples - 1; startInd++)
-    {
-        float diff = wp[startInd] - (startInd == 0 ? lastSample[chan] : wp[startInd - 1]);
-        if (abs(diff) > 180)
-        {
-            // search forward for a wrap in the opposite direction, for glitchLimit samples or until the end of the buffer, whichever comes first
-            int endInd = -1;
-            int currInd;
-            for (currInd = startInd + 1; currInd <= startInd + glitchLimit && currInd < nSamples; currInd++)
-            {
-                float diff2 = wp[currInd] - wp[currInd - 1];
-                if (abs(diff2) > 180 && ((diff > 0) != (diff2 > 0)))
-                {
-                    endInd = currInd;
-                    break;
-                }
-            }
-            // if it was an upward jump at the end of the buffer, *always* unwrap
-            if (endInd == -1 && diff > 0 && currInd == nSamples)
-                endInd = nSamples;
-
-            // unwrap [startInd, endInd)
-            for (int i = startInd; i < endInd; i++)
-                wp[i] -= 360 * (diff / abs(diff));
-
-            if (endInd > -1)
-                // skip to the end of this unwrapped section
-                startInd = endInd;
-        }
-    }
-}
-
-void PhaseCalculator::smoothBuffer(float* wp, int nSamples, int chan)
-{
-    int actualMaxSL = min(glitchLimit, nSamples - 1);
-    float diff = wp[0] - lastSample[chan];
-    if (diff < 0 && diff > -180)
-    {
-        // identify whether signal exceeds last sample of the previous buffer within glitchLimit samples.
-        int endIndex = -1;
-        for (int i = 1; i <= actualMaxSL; i++)
-        {
-            if (wp[i] > lastSample[chan])
-            {
-                endIndex = i;
-                break;
-            }
-            // corner case where signal wraps before it exceeds lastSample
-            else if (wp[i] - wp[i - 1] > 180 && (wp[i] + 360) > lastSample[chan])
-            {
-                wp[i] += 360;
-                endIndex = i;
-                break;
-            }
-        }
-
-        if (endIndex != -1)
-        {
-            // interpolate points from buffer start to endIndex
-            float slope = (wp[endIndex] - lastSample[chan]) / (endIndex + 1);
-            for (int i = 0; i < endIndex; i++)
-                wp[i] = lastSample[chan] + (i + 1) * slope;
-        }
-    }
-}
-
-// from FilterNode code
-void PhaseCalculator::setFilterParameters()
-{
-    int nChan = getNumInputs();
-    for (int chan = 0; chan < nChan; chan++)
-    {
-        Dsp::Params params;
-        params[0] = getDataChannel(chan)->getSampleRate();  // sample rate
-        params[1] = 2;                                      // order
-        params[2] = (highCut + lowCut) / 2;                 // center frequency
-        params[3] = highCut - lowCut;                       // bandwidth
-
-        if (forwardFilters.size() > chan)
-            forwardFilters[chan]->setParams(params);
-        if (backwardFilters.size() > chan)
-            backwardFilters[chan]->setParams(params);
     }
 }
 
@@ -490,51 +355,9 @@ bool PhaseCalculator::disable()
     return true;
 }
 
-bool PhaseCalculator::getProcessADC()
-{
-    return processADC;
-}
-
-bool PhaseCalculator::getEnabledStateForChannel(int chan)
-{
-    if (chan >= 0 && chan < shouldProcessChannel.size())
-        return shouldProcessChannel[chan];
-    return false;
-}
-
-int PhaseCalculator::getProcessLength()
-{
-    return processLength;
-}
-
-int PhaseCalculator::getNumFuture()
-{
-    return numFuture;
-}
-
-int PhaseCalculator::getCalcInterval()
-{
-    return calcInterval;
-}
-
-int PhaseCalculator::getGlitchLimit()
-{
-    return glitchLimit;
-}
-
 float PhaseCalculator::getRatioFuture()
 {
-    return ((float)numFuture) / ((float)processLength);
-}
-
-double PhaseCalculator::getLowCut()
-{
-    return lowCut;
-}
-
-double PhaseCalculator::getHighCut()
-{
-    return highCut;
+    return static_cast<float>(numFuture) / processLength;
 }
 
 // thread routine
@@ -634,7 +457,7 @@ void PhaseCalculator::loadCustomChannelParametersFromXml(XmlElement* channelElem
     }
 }
 
-// private:
+// ------------ PRIVATE METHODS ---------------
 
 /*
 * initialize all fields except processLength and numFuture based on these parameters and the current number of inputs.
@@ -698,7 +521,7 @@ void PhaseCalculator::initialize()
                 <2>,                                   // order
                 1,                                     // number of channels (must be const)
                 Dsp::DirectFormII>                     // realization
-                (1));
+                (1));                                  // transition samples
 		}
 		else
 		{
@@ -733,7 +556,156 @@ void PhaseCalculator::setNumFuture(int newNumFuture)
         fifoManager[index]->setTotalSize(historyLength + 1);
 }
 
-// ARTimer
+void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int chan)
+{
+    for (int startInd = 0; startInd < nSamples - 1; startInd++)
+    {
+        float diff = wp[startInd] - (startInd == 0 ? lastSample[chan] : wp[startInd - 1]);
+        if (abs(diff) > 180)
+        {
+            // search forward for a wrap in the opposite direction, for glitchLimit samples or until the end of the buffer, whichever comes first
+            int endInd = -1;
+            int currInd;
+            for (currInd = startInd + 1; currInd <= startInd + glitchLimit && currInd < nSamples; currInd++)
+            {
+                float diff2 = wp[currInd] - wp[currInd - 1];
+                if (abs(diff2) > 180 && ((diff > 0) != (diff2 > 0)))
+                {
+                    endInd = currInd;
+                    break;
+                }
+            }
+            // if it was an upward jump at the end of the buffer, *always* unwrap
+            if (endInd == -1 && diff > 0 && currInd == nSamples)
+                endInd = nSamples;
+
+            // unwrap [startInd, endInd)
+            for (int i = startInd; i < endInd; i++)
+                wp[i] -= 360 * (diff / abs(diff));
+
+            if (endInd > -1)
+                // skip to the end of this unwrapped section
+                startInd = endInd;
+        }
+    }
+}
+
+void PhaseCalculator::smoothBuffer(float* wp, int nSamples, int chan)
+{
+    int actualMaxSL = min(glitchLimit, nSamples - 1);
+    float diff = wp[0] - lastSample[chan];
+    if (diff < 0 && diff > -180)
+    {
+        // identify whether signal exceeds last sample of the previous buffer within glitchLimit samples.
+        int endIndex = -1;
+        for (int i = 1; i <= actualMaxSL; i++)
+        {
+            if (wp[i] > lastSample[chan])
+            {
+                endIndex = i;
+                break;
+            }
+            // corner case where signal wraps before it exceeds lastSample
+            else if (wp[i] - wp[i - 1] > 180 && (wp[i] + 360) > lastSample[chan])
+            {
+                wp[i] += 360;
+                endIndex = i;
+                break;
+            }
+        }
+
+        if (endIndex != -1)
+        {
+            // interpolate points from buffer start to endIndex
+            float slope = (wp[endIndex] - lastSample[chan]) / (endIndex + 1);
+            for (int i = 0; i < endIndex; i++)
+                wp[i] = lastSample[chan] + (i + 1) * slope;
+        }
+    }
+}
+
+// from FilterNode code
+void PhaseCalculator::setFilterParameters()
+{
+    int nChan = getNumInputs();
+    for (int chan = 0; chan < nChan; chan++)
+    {
+        Dsp::Params params;
+        params[0] = getDataChannel(chan)->getSampleRate();  // sample rate
+        params[1] = 2;                                      // order
+        params[2] = (highCut + lowCut) / 2;                 // center frequency
+        params[3] = highCut - lowCut;                       // bandwidth
+
+        if (forwardFilters.size() > chan)
+            forwardFilters[chan]->setParams(params);
+        if (backwardFilters.size() > chan)
+            backwardFilters[chan]->setParams(params);
+    }
+}
+
+void PhaseCalculator::arPredict(double* writeStart, int writeNum, const double* params)
+{
+    reverse_iterator<double*> dataIter;
+    int i;
+    for (i = 0; i < writeNum; i++)
+    {
+        dataIter = reverse_iterator<double*>(writeStart + i); // the reverse iterator actually starts out pointing at element i-1
+        writeStart[i] = -inner_product<const double*, reverse_iterator<const double*>, double>(params, params + AR_ORDER, dataIter, 0);
+    }
+}
+
+void PhaseCalculator::hilbertManip(FFTWArray<complex<double>>& fftData)
+{
+    int n = fftData.getLength();
+
+    // Normalize DC and Nyquist, normalize and double prositive freqs, and set negative freqs to 0.
+    int lastPosFreq = static_cast<int>(round(ceil(n / 2.0) - 1));
+    int firstNegFreq = static_cast<int>(round(floor(n / 2.0) + 1));
+    complex<double>* wp = fftData.getWritePointer();
+
+    for (int i = 0; i < n; i++) {
+        if (i > 0 && i <= lastPosFreq)
+            // normalize and double
+            wp[i] *= (2.0 / n);
+        else if (i < firstNegFreq)
+            // normalize but don't double
+            wp[i] /= n;
+        else
+            // set to 0
+            wp[i] = 0;
+    }
+}
+
+void PhaseCalculator::copyToFifo(AbstractFifo* af, const AudioSampleBuffer& from, int chanFrom,
+    AudioSampleBuffer& to, int chanTo, int start, int nData)
+{
+    // Tell abstract fifo we're about to add data, and get start positions and sizes to transfer.
+    int start1, size1, start2, size2;
+    af->prepareToWrite(nData, start1, size1, start2, size2);
+
+    // Copy the first section
+    const float* rp = from.getReadPointer(chanFrom, start);
+    float* wp = to.getWritePointer(chanTo, start1);
+
+    for (int i = 0; i < size1; i++)
+        wp[i] = rp[i];
+
+    // Copy the second section
+    if (size2 > 0)
+    {
+        rp = from.getReadPointer(chanFrom, start + size1);
+        wp = to.getWritePointer(chanTo, start2);
+
+        for (int i = 0; i < size2; i++)
+            wp[i] = rp[i];
+    }
+
+    // Tell abstract fifo how much data has been added
+    af->finishedWrite(nData);
+}
+
+// ----------- ARTimer ---------------
+
 ARTimer::ARTimer() : Timer()
 {
     hasRung = false;
