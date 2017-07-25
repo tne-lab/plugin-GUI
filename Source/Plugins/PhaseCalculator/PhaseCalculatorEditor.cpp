@@ -22,67 +22,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 #include "PhaseCalculatorEditor.h"
-#include "PhaseCalculator.h"
-
-// local utility
-namespace {
-
-    /* Attempt to parse an input string into an integer between min and max, inclusive. 
-     * Returns false if no integer could be parsed.
-     */
-    bool parseInput(String& in, int min, int max, int* out)
-    {
-        int parsedInt;
-        try
-        {
-            parsedInt = std::stoi(in.toRawUTF8());
-        }
-        catch (...)
-        {
-            return false;
-        }
-
-        if (parsedInt < min)
-            *out = min;
-        else if (parsedInt > max)
-            *out = max;
-        else
-            *out = parsedInt;
-
-        return true;        
-    }
-
-    // Same as above, but for floats
-    bool parseInput(String& in, float min, float max, float* out)
-    {
-        float parsedFloat;
-        try
-        {
-            parsedFloat = stof(in.toRawUTF8());
-        }
-        catch (...)
-        {
-            return false;
-        }
-
-        if (parsedFloat < min)
-            *out = min;
-        else if (parsedFloat > max)
-            *out = max;
-        else
-            *out = parsedFloat;
-
-        return true;
-    }
-}
 
 PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
-    : GenericEditor(parentNode, useDefaultParameterEditors), lastProcessLength(1 << START_PLEN_POW)
+    : GenericEditor     (parentNode, useDefaultParameterEditors)
+    , lastProcessLength (1 << START_PLEN_POW)
 {
     int filterWidth = 80;
     desiredWidth = filterWidth + 260;
 
-    PhaseCalculator* processor = (PhaseCalculator*)(parentNode);
+    PhaseCalculator* processor = static_cast<PhaseCalculator*>(parentNode);
 
     lowCutLabel = new Label("lowCutL", "Low cut");
     lowCutLabel->setBounds(10, 30, 80, 20);
@@ -170,7 +118,7 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool 
     numFutureSlider->setColour(Slider::backgroundColourId, Colour(51, 102, 255));
     numFutureSlider->setTooltip(NUM_FUTURE_TOOLTIP);
     numFutureSlider->addListener(this);
-    numFutureSlider->updateFromProcessor(parentNode);
+    numFutureSlider->updateFromProcessor(processor);
     addAndMakeVisible(numFutureSlider);
     addAndMakeVisible(numPastEditable);
     addAndMakeVisible(numFutureEditable);
@@ -242,7 +190,7 @@ void PhaseCalculatorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
 {
     if (comboBoxThatHasChanged == processLengthBox)
     {
-        PhaseCalculator* processor = (PhaseCalculator*)(getProcessor());
+        PhaseCalculator* processor = static_cast<PhaseCalculator*>(getProcessor());
         int newId = processLengthBox->getSelectedId();
         int newProcessLength;
         if (newId) // one of the items in the list is selected
@@ -268,22 +216,12 @@ void PhaseCalculatorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
         float currRatio = processor->getRatioFuture();
         float newNumFuture;
         if (newProcessLength <= AR_ORDER)
-            newNumFuture = 0.0F;
+            newNumFuture = 0;
         else
-            newNumFuture = fminf(roundf(currRatio * (float)newProcessLength), (float)(newProcessLength - AR_ORDER));
+            newNumFuture = fminf(roundf(currRatio * newProcessLength), newProcessLength - AR_ORDER);
 
-        // choose order of setting parameters to avoid overflows
-        int currProcessLength = processor->processLength;
-        if (currProcessLength < newProcessLength)
-        {
-            processor->setParameter(pQueueSize, (float)newProcessLength);
-            processor->setParameter(pNumFuture, newNumFuture);
-        }
-        else if (currProcessLength > newProcessLength)
-        {
-            processor->setParameter(pNumFuture, newNumFuture);
-            processor->setParameter(pQueueSize, (float)newProcessLength);
-        }
+        // change both at once
+        processor->setProcessLength(newProcessLength, newNumFuture);
 
         lastProcessLength = newProcessLength;
 
@@ -359,20 +297,6 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
         if (valid)
             processor->setParameter(pHighcut, floatInput);
     }
-}
-
-template<typename labelType>
-bool PhaseCalculatorEditor::updateLabel(Label* labelThatHasChanged,
-    labelType minValue, labelType maxValue, labelType defaultValue, labelType* result)
-{
-    String& input = labelThatHasChanged->getText();
-    bool valid = parseInput(input, minValue, maxValue, result);
-    if (!valid)
-        labelThatHasChanged->setText(String(defaultValue), dontSendNotification);
-    else
-        labelThatHasChanged->setText(String(*result), dontSendNotification);
-
-    return valid;
 }
 
 void PhaseCalculatorEditor::sliderEvent(Slider* slider)
@@ -470,6 +394,66 @@ void PhaseCalculatorEditor::loadCustomParameters(XmlElement* xml)
     }
 }
 
+// static utilities
+
+template<typename labelType>
+bool PhaseCalculatorEditor::updateLabel(Label* labelThatHasChanged,
+    labelType minValue, labelType maxValue, labelType defaultValue, labelType* result)
+{
+    String& input = labelThatHasChanged->getText();
+    bool valid = parseInput(input, minValue, maxValue, result);
+    if (!valid)
+        labelThatHasChanged->setText(String(defaultValue), dontSendNotification);
+    else
+        labelThatHasChanged->setText(String(*result), dontSendNotification);
+
+    return valid;
+}
+
+bool PhaseCalculatorEditor::parseInput(String& in, int min, int max, int* out)
+{
+    int parsedInt;
+    try
+    {
+        parsedInt = std::stoi(in.toRawUTF8());
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    if (parsedInt < min)
+        *out = min;
+    else if (parsedInt > max)
+        *out = max;
+    else
+        *out = parsedInt;
+
+    return true;
+}
+
+bool PhaseCalculatorEditor::parseInput(String& in, float min, float max, float* out)
+{
+    float parsedFloat;
+    try
+    {
+        parsedFloat = stof(in.toRawUTF8());
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    if (parsedFloat < min)
+        *out = min;
+    else if (parsedFloat > max)
+        *out = max;
+    else
+        *out = parsedFloat;
+
+    return true;
+}
+
 // ProcessBufferSlider definitions
 ProcessBufferSlider::ProcessBufferSlider(const String& componentName) : Slider(componentName)
 {
@@ -490,11 +474,10 @@ double ProcessBufferSlider::snapValue(double attemptedValue, DragMode dragMode)
         return attemptedValue;
 }
 
-void ProcessBufferSlider::updateFromProcessor(GenericProcessor* parentNode)
+void ProcessBufferSlider::updateFromProcessor(PhaseCalculator* parentNode)
 {
-    PhaseCalculator* pCalculator = (PhaseCalculator*)(parentNode);
-    int processLength = pCalculator->processLength;
-    int numFuture = pCalculator->numFuture;
+    int processLength = parentNode->processLength;
+    int numFuture = parentNode->numFuture;
 
     setRange(0, processLength, 1);
     setValue(0); // hack to ensure the listener gets called even if only the range is changed

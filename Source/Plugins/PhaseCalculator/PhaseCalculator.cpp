@@ -31,18 +31,18 @@ unsigned int PhaseCalculator::numInstances = 0;
 PhaseCalculator::PhaseCalculator()
     : GenericProcessor  ("Phase Calculator")
     , Thread            ("AR Modeler")
-    , processLength     (1 << START_PLEN_POW)
-    , numFuture         (START_NUM_FUTURE)
     , calcInterval      (START_AR_INTERVAL)
     , glitchLimit       (START_GL)
     , processADC        (false)
-    , haveSentWarning   (false)
     , lowCut            (START_LOW_CUT)
     , highCut           (START_HIGH_CUT)
+    , haveSentWarning   (false)
 {
 	setProcessorType(PROCESSOR_TYPE_FILTER);
     numInstances++;
-    initialize();
+    h.resize(AR_ORDER);
+    g.resize(AR_ORDER);
+    setProcessLength(1 << START_PLEN_POW, START_NUM_FUTURE);
 }
 
 PhaseCalculator::~PhaseCalculator() 
@@ -100,13 +100,6 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
     int numInputs = getNumInputs();
 
     switch (parameterIndex) {
-    case pQueueSize:
-        // precondition: acquisition is stopped.
-        // resize everything
-        processLength = static_cast<int>(newValue);
-        initialize();
-        break;
-
     case pNumFuture:
         // precondition: acquisition is stopped.
         setNumFuture(static_cast<int>(newValue));
@@ -170,29 +163,24 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         {
             int64 ts1 = getTimestamp(0);
             uint8 ttlData1 = 1;
-            TTLEventPtr event = TTLEvent::createTTLEvent(eventChannelPtr, ts1,
+            TTLEventPtr event1 = TTLEvent::createTTLEvent(eventChannelPtr, ts1,
                 &ttlData1, sizeof(uint8), 0);
-            addEvent(eventChannelPtr, event, 0);
+            addEvent(eventChannelPtr, event1, 0);
 
             int halfway = nSamples / 2;
             int64 ts2 = ts1 + halfway;
             uint8 ttlData2 = 0;
-            event = TTLEvent::createTTLEvent(eventChannelPtr, ts2,
+            TTLEventPtr event2 = TTLEvent::createTTLEvent(eventChannelPtr, ts2,
                 &ttlData2, sizeof(uint8), 0);
-            addEvent(eventChannelPtr, event, halfway);
+            addEvent(eventChannelPtr, event2, halfway);
         }
 #endif
-        
-        // First, forward-filter the data.
-        // Code from FilterNode.
-        float* wpBuffer = buffer.getWritePointer(chan);
-        forwardFilters[chan]->process(nSamples, &wpBuffer);
 
-        // We have to put the new samples in the historyFifo for processing (with size historyLength).
         // If there are more samples than we have room to process, process the most recent samples and output zero
         // for the rest (this is an error that should be noticed and fixed).
-        int startIndex = std::max(nSamples - historyLength, 0);
+        int startIndex = std::max(nSamples - bufferLength, 0);
         int nSamplesToProcess = nSamples - startIndex;
+
         if (startIndex != 0)
         {
             // clear the extra samples and send a warning message
@@ -204,61 +192,56 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             }
         }
 
-        // see how full the channel's historyFifo currently is (by querying its AbstractFifo)
-        AbstractFifo* myAF = fifoManager[chan];
-        int freeSpace = myAF->getFreeSpace();
+        // Forward-filter the data.
+        // Code from FilterNode.
+        float* wpIn = buffer.getWritePointer(chan, startIndex);
+        Dsp::Filter* filter = forwardFilters[chan];
+        filter->process(nSamplesToProcess, &wpIn);
 
-        // if buffer wasn't full, check whether it will be.
+        int freeSpace = bufferFreeSpace[chan];
+
+        // if buffer wasn't full, check whether it will become so.
         bool willBecomeFull = (chanState[chan] == NOT_FULL && freeSpace <= nSamplesToProcess);
-        
-        // virtually clear up space
-        int nSamplesToClear = std::max(0, nSamplesToProcess - freeSpace);
-        myAF->finishedRead(nSamplesToClear);
 
-        // enqueue new data
-        copyToFifo(myAF, buffer, chan, historyFifo, chan, startIndex, nSamplesToProcess);
+        // shift old data and copy new data into sharedDataBuffer
+        int nOldSamples = bufferLength - nSamplesToProcess;
 
-        // If the fifo is now full, write to the sharedDataBuffer.
-        // This allows the AR calculating thread to read from dataToProcess and calculate the model.
-        if (chanState[chan] != NOT_FULL || willBecomeFull)
+        const double* rpBuffer = sharedDataBuffer.getReadPointer(chan, nSamplesToProcess);
+        double* wpBuffer = sharedDataBuffer.getWritePointer(chan);
+
+        // critical section for this channel's sharedDataBuffer
+        // note that the floats are coerced to doubles here - this is important to avoid over/underflow when calculating the phase.
         {
-            // rotate and copy entire fifo to the sharedDataBuffer
-            int start1, size1, start2, size2;
-            myAF->prepareToRead(historyLength, start1, size1, start2, size2);
+            const ScopedLock myScopedLock(*sdbLock[chan]);
 
-            const float* rpFifo1 = historyFifo.getReadPointer(chan, start1);
-            const float* rpFifo2 = historyFifo.getReadPointer(chan, start2);
+            // shift old data
+            for (int i = 0; i < nOldSamples; i++)
+                *wpBuffer++ = *rpBuffer++;
 
-            // critical section for this channel's sharedDataBuffer
-            // note that the floats are cast to doubles here - this is important to avoid over/underflow when calculating the phase.
-            {
-                const ScopedLock myScopedLock(*sdbLock[chan]);
+            // copy new data
+            for (int i = 0; i < nSamplesToProcess; i++)
+                *wpBuffer++ = *wpIn++;
+        }
 
-                // write first part
-                for (int i = 0; i < size1; i++)
-                    sharedDataBuffer[chan]->set(i, rpFifo1[i]);
-
-                if (size2 > 0)
-                    // write second part
-                    for (int i = 0; i < size2; i++)
-                        sharedDataBuffer[chan]->set(size1 + i, rpFifo2[i]);
-            }
-            // end critical section
-
-            if (willBecomeFull)
-                // now that dataToProcess for this channel has data, let the thread start calculating the AR model.
-                chanState.set(chan, FULL_NO_AR);
+        if (willBecomeFull) {
+            // now that dataToProcess for this channel has data, let the thread start calculating the AR model.
+            chanState.set(chan, FULL_NO_AR);
+            bufferFreeSpace.set(chan, 0);
+        }
+        else if (chanState[chan] == NOT_FULL)
+        {
+            bufferFreeSpace.set(chan, bufferFreeSpace[chan] - nSamplesToProcess);
         }
 
         // calc phase and write out (only if AR model has been calculated)
         if (chanState[chan] == FULL_AR) {
 
             // copy data to dataToProcess
-            double* rpSDB = sharedDataBuffer[chan]->getRawDataPointer();
-            dataToProcess[chan]->copyFrom(rpSDB, historyLength);
+            const double* rpSDB = sharedDataBuffer.getReadPointer(chan);
+            dataToProcess[chan]->copyFrom(rpSDB, bufferLength);
 
             // use AR(20) model to predict upcoming data and append to dataToProcess
-            double* wpProcess = dataToProcess[chan]->getWritePointer(historyLength);
+            double* wpProcess = dataToProcess[chan]->getWritePointer(bufferLength);
             
             // quasi-atomic access of AR parameters
             Array<double> currParams;
@@ -283,19 +266,21 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
 
             //// calculate phase and write out to buffer
             //const complex<double>* rpProcess = dataOut[chan]->getReadPointer(historyLength - nSamplesToProcess);
+            //float* wpOut = buffer.getWritePointer(chan);
 
             //for (int i = 0; i < nSamplesToProcess; i++)
             //{
             //    // output in degrees
             //    // note that doubles are cast back to floats
-            //    wpBuffer[i + startIndex] = (float)(std::arg(rpProcess[i]) * (180.0 / PI));
+            //    wpOut[i + startIndex] = static_cast<float>(std::arg(rpProcess[i]) * (180.0 / PI));
             //}
 
             // for debugging - uncomment below and comment above from "Hilbert transform" line to just output the filtered wave            
-            const double* rpDTP = dataToProcess[chan]->getReadPointer(historyLength - nSamplesToProcess);
+            const double* rpDTP = dataToProcess[chan]->getReadPointer(bufferLength - nSamplesToProcess);
+            float* wpOut = buffer.getWritePointer(chan);
             for (int i = 0; i < nSamplesToProcess; i++)
             {
-                wpBuffer[i + startIndex] = (float)rpDTP[i];
+                wpOut[i + startIndex] = static_cast<float>(rpDTP[i]);
             }
 
             // unwrapping / smoothing
@@ -313,15 +298,6 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
     }
 }
 
-void PhaseCalculator::updateSettings()
-{
-    // update number of channels if necessary
-    int currInputs = historyFifo.getNumChannels();
-    if (getNumInputs() != currInputs)
-        initialize();
-}
-
-
 // starts thread when acquisition begins
 bool PhaseCalculator::enable()
 {
@@ -332,18 +308,17 @@ bool PhaseCalculator::enable()
     return true;
 }
 
-// resets things and ends thread when acquisition stops.
 bool PhaseCalculator::disable()
 {
-   signalThreadShouldExit();
+    signalThreadShouldExit();
 
     // reset channel states
     for (int i = 0; i < chanState.size(); i++)
-        chanState.set(i,NOT_FULL);
-    
-    // reset AbstractFifos (effectively clearing historyFifos)
-    for (int i = 0; i < fifoManager.size(); i++)
-        fifoManager[i]->reset();
+        chanState.set(i, NOT_FULL);
+
+    // reset bufferFreeSpace
+    for (int i = 0; i < bufferFreeSpace.size(); i++)
+        bufferFreeSpace.set(i, bufferLength);
 
     // reset last sample containers
     for (int i = 0; i < lastSample.size(); i++)
@@ -355,6 +330,7 @@ bool PhaseCalculator::disable()
     return true;
 }
 
+
 float PhaseCalculator::getRatioFuture()
 {
     return static_cast<float>(numFuture) / processLength;
@@ -364,7 +340,7 @@ float PhaseCalculator::getRatioFuture()
 void PhaseCalculator::run()
 {
     Array<double> data;
-    data.resize(historyLength);
+    data.resize(bufferLength);
 
     double paramsTemp[AR_ORDER];
 
@@ -386,8 +362,8 @@ void PhaseCalculator::run()
             {
                 const ScopedLock myScopedLock(*sdbLock[chan]);
 
-                for (int i = 0; i < historyLength; i++)
-                    data.set(i, (*sharedDataBuffer[chan])[i]);
+                for (int i = 0; i < bufferLength; i++)
+                    data.set(i, sharedDataBuffer.getSample(chan, i));
             }
             // end critical section
 
@@ -398,11 +374,11 @@ void PhaseCalculator::run()
             double* gRaw = g.getRawDataPointer();
 
             // reset per and pef
-            memset(perRaw, 0, historyLength * sizeof(double));
-            memset(pefRaw, 0, historyLength * sizeof(double));
+            memset(perRaw, 0, bufferLength * sizeof(double));
+            memset(pefRaw, 0, bufferLength * sizeof(double));
 
             // calculate parameters
-            ARMaxEntropy(inputseries, historyLength, AR_ORDER, paramsTemp, perRaw, pefRaw, hRaw, gRaw);
+            ARMaxEntropy(inputseries, bufferLength, AR_ORDER, paramsTemp, perRaw, pefRaw, hRaw, gRaw);
 
             // write params quasi-atomically
             juce::Array<double>* myParams = arParams[chan];
@@ -457,103 +433,134 @@ void PhaseCalculator::loadCustomChannelParametersFromXml(XmlElement* channelElem
     }
 }
 
-// ------------ PRIVATE METHODS ---------------
-
-/*
-* initialize all fields except processLength and numFuture based on these parameters and the current number of inputs.
-*/
-void PhaseCalculator::initialize()
+void PhaseCalculator::updateSettings()
 {
-    historyLength = processLength - numFuture;
     int nInputs = getNumInputs();
-	int prevNInputs = historyFifo.getNumChannels();
-    historyFifo.setSize(nInputs, historyLength + 1);
+	int prevNInputs = sharedDataBuffer.getNumChannels();
 
-    per.resize(historyLength);
-    pef.resize(historyLength);
-    h.resize(AR_ORDER);
-    g.resize(AR_ORDER);
+    sharedDataBuffer.setSize(nInputs, bufferLength);
 
-    for (int index = 0; index < max(prevNInputs, nInputs); index++)
+    if (nInputs > prevNInputs)
     {
-		if (index < nInputs)
-		{
-			/* The AbstractFifo can actually only store one fewer entry than its "size"
-			* due to lack of a "full" flag, so they and the buffers containing the
-			* data must have length n+1.
-			*/
-			fifoManager.set(index, new AbstractFifo(historyLength + 1));
+        // initialize fields at new indices
+        for (int i = prevNInputs; i < nInputs; i++)
+        {
+            // primitives
+            bufferFreeSpace.set(i, bufferLength);            
+            shouldProcessChannel.set(i, true);
+            chanState.set(i, NOT_FULL);
+            lastSample.set(i, 0);
 
-			// primitives
-			chanState.set(index, NOT_FULL);
-			lastSample.set(index, 0);
-			if (index >= shouldProcessChannel.size()) // keep existing settings
-				shouldProcessChannel.set(index, true);
+            // processing buffers
+            dataToProcess.set(i, new FFTWArray<double>(processLength));
+            fftData.set(i, new FFTWArray<complex<double>>(processLength));
+            dataOut.set(i, new FFTWArray<complex<double>>(processLength));
 
-			// processing buffers
-            sharedDataBuffer.set(index, new juce::Array<double>());
-			dataToProcess.set(index, new FFTWArray<double>(processLength));
-			fftData.set(index, new FFTWArray<complex<double>>(processLength));
-			dataOut.set(index, new FFTWArray<complex<double>>(processLength));
+            // FFT plans
+            pForward.set(i, new FFTWPlan(processLength, dataToProcess[i], fftData[i], FFTW_MEASURE));
+            pBackward.set(i, new FFTWPlan(processLength, fftData[i], dataOut[i], FFTW_BACKWARD, FFTW_MEASURE));
 
-			// FFT plans
-			pForward.set(index, new FFTWPlan(processLength, dataToProcess[index], fftData[index], FFTW_MEASURE));
-			pBackward.set(index, new FFTWPlan(processLength, fftData[index], dataOut[index], FFTW_BACKWARD, FFTW_MEASURE));
+            // mutexes
+            sdbLock.set(i, new CriticalSection());
 
-			// mutexes
-			sdbLock.set(index, new CriticalSection());
-
-			// AR parameters
-			arParams.set(index, new juce::Array<double>());
-			arParams[index]->resize(AR_ORDER);
+            // AR parameters
+            arParams.set(i, new juce::Array<double>());
+            arParams[i]->resize(AR_ORDER);
 
             // Bandpass filters
             // filter design copied from FilterNode
-            forwardFilters.set(index, new Dsp::SmoothedFilterDesign
+            forwardFilters.set(i, new Dsp::SmoothedFilterDesign
                 <Dsp::Butterworth::Design::BandPass    // design type
                 <2>,                                   // order
                 1,                                     // number of channels (must be const)
                 Dsp::DirectFormII>                     // realization
                 (1));                                  // transition samples
 
-            backwardFilters.set(index, new Dsp::SmoothedFilterDesign
+            backwardFilters.set(i, new Dsp::SmoothedFilterDesign
                 <Dsp::Butterworth::Design::BandPass    // design type
                 <2>,                                   // order
                 1,                                     // number of channels (must be const)
                 Dsp::DirectFormII>                     // realization
                 (1));                                  // transition samples
-		}
-		else
-		{
-			// clean up extra objects
-			fifoManager.remove(index);
-			pForward.remove(index);
-			pBackward.remove(index);
-            sharedDataBuffer.remove(index);
-			dataToProcess.remove(index);
-			fftData.remove(index);
-			dataOut.remove(index);
-			sdbLock.remove(index);
-            arParams.remove(index);
-            forwardFilters.remove(index);
-            backwardFilters.remove(index);
-		}
+        }
     }
+    else if (nInputs < prevNInputs)
+    {
+        // delete unneeded fields
+        int diff = prevNInputs - nInputs;
+
+        bufferFreeSpace.removeLast(diff);
+        shouldProcessChannel.removeLast(diff);
+        dataToProcess.removeLast(diff);
+        fftData.removeLast(diff);
+        dataOut.removeLast(diff);
+        pForward.removeLast(diff);
+        pBackward.removeLast(diff);
+        sdbLock.removeLast(diff);
+        arParams.removeLast(diff);
+        forwardFilters.removeLast(diff);
+        backwardFilters.removeLast(diff);
+    }
+    // call this no matter what, since the sample rate may have changed.
     setFilterParameters();
+}
+
+// ------------ PRIVATE METHODS ---------------
+
+void PhaseCalculator::setProcessLength(int newProcessLength, int newNumFuture)
+{
+    jassert(newNumFuture <= newProcessLength - AR_ORDER);
+
+    processLength = newProcessLength;
+    if (newNumFuture != numFuture)
+        setNumFuture(newNumFuture);
+
+    // update fields that depend on processLength
+    int nInputs = getNumInputs();
+    for (int i = 0; i < nInputs; i++)
+    {
+        // processing buffers
+        dataToProcess[i]->resize(processLength);
+        fftData[i]->resize(processLength);
+        dataOut[i]->resize(processLength);
+
+        // FFT plans
+        pForward.set(i, new FFTWPlan(processLength, dataToProcess[i], fftData[i], FFTW_MEASURE));
+        pBackward.set(i, new FFTWPlan(processLength, fftData[i], dataOut[i], FFTW_BACKWARD, FFTW_MEASURE));
+    }
 }
 
 void PhaseCalculator::setNumFuture(int newNumFuture)
 {
     numFuture = newNumFuture;
-    historyLength = processLength - newNumFuture;
+    bufferLength = processLength - newNumFuture;
     int nInputs = getNumInputs();
-    historyFifo.setSize(nInputs, historyLength + 1);
+    sharedDataBuffer.setSize(nInputs, bufferLength);
 
-    per.resize(historyLength);
-    pef.resize(historyLength);
+    per.resize(bufferLength);
+    pef.resize(bufferLength);
 
-    for (int index = 0; index < nInputs; index++)
-        fifoManager[index]->setTotalSize(historyLength + 1);
+    for (int i = 0; i < nInputs; i++)
+        bufferFreeSpace.set(i, bufferLength);
+}
+
+// from FilterNode code
+void PhaseCalculator::setFilterParameters()
+{
+    int nChan = getNumInputs();
+    for (int chan = 0; chan < nChan; chan++)
+    {
+        Dsp::Params params;
+        params[0] = getDataChannel(chan)->getSampleRate();  // sample rate
+        params[1] = 2;                                      // order
+        params[2] = (highCut + lowCut) / 2;                 // center frequency
+        params[3] = highCut - lowCut;                       // bandwidth
+
+        if (forwardFilters.size() > chan)
+            forwardFilters[chan]->setParams(params);
+        if (backwardFilters.size() > chan)
+            backwardFilters[chan]->setParams(params);
+    }
 }
 
 void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int chan)
@@ -624,25 +631,6 @@ void PhaseCalculator::smoothBuffer(float* wp, int nSamples, int chan)
     }
 }
 
-// from FilterNode code
-void PhaseCalculator::setFilterParameters()
-{
-    int nChan = getNumInputs();
-    for (int chan = 0; chan < nChan; chan++)
-    {
-        Dsp::Params params;
-        params[0] = getDataChannel(chan)->getSampleRate();  // sample rate
-        params[1] = 2;                                      // order
-        params[2] = (highCut + lowCut) / 2;                 // center frequency
-        params[3] = highCut - lowCut;                       // bandwidth
-
-        if (forwardFilters.size() > chan)
-            forwardFilters[chan]->setParams(params);
-        if (backwardFilters.size() > chan)
-            backwardFilters[chan]->setParams(params);
-    }
-}
-
 void PhaseCalculator::arPredict(double* writeStart, int writeNum, const double* params)
 {
     reverse_iterator<double*> dataIter;
@@ -674,34 +662,6 @@ void PhaseCalculator::hilbertManip(FFTWArray<complex<double>>& fftData)
             // set to 0
             wp[i] = 0;
     }
-}
-
-void PhaseCalculator::copyToFifo(AbstractFifo* af, const AudioSampleBuffer& from, int chanFrom,
-    AudioSampleBuffer& to, int chanTo, int start, int nData)
-{
-    // Tell abstract fifo we're about to add data, and get start positions and sizes to transfer.
-    int start1, size1, start2, size2;
-    af->prepareToWrite(nData, start1, size1, start2, size2);
-
-    // Copy the first section
-    const float* rp = from.getReadPointer(chanFrom, start);
-    float* wp = to.getWritePointer(chanTo, start1);
-
-    for (int i = 0; i < size1; i++)
-        wp[i] = rp[i];
-
-    // Copy the second section
-    if (size2 > 0)
-    {
-        rp = from.getReadPointer(chanFrom, start + size1);
-        wp = to.getWritePointer(chanTo, start2);
-
-        for (int i = 0; i < size2; i++)
-            wp[i] = rp[i];
-    }
-
-    // Tell abstract fifo how much data has been added
-    af->finishedWrite(nData);
 }
 
 // ----------- ARTimer ---------------

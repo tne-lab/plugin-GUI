@@ -27,6 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <EditorHeaders.h>
 #include <cmath>
 #include <climits>
+#include "PhaseCalculator.h"
 
 #define QUEUE_SIZE_TOOLTIP "Change the total amount of data used to calculate the phase (powers of 2 are best)"
 #define NUM_FUTURE_TOOLTIP "Select how much actual (past) vs. predicted (future) data to use when calculating the phase"
@@ -46,7 +47,7 @@ public:
     double snapValue(double attemptedValue, DragMode dragMode) override;
 
     // update the range / position of the slider based on current settings of the PhaseCalculator
-    void updateFromProcessor(GenericProcessor* parentNode);
+    void updateFromProcessor(PhaseCalculator* parentNode);
 
     double getRealMinValue();
 
@@ -91,8 +92,15 @@ private:
     // utility for label listening
     // ouputs whether the label contained a valid input; if so, it is stored in *result.
     template<typename labelType>
-    bool updateLabel(Label* labelThatHasChanged,
+    static bool updateLabel(Label* labelThatHasChanged,
         labelType minValue, labelType maxValue, labelType defaultValue, labelType* result);
+
+    // Attempt to parse an input string into an integer between min and max, inclusive.
+    // Returns false if no integer could be parsed.
+    static bool parseInput(String& in, int min, int max, int* out);
+
+    // Same as above, but for floats
+    static bool parseInput(String& in, float min, float max, float* out);
 
     ScopedPointer<Label>    lowCutLabel;
     ScopedPointer<Label>    lowCutEditable;

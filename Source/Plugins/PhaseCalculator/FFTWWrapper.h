@@ -43,7 +43,7 @@ public:
     FFTWArray(int len)
     {
         length = len;
-        data = (T*)fftw_malloc(sizeof(T) * len);
+        data = static_cast<T*>(fftw_malloc(sizeof(T) * len));
     }
 
     ~FFTWArray()
@@ -57,7 +57,7 @@ public:
         {
             length = newLength;
             fftw_free(data);
-            data = (T*)fftw_malloc(sizeof(T) * newLength);
+            data = static_cast<T*>(fftw_malloc(sizeof(T) * newLength));
         }
     }
 
@@ -101,7 +101,7 @@ public:
     /* Copies up to num elements starting at fromArr to the array starting at startInd.
      * Returns the number of elements actually copied.
      */
-    int copyFrom(T* fromArr, int num, int startInd = 0)
+    int copyFrom(const T* fromArr, int num, int startInd = 0)
     {
         int i;
         for (i = 0; i < num && i < (length - startInd); i++)

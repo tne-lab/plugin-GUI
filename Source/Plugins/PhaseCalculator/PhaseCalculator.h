@@ -79,7 +79,6 @@ given a bandpass-filtered signal.
 // parameter indices
 enum 
 {
-    pQueueSize,
     pNumFuture,
     pEnabledState,
     pRecalcInterval,
@@ -126,8 +125,6 @@ public:
 
     void process(AudioSampleBuffer& buffer) override;
 
-    void updateSettings() override;
-
     bool enable() override;
     bool disable() override;
 
@@ -140,24 +137,27 @@ public:
     void saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType) override;
     void loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType) override;
 
+    // handle changing number of channels
+    void updateSettings() override;
+
 private:
 
     // ---- methods ----
 
-    // (re)initialize the data structures.
-    void initialize();
+    // update processLength and numFuture, reallocating fields that depend on these.
+    void setProcessLength(int newProcessLength, int newNumFuture);
 
     // update numFuture without reallocating processing arrays
     void setNumFuture(int newNumFuture);
+
+    // Update the filters. From FilterNode code.
+    void setFilterParameters();
 
     // do glitch unwrapping
     void unwrapBuffer(float* wp, int nSamples, int chan);
 
     // do start-of-buffer smoothing
     void smoothBuffer(float* wp, int nSamples, int chan);
-
-    // Update the filters. From FilterNode code.
-    void setFilterParameters();
 
     // ---- static utility methods ----
 
@@ -176,14 +176,6 @@ private:
     */
     static void hilbertManip(FFTWArray<complex<double>>& fftData);
 
-    /*
-    * copyToFifo: move nData floats, starting at index "start", from an AudioBuffer to
-    * a fifo constructed of an AudioBuffer and AbstractFifo
-    * TODO: clean this up
-    */
-    void copyToFifo(AbstractFifo* af, const AudioSampleBuffer& from, int chanFrom,
-        AudioSampleBuffer& to, int chanTo, int start, int nData);
-
     // ---- customizable parameters ------
     
     // number of samples to process each round
@@ -192,8 +184,8 @@ private:
     // number of future values to predict (0 <= numFuture <= processLength - AR_ORDER)
     int numFuture;
 
-    // size of history fifo ( = processLength - numFuture)
-    int historyLength;
+    // size of sharedDataBuffer ( = processLength - numFuture)
+    int bufferLength;
     
     // ADC/AUX processing (overriedes shouldProcessChannel)
     bool processADC;
@@ -209,18 +201,17 @@ private:
 
     // ---- internals -------
 
-    AudioSampleBuffer historyFifo; // queue of recent input (1 channel per input)
+    // Storage area for filtered data to be read by the thread to calculate AR model,
+    // and also copied to enter the phase calculation pipeline
+    AudioBuffer<double> sharedDataBuffer;
 
     // Everything else is an array with one entry per input.
 
-    // Manages historyFifo
-    OwnedArray<AbstractFifo> fifoManager;
-    
+    // Keep track of how much of the sharedDataBuffer is empty (per channel)
+    Array<int> bufferFreeSpace;
+
     // Keeps track of each channel's state (see enum definition above)
     Array<ChannelState> chanState;
-
-    // Storage area for data to be read by the thread to calculate AR model
-    OwnedArray<Array<double>> sharedDataBuffer;
 
     // Plans for the FFTW Fourier Transform library
     OwnedArray<FFTWPlan> pForward;     // dataToProcess -> fftData
