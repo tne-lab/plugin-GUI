@@ -40,7 +40,7 @@ given a bandpass-filtered signal.
  * processing buffer of input channel 1 and ends halfway between the first and last samples.
  * Aids in determining how features in the output (e.g. glitches) interact with edges between buffers.
  */
-#define MARK_BUFFERS
+//#define MARK_BUFFERS
 
 #ifdef _WIN32
 #include <Windows.h>

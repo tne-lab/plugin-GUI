@@ -176,6 +176,11 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         }
 #endif
 
+        // Forward-filter the data.
+        // Code from FilterNode.
+        float* wpIn = buffer.getWritePointer(chan);
+        forwardFilters[chan]->process(nSamples, &wpIn);
+
         // If there are more samples than we have room to process, process the most recent samples and output zero
         // for the rest (this is an error that should be noticed and fixed).
         int startIndex = std::max(nSamples - bufferLength, 0);
@@ -191,12 +196,6 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                 haveSentWarning = true;
             }
         }
-
-        // Forward-filter the data.
-        // Code from FilterNode.
-        float* wpIn = buffer.getWritePointer(chan, startIndex);
-        Dsp::Filter* filter = forwardFilters[chan];
-        filter->process(nSamplesToProcess, &wpIn);
 
         int freeSpace = bufferFreeSpace[chan];
 
@@ -219,6 +218,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                 *wpBuffer++ = *rpBuffer++;
 
             // copy new data
+            wpIn += startIndex;
             for (int i = 0; i < nSamplesToProcess; i++)
                 *wpBuffer++ = *wpIn++;
         }
@@ -252,12 +252,11 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             arPredict(wpProcess, numFuture, rpParam);
 
             // backward-filter the data
-            //TODO: figure out why this isn't working
-
-            /*dataToProcess[chan]->reverse();
+            dataToProcess[chan]->reverse();
             double* wpProcessReverse = dataToProcess[chan]->getWritePointer();
+            backwardFilters[chan]->reset();
             backwardFilters[chan]->process(processLength, &wpProcessReverse);
-            dataToProcess[chan]->reverse();*/
+            dataToProcess[chan]->reverse();
 
             //// Hilbert-transform dataToProcess
             //pForward[chan]->execute();      // reads from dataToProcess, writes to fftData
@@ -265,7 +264,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             //pBackward[chan]->execute();     // reads from fftData, writes to dataOut
 
             //// calculate phase and write out to buffer
-            //const complex<double>* rpProcess = dataOut[chan]->getReadPointer(historyLength - nSamplesToProcess);
+            //const complex<double>* rpProcess = dataOut[chan]->getReadPointer(bufferLength - nSamplesToProcess);
             //float* wpOut = buffer.getWritePointer(chan);
 
             //for (int i = 0; i < nSamplesToProcess; i++)
@@ -283,9 +282,9 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                 wpOut[i + startIndex] = static_cast<float>(rpDTP[i]);
             }
 
-            // unwrapping / smoothing
-            //unwrapBuffer(wpBuffer, nSamples, chan);
-            //smoothBuffer(wpBuffer, nSamples, chan);        
+            //// unwrapping / smoothing
+            //unwrapBuffer(wpOut, nSamples, chan);
+            //smoothBuffer(wpOut, nSamples, chan);        
         }
         else // fifo not full / becoming full
         {            
@@ -474,14 +473,14 @@ void PhaseCalculator::updateSettings()
                 <2>,                                   // order
                 1,                                     // number of channels (must be const)
                 Dsp::DirectFormII>                     // realization
-                (1));                                  // transition samples
+                (1));                                  // samples of transition when changing parameters (i.e. passband)
 
             backwardFilters.set(i, new Dsp::SmoothedFilterDesign
-                <Dsp::Butterworth::Design::BandPass    // design type
-                <2>,                                   // order
-                1,                                     // number of channels (must be const)
-                Dsp::DirectFormII>                     // realization
-                (1));                                  // transition samples
+                <Dsp::Butterworth::Design::BandPass
+                <2>,
+                1,
+                Dsp::DirectFormII>
+                (1));
         }
     }
     else if (nInputs < prevNInputs)
