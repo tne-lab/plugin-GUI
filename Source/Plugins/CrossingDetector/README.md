@@ -25,4 +25,4 @@ On Windows and Linux: Just clone/download this branch to get a fork of the devel
 * On Windows, also copy the `CrossingDetector` directory from `Builds/VisualStudio2013/Plugins` into the same folder in your tree. Then when you open the "Plugins" solution to compile, go to `File->Add->Existing Project...` and select the `CrossingDetector.vcxproj` file to include the plugin in your build.
 
 I hope you find this to be useful!
--Ethan Blackwood (@ethanbb)
+-Ethan Blackwood ([@ethanbb](https://github.com/ethanbb))
