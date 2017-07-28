@@ -79,7 +79,7 @@ Builds/VisualStudio2013/Plugins/*.user
 Builds/VisualStudio2013/Plugins/*.suo
 Builds/VisualStudio2013/Plugins/*.sdf
 Builds/VisualStudio2013/Plugins/*.opensdf
-Builds/VisualStudio2013/Plugins/*/*.user
+Builds/VisualStudio2013/Plugins/**/*.user
 Builds/VisualStudio2013/Plugins/*/*.suo
 Builds/VisualStudio2013/Plugins/*/*.sdf
 Builds/VisualStudio2013/Plugins/*/*.opensdf
