@@ -1,6 +1,6 @@
 # Crossing Detector Plugin
 
-This plugin fires a TTL event when a specified input data channel crosses a specified threshold level; the critera for detection and the output are highly customizable. It does not modify the data channels. Each instance only processes one data channel, but multiple instances can be chained together or placed in parallel.
+This plugin fires a TTL event when a specified input data channel crosses a specified threshold level; the criteria for detection and the output are highly customizable. It does not modify the data channels. Each instance only processes one data channel, but multiple instances can be chained together or placed in parallel.
 
 ## How it works:
 
