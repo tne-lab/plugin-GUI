@@ -24,8 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
 
-const double PI = 3.1415926535897;
-
+// initializer for static instance counter
 unsigned int PhaseCalculator::numInstances = 0;
 
 PhaseCalculator::PhaseCalculator()
@@ -252,39 +251,39 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             arPredict(wpProcess, numFuture, rpParam);
 
             // backward-filter the data
-            dataToProcess[chan]->reverse();
-            double* wpProcessReverse = dataToProcess[chan]->getWritePointer();
-            backwardFilters[chan]->reset();
-            backwardFilters[chan]->process(processLength, &wpProcessReverse);
-            dataToProcess[chan]->reverse();
+            //dataToProcess[chan]->reverse();
+            //double* wpProcessReverse = dataToProcess[chan]->getWritePointer();
+            //backwardFilters[chan]->reset();
+            //backwardFilters[chan]->process(processLength, &wpProcessReverse);
+            //dataToProcess[chan]->reverse();
 
-            //// Hilbert-transform dataToProcess
-            //pForward[chan]->execute();      // reads from dataToProcess, writes to fftData
-            //hilbertManip(*(fftData[chan]));
-            //pBackward[chan]->execute();     // reads from fftData, writes to dataOut
+            // Hilbert-transform dataToProcess
+            pForward[chan]->execute();      // reads from dataToProcess, writes to fftData
+            hilbertManip(*(fftData[chan]));
+            pBackward[chan]->execute();     // reads from fftData, writes to dataOut
 
-            //// calculate phase and write out to buffer
-            //const complex<double>* rpProcess = dataOut[chan]->getReadPointer(bufferLength - nSamplesToProcess);
-            //float* wpOut = buffer.getWritePointer(chan);
-
-            //for (int i = 0; i < nSamplesToProcess; i++)
-            //{
-            //    // output in degrees
-            //    // note that doubles are cast back to floats
-            //    wpOut[i + startIndex] = static_cast<float>(std::arg(rpProcess[i]) * (180.0 / PI));
-            //}
-
-            // for debugging - uncomment below and comment above from "Hilbert transform" line to just output the filtered wave            
-            const double* rpDTP = dataToProcess[chan]->getReadPointer(bufferLength - nSamplesToProcess);
+            // calculate phase and write out to buffer
+            const complex<double>* rpProcess = dataOut[chan]->getReadPointer(bufferLength - nSamplesToProcess);
             float* wpOut = buffer.getWritePointer(chan);
+
             for (int i = 0; i < nSamplesToProcess; i++)
             {
-                wpOut[i + startIndex] = static_cast<float>(rpDTP[i]);
+                // output in degrees
+                // note that doubles are cast back to floats
+                wpOut[i + startIndex] = static_cast<float>(std::arg(rpProcess[i]) * (180.0 / Dsp::doublePi));
             }
 
-            //// unwrapping / smoothing
-            //unwrapBuffer(wpOut, nSamples, chan);
-            //smoothBuffer(wpOut, nSamples, chan);        
+            // for debugging - uncomment below and comment above from "Hilbert transform" line to just output the filtered wave            
+            //const double* rpDTP = dataToProcess[chan]->getReadPointer(bufferLength - nSamplesToProcess);
+            //float* wpOut = buffer.getWritePointer(chan);
+            //for (int i = 0; i < nSamplesToProcess; i++)
+            //{
+            //    wpOut[i + startIndex] = static_cast<float>(rpDTP[i]);
+            //}
+
+            // unwrapping / smoothing
+            unwrapBuffer(wpOut, nSamples, chan);
+            smoothBuffer(wpOut, nSamples, chan);        
         }
         else // fifo not full / becoming full
         {            
