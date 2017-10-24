@@ -289,8 +289,8 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
 // allow us to treat the previous and current buffers as one array
 #define rp(x) ((x)>=0 ? rpCurr[(x)] : rpLast[(x)])
 
-    int numPastRequired = (int)ceil(currPastSpan * pastStrict);
-    int numFutureRequired = (int)ceil(currFutureSpan * futureStrict);
+    int numPastRequired = static_cast<int>(ceil(currPastSpan * pastStrict));
+    int numFutureRequired = static_cast<int>(ceil(currFutureSpan * futureStrict));
 
     for (int i = minInd; i < t0 && numPastRequired > 0; i++)
         if (currPosOn ? rp(i) < currThresh : rp(i) > currThresh)
