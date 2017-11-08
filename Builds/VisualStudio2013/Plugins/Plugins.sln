@@ -310,7 +310,6 @@ Global
 		{F250DB70-6E3E-408C-BD9E-1483D574499D}.Release|Win32.Build.0 = Release|Win32
 		{F250DB70-6E3E-408C-BD9E-1483D574499D}.Release|x64.ActiveCfg = Release|x64
 		{F250DB70-6E3E-408C-BD9E-1483D574499D}.Release|x64.Build.0 = Release|x64
-<<<<<<< HEAD
 		{C9A8CFB7-4911-4E58-AC96-53271B87DF72}.Debug|Mixed Platforms.ActiveCfg = Release|x64
 		{C9A8CFB7-4911-4E58-AC96-53271B87DF72}.Debug|Mixed Platforms.Build.0 = Release|x64
 		{C9A8CFB7-4911-4E58-AC96-53271B87DF72}.Debug|Win32.ActiveCfg = Debug|Win32
@@ -323,7 +322,6 @@ Global
 		{C9A8CFB7-4911-4E58-AC96-53271B87DF72}.Release|Win32.Build.0 = Release|Win32
 		{C9A8CFB7-4911-4E58-AC96-53271B87DF72}.Release|x64.ActiveCfg = Release|x64
 		{C9A8CFB7-4911-4E58-AC96-53271B87DF72}.Release|x64.Build.0 = Release|x64
-=======
 		{13A9AA65-5A8C-4DDF-B005-4477D4154E76}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
 		{13A9AA65-5A8C-4DDF-B005-4477D4154E76}.Debug|Mixed Platforms.Build.0 = Debug|Win32
 		{13A9AA65-5A8C-4DDF-B005-4477D4154E76}.Debug|Win32.ActiveCfg = Debug|Win32
@@ -348,7 +346,6 @@ Global
 		{BEE7D50B-D914-43EC-975C-3FE2FC36E40D}.Release|Win32.Build.0 = Release|Win32
 		{BEE7D50B-D914-43EC-975C-3FE2FC36E40D}.Release|x64.ActiveCfg = Release|x64
 		{BEE7D50B-D914-43EC-975C-3FE2FC36E40D}.Release|x64.Build.0 = Release|x64
->>>>>>> testing
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
