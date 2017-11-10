@@ -1,8 +1,8 @@
 /*
 ------------------------------------------------------------------
 
-This file is part of the Open Ephys GUI
-Copyright (C) 2014 Open Ephys
+This file is part of a plugin for the Open Ephys GUI
+Copyright (C) 2017 Translational NeuroEngineering Laboratory, MGH
 
 ------------------------------------------------------------------
 
@@ -61,14 +61,15 @@ given a bandpass-filtered signal.
 // starting portion of the processing buffer that is AR predicted
 #define START_NUM_FUTURE (1 << (START_PLEN_POW - 3))
 
-// starting "glitch limit" (how long of a segment is allowed to be unwrapped or smoothed, in samples)
-#define START_GL 200
+// "glitch limit" (how long of a segment is allowed to be unwrapped or smoothed, in samples)
+#define GLITCH_LIMIT 200
 
 // how often to recalculate AR model, in ms (initial value)
 #define START_AR_INTERVAL 50
 
-// order of the AR model
-#define AR_ORDER 20
+// starting order of the AR model
+#define START_AR_ORDER 20
+
 // priority of the AR model calculating thread (0 = lowest, 10 = highest)
 #define AR_PRIORITY 3
 
@@ -82,7 +83,7 @@ enum
     pNumFuture,
     pEnabledState,
     pRecalcInterval,
-    pGlitchLimit,
+    pAROrder,
     pAdcEnabled,
     pLowcut,
     pHighcut
@@ -163,12 +164,12 @@ private:
 
     /*
     * arPredict: use autoregressive model of order to predict future data.
-    * Input params is an array of coefficients of an AR model of length AR_ORDER.
+    * Input params is an array of coefficients of an AR model of length 'order'.
     * Writes writeNum future data values starting at location writeStart.
-    * *** assumes there are at least AR_ORDER existing data points *before* writeStart
+    * *** assumes there are at least 'order' existing data points *before* writeStart
     * to use to calculate future data points.
     */
-    static void arPredict(double* writeStart, int writeNum, const double* params);
+    static void arPredict(double* writeStart, int writeNum, const double* params, int order);
 
     /*
     * hilbertManip: Hilbert transforms data in the frequency domain (including normalization by length of data).
@@ -196,8 +197,8 @@ private:
     // time to wait between AR model recalculations in ms
     int calcInterval;
 
-    // maximum number of samples to unwrap or smooth at the start of a buffer
-    int glitchLimit;
+    // Order of the AR model
+    int arOrder;
 
     // ---- internals -------
 

@@ -1,8 +1,8 @@
 /*
 ------------------------------------------------------------------
 
-This file is part of the Open Ephys GUI
-Copyright (C) 2014 Open Ephys
+This file is part of a plugin for the Open Ephys GUI
+Copyright (C) 2017 Translational NeuroEngineering Laboratory, MGH
 
 ------------------------------------------------------------------
 
@@ -31,16 +31,14 @@ PhaseCalculator::PhaseCalculator()
     : GenericProcessor  ("Phase Calculator")
     , Thread            ("AR Modeler")
     , calcInterval      (START_AR_INTERVAL)
-    , glitchLimit       (START_GL)
+    , arOrder           (START_AR_ORDER)
     , processADC        (false)
     , lowCut            (START_LOW_CUT)
     , highCut           (START_HIGH_CUT)
     , haveSentWarning   (false)
 {
-	setProcessorType(PROCESSOR_TYPE_FILTER);
+    setProcessorType(PROCESSOR_TYPE_FILTER);
     numInstances++;
-    h.resize(AR_ORDER);
-    g.resize(AR_ORDER);
     setProcessLength(1 << START_PLEN_POW, START_NUM_FUTURE);
 }
 
@@ -115,8 +113,9 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
         calcInterval = static_cast<int>(newValue);
         break;
 
-    case pGlitchLimit:
-        glitchLimit = static_cast<int>(newValue);
+    case pAROrder:
+        arOrder = static_cast<int>(newValue);
+        updateSettings(); // resize the necessary fields
         break;
 
     case pAdcEnabled:
@@ -244,11 +243,11 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             
             // quasi-atomic access of AR parameters
             Array<double> currParams;
-            for (int i = 0; i < AR_ORDER; i++)
+            for (int i = 0; i < arOrder; i++)
                 currParams.set(i, (*arParams[chan])[i]);
             double* rpParam = currParams.getRawDataPointer();
 
-            arPredict(wpProcess, numFuture, rpParam);
+            arPredict(wpProcess, numFuture, rpParam, arOrder);
 
             // backward-filter the data
             //dataToProcess[chan]->reverse();
@@ -340,7 +339,8 @@ void PhaseCalculator::run()
     Array<double> data;
     data.resize(bufferLength);
 
-    double paramsTemp[AR_ORDER];
+    Array<double> paramsTemp;
+    paramsTemp.resize(arOrder);
 
     ARTimer timer;
     int currInterval = calcInterval;
@@ -366,6 +366,7 @@ void PhaseCalculator::run()
             // end critical section
 
             double* inputseries = data.getRawDataPointer();
+            double* paramsOut = paramsTemp.getRawDataPointer();
             double* perRaw = per.getRawDataPointer();
             double* pefRaw = pef.getRawDataPointer();
             double* hRaw = h.getRawDataPointer();
@@ -376,11 +377,11 @@ void PhaseCalculator::run()
             memset(pefRaw, 0, bufferLength * sizeof(double));
 
             // calculate parameters
-            ARMaxEntropy(inputseries, bufferLength, AR_ORDER, paramsTemp, perRaw, pefRaw, hRaw, gRaw);
+            ARMaxEntropy(inputseries, bufferLength, arOrder, paramsOut, perRaw, pefRaw, hRaw, gRaw);
 
             // write params quasi-atomically
             juce::Array<double>* myParams = arParams[chan];
-            for (int i = 0; i < AR_ORDER; i++)
+            for (int i = 0; i < arOrder; i++)
                 myParams->set(i, paramsTemp[i]);
 
             chanState.set(chan, FULL_AR);
@@ -434,9 +435,20 @@ void PhaseCalculator::loadCustomChannelParametersFromXml(XmlElement* channelElem
 void PhaseCalculator::updateSettings()
 {
     int nInputs = getNumInputs();
-	int prevNInputs = sharedDataBuffer.getNumChannels();
+    int prevNInputs = sharedDataBuffer.getNumChannels();
 
     sharedDataBuffer.setSize(nInputs, bufferLength);
+
+    // update AR order dependent parameters
+    if (arOrder != h.size())
+    {
+        h.resize(arOrder);
+        g.resize(arOrder);
+        for (int i = 0; i < prevNInputs; i++)
+        {
+            arParams[i]->resize(arOrder);
+        }
+    }
 
     if (nInputs > prevNInputs)
     {
@@ -463,7 +475,7 @@ void PhaseCalculator::updateSettings()
 
             // AR parameters
             arParams.set(i, new juce::Array<double>());
-            arParams[i]->resize(AR_ORDER);
+            arParams[i]->resize(arOrder);
 
             // Bandpass filters
             // filter design copied from FilterNode
@@ -507,7 +519,7 @@ void PhaseCalculator::updateSettings()
 
 void PhaseCalculator::setProcessLength(int newProcessLength, int newNumFuture)
 {
-    jassert(newNumFuture <= newProcessLength - AR_ORDER);
+    jassert(newNumFuture <= newProcessLength - arOrder);
 
     processLength = newProcessLength;
     if (newNumFuture != numFuture)
@@ -571,7 +583,8 @@ void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int chan)
             // search forward for a wrap in the opposite direction, for glitchLimit samples or until the end of the buffer, whichever comes first
             int endInd = -1;
             int currInd;
-            for (currInd = startInd + 1; currInd <= startInd + glitchLimit && currInd < nSamples; currInd++)
+            int maxInd = min(startInd + GLITCH_LIMIT, nSamples - 1);
+            for (currInd = startInd + 1; currInd <= maxInd; currInd++)
             {
                 float diff2 = wp[currInd] - wp[currInd - 1];
                 if (abs(diff2) > 180 && ((diff > 0) != (diff2 > 0)))
@@ -581,7 +594,8 @@ void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int chan)
                 }
             }
             // if it was an upward jump at the end of the buffer, *always* unwrap
-            if (endInd == -1 && diff > 0 && currInd == nSamples)
+            // (but require startInd > 0 to avoid extended, trans-buffer unwrapping)
+            if (startInd > 0 && endInd == -1 && diff > 0 && currInd == nSamples)
                 endInd = nSamples;
 
             // unwrap [startInd, endInd)
@@ -597,13 +611,13 @@ void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int chan)
 
 void PhaseCalculator::smoothBuffer(float* wp, int nSamples, int chan)
 {
-    int actualMaxSL = min(glitchLimit, nSamples - 1);
+    int actualMaxGL = min(GLITCH_LIMIT, nSamples - 1);
     float diff = wp[0] - lastSample[chan];
     if (diff < 0 && diff > -180)
     {
         // identify whether signal exceeds last sample of the previous buffer within glitchLimit samples.
         int endIndex = -1;
-        for (int i = 1; i <= actualMaxSL; i++)
+        for (int i = 1; i <= actualMaxGL; i++)
         {
             if (wp[i] > lastSample[chan])
             {
@@ -629,14 +643,14 @@ void PhaseCalculator::smoothBuffer(float* wp, int nSamples, int chan)
     }
 }
 
-void PhaseCalculator::arPredict(double* writeStart, int writeNum, const double* params)
+void PhaseCalculator::arPredict(double* writeStart, int writeNum, const double* params, int order)
 {
     reverse_iterator<double*> dataIter;
     int i;
     for (i = 0; i < writeNum; i++)
     {
         dataIter = reverse_iterator<double*>(writeStart + i); // the reverse iterator actually starts out pointing at element i-1
-        writeStart[i] = -inner_product<const double*, reverse_iterator<const double*>, double>(params, params + AR_ORDER, dataIter, 0);
+        writeStart[i] = -inner_product<const double*, reverse_iterator<const double*>, double>(params, params + order, dataIter, 0);
     }
 }
 

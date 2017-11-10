@@ -1,8 +1,8 @@
 /*
 ------------------------------------------------------------------
 
-This file is part of the Open Ephys GUI
-Copyright (C) 2014 Open Ephys
+This file is part of a plugin for the Open Ephys GUI
+Copyright (C) 2017 Translational NeuroEngineering Laboratory, MGH
 
 ------------------------------------------------------------------
 
@@ -34,7 +34,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define APPLY_TO_CHAN_TOOLTIP "When this button is off, selected channels pass through unchanged"
 #define APPLY_TO_ADC_TOOLTIP "When this button is off, ADC and AUX channels will pass through unchanged"
 #define RECALC_INTERVAL_TOOLTIP "Time to wait between calls to update the autoregressive models"
-#define GLITCH_LIMIT_TOOLTIP "Maximum number of consecutive samples that can be considered a glitch and corrected by unwrapping and/or smoothing. Set to 0 to turn off glitch correction."
+#define AR_ORDER_TOOLTIP "Order of the autoregressive models used to predict future data"
 
 using namespace std;
 
@@ -110,7 +110,6 @@ private:
     ScopedPointer<Label>    processLengthLabel;
     ScopedPointer<Label>    processLengthUnitLabel;
     ScopedPointer<ComboBox> processLengthBox;
-    int lastProcessLength;
 
     ScopedPointer<ProcessBufferSlider> numFutureSlider;
     ScopedPointer<Label>               numPastLabel;
@@ -127,9 +126,8 @@ private:
     ScopedPointer<Label>    recalcIntervalEditable;
     ScopedPointer<Label>    recalcIntervalUnit;
 
-    ScopedPointer<Label>    glitchLimLabel;
-    ScopedPointer<Label>    glitchLimEditable;
-    ScopedPointer<Label>    glitchLimUnit;
+    ScopedPointer<Label>    arOrderLabel;
+    ScopedPointer<Label>    arOrderEditable;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseCalculatorEditor);
 };

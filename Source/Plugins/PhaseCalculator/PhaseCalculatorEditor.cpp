@@ -1,8 +1,8 @@
 /*
 ------------------------------------------------------------------
 
-This file is part of the Open Ephys GUI
-Copyright (C) 2014 Open Ephys
+This file is part of a plugin for the Open Ephys GUI
+Copyright (C) 2017 Translational NeuroEngineering Laboratory, MGH
 
 ------------------------------------------------------------------
 
@@ -25,7 +25,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
     : GenericEditor     (parentNode, useDefaultParameterEditors)
-    , lastProcessLength (1 << START_PLEN_POW)
 {
     int filterWidth = 80;
     desiredWidth = filterWidth + 260;
@@ -145,27 +144,21 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool 
     recalcIntervalUnit->setColour(Label::textColourId, Colours::darkgrey);
     addAndMakeVisible(recalcIntervalUnit);
 
-    glitchLimLabel = new Label("glitchLimL", "Glitch limit:");
-    glitchLimLabel->setBounds(filterWidth + 140, 65, 115, 20);
-    glitchLimLabel->setFont(Font("Small Text", 12, Font::plain));
-    glitchLimLabel->setColour(Label::textColourId, Colours::darkgrey);
-    addAndMakeVisible(glitchLimLabel);
+    arOrderLabel = new Label("arOrderL", "AR Order:");
+    arOrderLabel->setBounds(filterWidth + 140, 65, 115, 20);
+    arOrderLabel->setFont(Font("Small Text", 12, Font::plain));
+    arOrderLabel->setColour(Label::textColourId, Colours::darkgrey);
+    addAndMakeVisible(arOrderLabel);
 
-    glitchLimEditable = new Label("glitchLimE");
-    glitchLimEditable->setEditable(true);
-    glitchLimEditable->addListener(this);
-    glitchLimEditable->setBounds(filterWidth + 145, 85, 55, 18);
-    glitchLimEditable->setColour(Label::backgroundColourId, Colours::grey);
-    glitchLimEditable->setColour(Label::textColourId, Colours::white);
-    glitchLimEditable->setText(String(processor->glitchLimit), dontSendNotification);
-    glitchLimEditable->setTooltip(GLITCH_LIMIT_TOOLTIP);
-    addAndMakeVisible(glitchLimEditable);
-
-    glitchLimUnit = new Label("glitchLimU", "samp.");
-    glitchLimUnit->setBounds(filterWidth + 200, 88, 45, 15);
-    glitchLimUnit->setFont(Font("Small Text", 12, Font::plain));
-    glitchLimUnit->setColour(Label::textColourId, Colours::darkgrey);
-    addAndMakeVisible(glitchLimUnit);
+    arOrderEditable = new Label("arOrderE");
+    arOrderEditable->setEditable(true);
+    arOrderEditable->addListener(this);
+    arOrderEditable->setBounds(filterWidth + 145, 85, 55, 18);
+    arOrderEditable->setColour(Label::backgroundColourId, Colours::grey);
+    arOrderEditable->setColour(Label::textColourId, Colours::white);
+    arOrderEditable->setText(String(processor->arOrder), dontSendNotification);
+    arOrderEditable->setTooltip(AR_ORDER_TOOLTIP);
+    addAndMakeVisible(arOrderEditable);
 
     applyToChan = new UtilityButton("+CH", Font("Default", 10, Font::plain));
     applyToChan->addListener(this);
@@ -195,35 +188,38 @@ void PhaseCalculatorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
         int newProcessLength;
         if (newId) // one of the items in the list is selected
         {
+            
             newProcessLength = (1 << newId);
         }
         else
         {
             // try to parse input
             String input = processLengthBox->getText();
-            bool stringValid = parseInput(input, (1 << MIN_PLEN_POW), (1 << MAX_PLEN_POW), &newProcessLength);
+            bool stringValid = parseInput(input, 1 << MIN_PLEN_POW, 1 << MAX_PLEN_POW, &newProcessLength);
 
             if (!stringValid)
             {
-                processLengthBox->setText(String(lastProcessLength), dontSendNotification);
+                processLengthBox->setText(String(processor->processLength), dontSendNotification);
                 return;
             }
            
             processLengthBox->setText(String(newProcessLength), dontSendNotification);
         }
 
+        // update AR order if necessary
+        if (newProcessLength < processor->arOrder)
+        {
+            arOrderEditable->setText(String(newProcessLength), sendNotificationSync);
+            CoreServices::sendStatusMessage("AR order snapped to maximum value for this processing buffer length");
+        }
+
         // calculate numFuture
         float currRatio = processor->getRatioFuture();
         float newNumFuture;
-        if (newProcessLength <= AR_ORDER)
-            newNumFuture = 0;
-        else
-            newNumFuture = fminf(roundf(currRatio * newProcessLength), newProcessLength - AR_ORDER);
+        newNumFuture = fminf(roundf(currRatio * newProcessLength), newProcessLength - processor->arOrder);
 
         // change both at once
         processor->setProcessLength(newProcessLength, newNumFuture);
-
-        lastProcessLength = newProcessLength;
 
         // update slider
         numFutureSlider->updateFromProcessor(processor);
@@ -232,10 +228,10 @@ void PhaseCalculatorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
 
 void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
 {
-    PhaseCalculator* processor = (PhaseCalculator*)(getProcessor());
+    PhaseCalculator* processor = static_cast<PhaseCalculator*>(getProcessor());
 
-    int sliderMin = (int) numFutureSlider->getRealMinValue();
-    int sliderMax = (int) numFutureSlider->getMaximum();
+    int sliderMin = static_cast<int>(numFutureSlider->getRealMinValue());
+    int sliderMax = static_cast<int>(numFutureSlider->getMaximum());
 
     if (labelThatHasChanged == numPastEditable)
     {
@@ -248,7 +244,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
             int newNumFuture = sliderMax - intInput;
             numFutureSlider->setValue(intInput, dontSendNotification);
             numFutureEditable->setText(String(newNumFuture), dontSendNotification);
-            processor->setParameter(pNumFuture, (float)newNumFuture);
+            processor->setParameter(pNumFuture, static_cast<float>(newNumFuture));
         }        
     }
     else if (labelThatHasChanged == numFutureEditable)
@@ -262,7 +258,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
             int newNumPast = sliderMax - intInput;
             numFutureSlider->setValue(newNumPast, dontSendNotification);
             numPastEditable->setText(String(newNumPast), dontSendNotification);
-            processor->setParameter(pNumFuture, (float)intInput);
+            processor->setParameter(pNumFuture, static_cast<float>(intInput));
         }
     }
     else if (labelThatHasChanged == recalcIntervalEditable)
@@ -271,20 +267,23 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool valid = updateLabel(labelThatHasChanged, 0, INT_MAX, processor->calcInterval, &intInput);
 
         if (valid)
-            processor->setParameter(pRecalcInterval, (float)intInput);
+            processor->setParameter(pRecalcInterval, static_cast<float>(intInput));
     }
-    else if (labelThatHasChanged == glitchLimEditable)
+    else if (labelThatHasChanged == arOrderEditable)
     {
         int intInput;
-        bool valid = updateLabel<int>(labelThatHasChanged, 0, INT_MAX, processor->glitchLimit, &intInput);
+        bool valid = updateLabel<int>(labelThatHasChanged, 1, processor->bufferLength, processor->arOrder, &intInput);
 
         if (valid)
-            processor->setParameter(pGlitchLimit, (float)intInput);
+            processor->setParameter(pAROrder, static_cast<float>(intInput));
+
+        // update slider's minimum value
+        numFutureSlider->updateFromProcessor(processor);
     }
     else if (labelThatHasChanged == lowCutEditable)
     {
         float floatInput;
-        bool valid = updateLabel<float>(labelThatHasChanged, 0.01F, 10000.0F, (float)(processor->lowCut), &floatInput);
+        bool valid = updateLabel<float>(labelThatHasChanged, 0.01F, 10000.0F, static_cast<float>(processor->lowCut), &floatInput);
 
         if (valid)
             processor->setParameter(pLowcut, floatInput);
@@ -292,7 +291,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == highCutEditable)
     {
         float floatInput;
-        bool valid = updateLabel<float>(labelThatHasChanged, 0.01F, 10000.0F, (float)(processor->highCut), &floatInput);
+        bool valid = updateLabel<float>(labelThatHasChanged, 0.01F, 10000.0F, static_cast<float>(processor->highCut), &floatInput);
 
         if (valid)
             processor->setParameter(pHighcut, floatInput);
@@ -303,12 +302,13 @@ void PhaseCalculatorEditor::sliderEvent(Slider* slider)
 {
     if (slider == numFutureSlider)
     {
-        int newVal = (int)slider->getValue();
-        int maxVal = (int)slider->getMaximum();
+        // At this point, a snapValue call has ensured that the new value is valid.
+        int newVal = static_cast<int>(slider->getValue());
+        int maxVal = static_cast<int>(slider->getMaximum());
         numPastEditable->setText(String(newVal), dontSendNotification);
         numFutureEditable->setText(String(maxVal - newVal), dontSendNotification);
         
-        getProcessor()->setParameter(pNumFuture, (float)(maxVal - newVal));
+        getProcessor()->setParameter(pNumFuture, static_cast<float>(maxVal - newVal));
     }
 }
 
@@ -316,7 +316,7 @@ void PhaseCalculatorEditor::sliderEvent(Slider* slider)
 // based on FilterEditor code
 void PhaseCalculatorEditor::buttonEvent(Button* button)
 {
-    PhaseCalculator* pc = (PhaseCalculator*)getProcessor();
+    PhaseCalculator* pc = static_cast<PhaseCalculator*>(getProcessor());
     if (button == applyToChan)
     {
         float newValue = button->getToggleState() ? 1.0F : 0.0F;
@@ -339,7 +339,7 @@ void PhaseCalculatorEditor::buttonEvent(Button* button)
 // based on FilterEditor code
 void PhaseCalculatorEditor::channelChanged(int chan, bool newState)
 {
-    PhaseCalculator* pc = (PhaseCalculator*)getProcessor();
+    PhaseCalculator* pc = static_cast<PhaseCalculator*>(getProcessor());
     applyToChan->setToggleState(pc->shouldProcessChannel[chan], dontSendNotification);
 }
 
@@ -352,6 +352,7 @@ void PhaseCalculatorEditor::startAcquisition()
     numFutureEditable->setEnabled(false);
     lowCutEditable->setEnabled(false);
     highCutEditable->setEnabled(false);
+    arOrderEditable->setEnabled(false);
 }
 
 void PhaseCalculatorEditor::stopAcquisition()
@@ -363,6 +364,7 @@ void PhaseCalculatorEditor::stopAcquisition()
     numFutureEditable->setEnabled(true);
     lowCutEditable->setEnabled(true);
     highCutEditable->setEnabled(true);
+    arOrderEditable->setEnabled(true);
 }
 
 void PhaseCalculatorEditor::saveCustomParameters(XmlElement* xml)
@@ -374,7 +376,7 @@ void PhaseCalculatorEditor::saveCustomParameters(XmlElement* xml)
     paramValues->setAttribute("processLength", processor->processLength);
     paramValues->setAttribute("numFuture", processor->numFuture);
     paramValues->setAttribute("calcInterval", processor->calcInterval);
-    paramValues->setAttribute("glitchLim", processor->glitchLimit);
+    paramValues->setAttribute("arOrder", processor->arOrder);
     paramValues->setAttribute("processADC", processor->processADC);
     paramValues->setAttribute("lowCut", processor->lowCut);
     paramValues->setAttribute("highCut", processor->highCut);
@@ -384,10 +386,10 @@ void PhaseCalculatorEditor::loadCustomParameters(XmlElement* xml)
 {
     forEachXmlChildElementWithTagName(*xml, xmlNode, "VALUES")
     {
-        processLengthBox->setText(xmlNode->getStringAttribute("processLength", String(lastProcessLength)), sendNotificationSync);
+        processLengthBox->setText(xmlNode->getStringAttribute("processLength", processLengthBox->getText()), sendNotificationSync);
         numFutureEditable->setText(xmlNode->getStringAttribute("numFuture", numFutureEditable->getText()), sendNotificationSync);
         recalcIntervalEditable->setText(xmlNode->getStringAttribute("calcInterval", recalcIntervalEditable->getText()), sendNotificationSync);
-        glitchLimEditable->setText(xmlNode->getStringAttribute("glitchLim", glitchLimEditable->getText()), sendNotificationSync);
+        arOrderEditable->setText(xmlNode->getStringAttribute("glitchLim", arOrderEditable->getText()), sendNotificationSync);
         applyToADC->setToggleState(xmlNode->getBoolAttribute("processADC", applyToADC->getToggleState()), sendNotificationSync);
         lowCutEditable->setText(xmlNode->getStringAttribute("lowCut", lowCutEditable->getText()), sendNotificationSync);
         highCutEditable->setText(xmlNode->getStringAttribute("highCut", highCutEditable->getText()), sendNotificationSync);
@@ -455,9 +457,10 @@ bool PhaseCalculatorEditor::parseInput(String& in, float min, float max, float* 
 }
 
 // ProcessBufferSlider definitions
-ProcessBufferSlider::ProcessBufferSlider(const String& componentName) : Slider(componentName)
+ProcessBufferSlider::ProcessBufferSlider(const String& componentName)
+    : Slider        (componentName)
+    , realMinValue  (0)
 {
-    realMinValue = AR_ORDER;
     setLookAndFeel(&myLookAndFeel);
     setSliderStyle(LinearBar);
     setTextBoxStyle(NoTextBox, false, 40, 20);
@@ -478,6 +481,7 @@ void ProcessBufferSlider::updateFromProcessor(PhaseCalculator* parentNode)
 {
     int processLength = parentNode->processLength;
     int numFuture = parentNode->numFuture;
+    realMinValue = parentNode->arOrder;
 
     setRange(0, processLength, 1);
     setValue(0); // hack to ensure the listener gets called even if only the range is changed
