@@ -580,11 +580,22 @@ void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int chan)
         float diff = wp[startInd] - (startInd == 0 ? lastSample[chan] : wp[startInd - 1]);
         if (abs(diff) > 180)
         {
-            // search forward for a wrap in the opposite direction, for glitchLimit samples or until the end of the buffer, whichever comes first
-            int endInd = -1;
-            int currInd;
-            int maxInd = min(startInd + GLITCH_LIMIT, nSamples - 1);
-            for (currInd = startInd + 1; currInd <= maxInd; currInd++)
+            // search forward for a jump in the opposite direction
+            int endInd;
+            int maxInd;
+            if (diff < 0)
+            // for downward jumps, unwrap if there's a jump back up within GLITCH_LIMIT samples
+            {
+                endInd = -1;
+                maxInd = min(startInd + GLITCH_LIMIT, nSamples - 1);
+            }
+            else
+            // for upward jumps, default to unwrapping until the end of the buffer, but stop if there's a jump back down sooner.
+            {
+                endInd = nSamples;
+                maxInd = nSamples - 1;
+            }
+            for (int currInd = startInd + 1; currInd <= maxInd; currInd++)
             {
                 float diff2 = wp[currInd] - wp[currInd - 1];
                 if (abs(diff2) > 180 && ((diff > 0) != (diff2 > 0)))
@@ -593,10 +604,6 @@ void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int chan)
                     break;
                 }
             }
-            // if it was an upward jump at the end of the buffer, *always* unwrap
-            // (but require startInd > 0 to avoid extended, trans-buffer unwrapping)
-            if (startInd > 0 && endInd == -1 && diff > 0 && currInd == nSamples)
-                endInd = nSamples;
 
             // unwrap [startInd, endInd)
             for (int i = startInd; i < endInd; i++)
@@ -625,7 +632,7 @@ void PhaseCalculator::smoothBuffer(float* wp, int nSamples, int chan)
                 break;
             }
             // corner case where signal wraps before it exceeds lastSample
-            else if (wp[i] - wp[i - 1] > 180 && (wp[i] + 360) > lastSample[chan])
+            else if (wp[i] - wp[i - 1] < -180 && (wp[i] + 360) > lastSample[chan])
             {
                 wp[i] += 360;
                 endIndex = i;
