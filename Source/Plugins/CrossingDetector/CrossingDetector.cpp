@@ -27,6 +27,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 CrossingDetector::CrossingDetector()
     : GenericProcessor  ("Crossing Detector")
     , threshold         (0.0f)
+    , useRandomThresh   (false)
+    , minThresh         (-180)
+    , maxThresh         (180)
     , posOn             (true)
     , negOn             (false)
     , inputChan         (0)
@@ -120,7 +123,15 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
     for (int i = -currFutureSpan + 1; i < nSamples; i++)
     {
         // atomic field access
-        float currThresh = threshold;
+        float currThresh;
+        if (useRandomThresh)
+        {
+            currThresh = currRandomThresh;
+        }
+        else
+        {
+            currThresh = threshold;
+        }
         bool currPosOn = posOn;
         bool currNegOn = negOn;
 
@@ -166,6 +177,9 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
                     sizeof(uint8), mdArray, eventChan);
                 addEvent(eventChannelPtr, event, eventTime);
 
+                // if using random thresholds, set a new threshold
+                currRandomThresh = nextThresh();
+
                 // schedule event turning off and timeout period ending
                 sampsToShutoff = eventTime + eventDuration;
                 sampsToReenable = eventTime + timeout;
@@ -206,6 +220,24 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 {
     switch (parameterIndex)
     {
+    case pRandThresh:
+        useRandomThresh = static_cast<bool>(newValue);
+        if (useRandomThresh)
+            currRandomThresh = nextThresh();
+        break;
+
+    case pMinThresh:
+        minThresh = newValue;
+        if (useRandomThresh)
+            currRandomThresh = nextThresh();
+        break;
+
+    case pMaxThresh:
+        maxThresh = newValue;
+        if (useRandomThresh)
+            currRandomThresh = nextThresh();
+        break;
+
     case pThreshold:
         threshold = newValue;
         break;
@@ -309,4 +341,10 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
     return false;
 
 #undef rp
+}
+
+float CrossingDetector::nextThresh()
+{
+    float range = maxThresh - minThresh;
+    return minThresh + range * rng.nextFloat();
 }

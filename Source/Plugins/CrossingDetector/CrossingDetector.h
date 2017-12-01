@@ -48,6 +48,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // parameter indices
 enum
 {
+    pRandThresh,
+    pMinThresh,
+    pMaxThresh,
     pThreshold,
     pPosOn,
     pNegOn,
@@ -82,7 +85,7 @@ public:
 
 private:
 
-    // -----utility func.--------
+    // -----utility funcs--------
     // Whether there should be a trigger at sample t0, where t0 may be negative (interpreted in relation to the end of prevBuffer)
     // nSamples is the number of samples in the current buffer, determined within the process function.
     // dir is the crossing direction(s) (see #defines above) (must be explicitly specified)
@@ -90,14 +93,26 @@ private:
     bool shouldTrigger(const float* rpCurr, int nSamples, int t0, float currThresh,
         bool currPosOn, bool currNegOn, int currPastSpan, int currFutureSpan);
 
+    // Select a new random threshold using minThresh, maxThresh, and rng.
+    float nextThresh();
+
     // ------parameters------------
 
+    // if using fixed threshold:
     float threshold;
+
+    // if using random thresholds:
+    bool useRandomThresh;
+    float minThresh;
+    float maxThresh;
+    float currRandomThresh;
+    Random rng;
+
     bool posOn;
     bool negOn;
     int inputChan;
     int eventChan;    
-    int shutoffChan; // temporary storage of event that must be shut off; allows eventChan to be adjusted during acquisition
+    int shutoffChan; // temporary storage of chan w/ event that must be shut off; allows eventChan to be adjusted during acquisition
 
     int eventDuration; // in samples    
     int timeout; // number of samples after an event onset which may not trigger another event.
