@@ -23,50 +23,40 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "CrossingDetectorEditor.h"
 #include "CrossingDetector.h"
 
-// standard component creation methods
-Label* CrossingDetectorEditor::createEditable(const String& name, const String& initialValue,
-    const String& tooltip, const Rectangle bounds)
-{
-    Label* editable = new Label(name, initialValue);
-    editable->setEditable(true);
-    editable->addListener(this);
-    editable->setBounds(bounds);
-    editable->setColour(Label::backgroundColourId, Colours::grey);
-    editable->setColour(Label::textColourId, Colours::white);
-    editable->setTooltip(tooltip);
-    addAndMakeVisible(editable);
-    return editable;
-}
-
-Label* CrossingDetectorEditor::createLabel(const String& name, const String& text, const Rectangle bounds)
-{
-    Label* label = new Label(name, text);
-    label->setBounds(bounds);
-    label->setFont(Font("Small Text", 12, Font::plain));
-    label->setColour(Label::textColourId, Colours::darkgrey);
-    addAndMakeVisible(label);
-    return label;
-}
-
 CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
-    : GenericEditor(parentNode, useDefaultParameterEditors)
+    : VisualizerEditor(parentNode, 205, useDefaultParameterEditors)
 {
-    desiredWidth = 341;
+    tabText = "Crossing Detector";
     CrossingDetector* processor = static_cast<CrossingDetector*>(parentNode);
 
-    /* ------------- CRITERIA SECTION ---------------- */
+    /* ------------- Top row (channels) ------------- */
 
-    inputLabel = createLabel("InputChanL", "Input", Rectangle(8, 36, 50, 18));
+    inputLabel = createLabel("InputChanL", "In:", Rectangle(12, 36, 30, 18));
+    addAndMakeVisible(inputLabel);
 
     inputBox = new ComboBox("Input channel");
     inputBox->setTooltip("Continuous channel to analyze");
-    inputBox->setBounds(60, 36, 40, 18);
+    inputBox->setBounds(45, 36, 40, 18);
     inputBox->addListener(this);
     addAndMakeVisible(inputBox);
 
+    outputLabel = createLabel("OutL", "Out:", Rectangle(95, 36, 40, 18));
+    addAndMakeVisible(outputLabel);
+
+    outputBox = new ComboBox("Out event channel");
+    for (int chan = 1; chan <= 8; chan++)
+        outputBox->addItem(String(chan), chan);
+    outputBox->setSelectedId(processor->eventChan + 1);
+    outputBox->setBounds(140, 36, 40, 18);
+    outputBox->setTooltip("Output event channel");
+    outputBox->addListener(this);
+    addAndMakeVisible(outputBox);
+
+    /* ------------ Middle row (conditions) -------------- */
+
     risingButton = new UtilityButton("RISING", Font("Default", 10, Font::plain));
     risingButton->addListener(this);
-    risingButton->setBounds(105, 26, 60, 18);
+    risingButton->setBounds(15, 65, 60, 18);
     risingButton->setClickingTogglesState(true);
     bool enable = processor->posOn;
     risingButton->setToggleState(enable, dontSendNotification);
@@ -75,19 +65,33 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
 
     fallingButton = new UtilityButton("FALLING", Font("Default", 10, Font::plain));
     fallingButton->addListener(this);
-    fallingButton->setBounds(105, 46, 60, 18);
+    fallingButton->setBounds(15, 85, 60, 18);
     fallingButton->setClickingTogglesState(true);
     enable = processor->negOn;
     fallingButton->setToggleState(enable, dontSendNotification);
     fallingButton->setTooltip("Trigger events when past samples are above and future samples are below the threshold");
     addAndMakeVisible(fallingButton);
 
-    acrossLabel = createLabel("AcrossL", "across", Rectangle(168, 36, 60, 18));
+    acrossLabel = createLabel("AcrossL", "across", Rectangle(77, 75, 60, 18));
+    addAndMakeVisible(acrossLabel);
 
     thresholdEditable = createEditable("Threshold", String(processor->threshold),
-        "Threshold voltage", Rectangle(230, 36, 50, 18));
+        "Threshold voltage", Rectangle(140, 75, 40, 18));
+    addAndMakeVisible(thresholdEditable);
 
-    /* -------------- BEFORE SECTION ----------------- */
+    /* --------- Bottom row (timeout) ------------- */
+
+    timeoutLabel = createLabel("TimeoutL", "Timeout:", Rectangle(30, 108, 64, 18));
+    addAndMakeVisible(timeoutLabel);
+
+    timeoutEditable = createEditable("Timeout", String(processor->timeout),
+        "Minimum length of time between consecutive events", Rectangle(97, 108, 50, 18));
+    addAndMakeVisible(timeoutEditable);
+
+    timeoutUnitLabel = createLabel("TimeoutUnitL", "ms", Rectangle(150, 108, 30, 18));
+    addAndMakeVisible(timeoutUnitLabel);
+
+    /************** Canvas elements *****************/
 
     pastSpanLabel = createLabel("PastSpanL", "Past:   Span:", Rectangle(8, 68, 100, 18));
 
@@ -101,8 +105,6 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
 
     pastPctLabel = createLabel("pastPctL", "%", Rectangle(285, 68, 20, 18));
 
-    /* --------------- AFTER SECTION ----------------- */
-
     futureSpanLabel = createLabel("FutureSpanL", "Future: Span:", Rectangle(8, 88, 100, 18));
 
     futureSpanEditable = createEditable("FutureSpanE", String(processor->futureSpan),
@@ -115,40 +117,10 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
 
     futurePctLabel = createLabel("futurePctL", "%", Rectangle(285, 88, 20, 18));
 
- /*   afterLabel = createLabel("AfterL", "After:", Rectangle(8, 88, 65, 18));
-
-    pctNextEditable = createEditable("Percent Next", String(100 * processor->fracNext),
-        "Percent of considered future samples required to be above/below threshold", Rectangle(75, 88, 33, 18));
-
-    aPctLabel = createLabel("PctNextL", "% of", Rectangle(110, 88, 40, 18));
-
-    numNextEditable = createEditable("Num Next", String(processor->numNext),
-        "Number of future samples considered", Rectangle(152, 88, 33, 18));
-
-    aSampLabel = createLabel("SampNextL", "sample(s)", Rectangle(188, 88, 85, 18));
-*/
-    /* -------------- OUTPUT SECTION ----------------- */
-
-    outputLabel = createLabel("OutL", "Output:", Rectangle(8, 108, 62, 18));
-
-    eventBox = new ComboBox("Out event channel");
-    for (int chan = 1; chan <= 8; chan++)
-        eventBox->addItem(String(chan), chan);
-    eventBox->setSelectedId(processor->eventChan + 1);
-    eventBox->setBounds(72, 108, 35, 18);
-    eventBox->setTooltip("Event channel to output on when triggered");
-    eventBox->addListener(this);
-    addAndMakeVisible(eventBox);
-
     durLabel = createLabel("DurL", "Dur:", Rectangle(112, 108, 35, 18));
 
     durationEditable = createEditable("Event Duration", String(processor->eventDuration),
-        "Duration of each event, in samples", Rectangle(151, 108, 50, 18));
-
-    timeoutLabel = createLabel("TimeoutL", "Timeout:", Rectangle(206, 108, 64, 18));
-
-    timeoutEditable = createEditable("Timeout", String(processor->timeout),
-        "Minimum number of samples between consecutive events", Rectangle(274, 108, 50, 18));
+        "Duration of each event", Rectangle(151, 108, 50, 18));
 }
 
 CrossingDetectorEditor::~CrossingDetectorEditor() {}
@@ -156,9 +128,9 @@ CrossingDetectorEditor::~CrossingDetectorEditor() {}
 void CrossingDetectorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
 {
     if (comboBoxThatHasChanged == inputBox)
-        getProcessor()->setParameter(pInputChan, (float)inputBox->getSelectedId() - 1);
-    else if (comboBoxThatHasChanged == eventBox)
-        getProcessor()->setParameter(pEventChan, (float)eventBox->getSelectedId() - 1);
+        getProcessor()->setParameter(pInputChan, static_cast<float>(inputBox->getSelectedId() - 1));
+    else if (comboBoxThatHasChanged == outputBox)
+        getProcessor()->setParameter(pEventChan, static_cast<float>(outputBox->getSelectedId() - 1));
 }
 
 void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
@@ -171,7 +143,7 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool success = updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->eventDuration, &newVal);
 
         if (success)
-            processor->setParameter(pEventDur, (float)newVal);
+            processor->setParameter(pEventDur, static_cast<float>(newVal));
     }
     else if (labelThatHasChanged == timeoutEditable)
     {
@@ -179,7 +151,7 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool success = updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->timeout, &newVal);
 
         if (success)
-            processor->setParameter(pTimeout, (float)newVal);
+            processor->setParameter(pTimeout, static_cast<float>(newVal));
     }
     else if (labelThatHasChanged == thresholdEditable)
     {
@@ -203,7 +175,7 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool success = updateIntLabel(labelThatHasChanged, 0, processor->MAX_PAST_SPAN, processor->pastSpan, &newVal);
 
         if (success)
-            processor->setParameter(pPastSpan, (float)newVal);
+            processor->setParameter(pPastSpan, static_cast<float>(newVal));
     }
     else if (labelThatHasChanged == futurePctEditable)
     {
@@ -219,7 +191,7 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool success = updateIntLabel(labelThatHasChanged, 0, processor->MAX_FUTURE_SPAN, processor->futureSpan, &newVal);
 
         if (success)
-            processor->setParameter(pFutureSpan, (float)newVal);
+            processor->setParameter(pFutureSpan, static_cast<float>(newVal));
     }
 }
 
@@ -263,6 +235,40 @@ void CrossingDetectorEditor::stopAcquisition()
     inputBox->setEnabled(true);
 }
 
+Visualizer* CrossingDetectorEditor::createNewCanvas()
+{
+    canvas = new CrossingDetectorCanvas(getProcessor());
+    return canvas;
+}
+
+Array<Component*> CrossingDetectorEditor::getCanvasElements()
+{
+    Array<Component*> canvEls({ /*randomizeButton.get(), limitButton.get()*/ });
+    canvEls.addArray({
+        //minThreshEditable.get(),
+        //maxThreshEditable.get(),
+        //limitEditable.get(),
+        pastPctEditable.get(),
+        pastSpanEditable.get(),
+        futurePctEditable.get(),
+        futureSpanEditable.get(),
+        durationEditable.get(),
+        //minThreshLabel.get(),
+        //maxThreshLabel.get(),
+        //limitLabel.get(),
+        pastSpanLabel.get(),
+        pastStrictLabel.get(),
+        pastPctLabel.get(),
+        futureSpanLabel.get(),
+        futureStrictLabel.get(),
+        futurePctLabel.get(),
+        durLabel.get(),
+        //durUnitLabel.get()
+    });
+
+    return canvEls;
+}
+
 void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
 {
     xml->setAttribute("Type", "CrossingDetectorEditor");
@@ -278,7 +284,7 @@ void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
     paramValues->setAttribute("pastSpan", pastSpanEditable->getText());
     paramValues->setAttribute("futurePct", futurePctEditable->getText());
     paramValues->setAttribute("futureSpan", futureSpanEditable->getText());
-    paramValues->setAttribute("outputChanId", eventBox->getSelectedId());
+    paramValues->setAttribute("outputChanId", outputBox->getSelectedId());
     paramValues->setAttribute("duration", durationEditable->getText());
     paramValues->setAttribute("timeout", timeoutEditable->getText());
 }
@@ -295,13 +301,36 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         pastSpanEditable->setText(xmlNode->getStringAttribute("pastSpan", pastSpanEditable->getText()), sendNotificationSync);
         futurePctEditable->setText(xmlNode->getStringAttribute("futurePct", futurePctEditable->getText()), sendNotificationSync);
         futureSpanEditable->setText(xmlNode->getStringAttribute("futureSpan", futureSpanEditable->getText()), sendNotificationSync);
-        eventBox->setSelectedId(xmlNode->getIntAttribute("outputChanId", eventBox->getSelectedId()), sendNotificationSync);
+        outputBox->setSelectedId(xmlNode->getIntAttribute("outputChanId", outputBox->getSelectedId()), sendNotificationSync);
         durationEditable->setText(xmlNode->getStringAttribute("duration", durationEditable->getText()), sendNotificationSync);
         timeoutEditable->setText(xmlNode->getStringAttribute("timeout", timeoutEditable->getText()), sendNotificationSync);
     }
 }
 
-// static utilities
+/**************** private ******************/
+
+Label* CrossingDetectorEditor::createEditable(const String& name, const String& initialValue,
+    const String& tooltip, const Rectangle bounds)
+{
+    Label* editable = new Label(name, initialValue);
+    editable->setEditable(true);
+    editable->addListener(this);
+    editable->setBounds(bounds);
+    editable->setColour(Label::backgroundColourId, Colours::grey);
+    editable->setColour(Label::textColourId, Colours::white);
+    editable->setTooltip(tooltip);
+    return editable;
+}
+
+Label* CrossingDetectorEditor::createLabel(const String& name, const String& text,
+    const Rectangle bounds)
+{
+    Label* label = new Label(name, text);
+    label->setBounds(bounds);
+    label->setFont(Font("Small Text", 12, Font::plain));
+    label->setColour(Label::textColourId, Colours::darkgrey);
+    return label;
+}
 
 /* Attempts to parse the current text of a label as an int between min and max inclusive.
 *  If successful, sets "*out" and the label text to this value and and returns true.
@@ -357,3 +386,53 @@ bool CrossingDetectorEditor::updateFloatLabel(Label* label, float min, float max
     label->setText(String(*out), dontSendNotification);
     return true;
 }
+
+/*************** canvas (extra settings) *******************/
+
+CrossingDetectorCanvas::CrossingDetectorCanvas(GenericProcessor* n)
+    : processor(n)
+{
+    editor = static_cast<CrossingDetectorEditor*>(processor->editor.get());
+    viewport = new Viewport();
+    panel = new CDOptionsPanel(processor, this, viewport);
+    viewport->setViewedComponent(panel, false);
+    viewport->setScrollBarsShown(true, true);
+    addAndMakeVisible(viewport);
+}
+
+CrossingDetectorCanvas::~CrossingDetectorCanvas() {}
+
+void CrossingDetectorCanvas::refreshState() {}
+void CrossingDetectorCanvas::update() {}
+void CrossingDetectorCanvas::refresh() {}
+void CrossingDetectorCanvas::beginAnimation() {}
+void CrossingDetectorCanvas::endAnimation() {}
+void CrossingDetectorCanvas::setParameter(int, float) {}
+void CrossingDetectorCanvas::setParameter(int, int, int, float) {}
+
+void CrossingDetectorCanvas::paint(Graphics& g)
+{
+    ColourGradient editorBg = editor->getBackgroundGradient();
+    g.fillAll(editorBg.getColourAtPosition(0.5)); // roughly matches editor background (without gradient)
+}
+
+void CrossingDetectorCanvas::resized()
+{
+    viewport->setBounds(0, 0, getWidth(), getHeight());
+}
+
+CDOptionsPanel::CDOptionsPanel(GenericProcessor* proc, CrossingDetectorCanvas* canv, Viewport* view)
+    : processor(proc), canvas(canv), viewport(view)
+{
+    CrossingDetectorEditor* ed = canvas->editor;
+
+    auto parentBounds = juce::Rectangle<int>(0, 0, 1, 1);
+    for (Component* c : ed->getCanvasElements())
+    {
+        addAndMakeVisible(c);
+        parentBounds = parentBounds.getUnion(c->getBounds());
+    }
+    setBounds(parentBounds);
+}
+
+CDOptionsPanel::~CDOptionsPanel() {}

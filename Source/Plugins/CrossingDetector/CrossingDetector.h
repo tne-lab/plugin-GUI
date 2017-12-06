@@ -114,8 +114,8 @@ private:
     int eventChan;    
     int shutoffChan; // temporary storage of chan w/ event that must be shut off; allows eventChan to be adjusted during acquisition
 
-    int eventDuration; // in samples    
-    int timeout; // number of samples after an event onset which may not trigger another event.
+    int eventDuration; // in milliseconds    
+    int timeout; // milliseconds after an event onset when no more events are allowed.
 
     /* number of past and future (including current) samples to look at at each timepoint (attention span)
     * generally, things get messy if we try to look too far back or especially forward compared to the size of the processing buffers

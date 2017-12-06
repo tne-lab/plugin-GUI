@@ -34,7 +34,7 @@ CrossingDetector::CrossingDetector()
     , negOn             (false)
     , inputChan         (0)
     , eventChan         (0)
-    , eventDuration     (100)
+    , eventDuration     (5)
     , timeout           (1000)
     , pastStrict        (1.0f)
     , pastSpan          (1)
@@ -178,11 +178,15 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
                 addEvent(eventChannelPtr, event, eventTime);
 
                 // if using random thresholds, set a new threshold
-                currRandomThresh = nextThresh();
+                if (useRandomThresh)
+                    currRandomThresh = nextThresh();
 
                 // schedule event turning off and timeout period ending
-                sampsToShutoff = eventTime + eventDuration;
-                sampsToReenable = eventTime + timeout;
+                float sampleRate = getDataChannel(currChan)->getSampleRate();
+                int eventDurationSamps = static_cast<int>(ceil(eventDuration * sampleRate / 1000.0f));
+                int timeoutSamps = static_cast<int>(floor(timeout * sampleRate / 1000.0f));
+                sampsToShutoff = eventTime + eventDurationSamps;
+                sampsToReenable = eventTime + timeoutSamps;
             }
             else
             {
@@ -296,7 +300,6 @@ bool CrossingDetector::disable()
     return true;
 }
 
-// private
 bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, float currThresh,
     bool currPosOn, bool currNegOn, int currPastSpan, int currFutureSpan)
 {
@@ -321,8 +324,8 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
 // allow us to treat the previous and current buffers as one array
 #define rp(x) ((x)>=0 ? rpCurr[(x)] : rpLast[(x)])
 
-    int numPastRequired = (int)ceil(currPastSpan * pastStrict);
-    int numFutureRequired = (int)ceil(currFutureSpan * futureStrict);
+    int numPastRequired = static_cast<int>(ceil(currPastSpan * pastStrict));
+    int numFutureRequired = static_cast<int>(ceil(currFutureSpan * futureStrict));
 
     for (int i = minInd; i < t0 && numPastRequired > 0; i++)
         if (currPosOn ? rp(i) < currThresh : rp(i) > currThresh)
@@ -331,7 +334,7 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
     if (numPastRequired == 0) // "prev" condition satisfied
     {
         for (int i = t0; i <= maxInd && numFutureRequired > 0; i++)
-            if (currPosOn ? rp(i) > currThresh : rp(i) < currThresh)
+            if (currPosOn ? rp(i) >= currThresh : rp(i) <= currThresh)
                 numFutureRequired--;
 
         if (numFutureRequired == 0) // "next" condition satisfied

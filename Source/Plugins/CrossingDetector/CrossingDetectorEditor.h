@@ -24,7 +24,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef CROSSING_DETECTOR_EDITOR_H_INCLUDED
 #define CROSSING_DETECTOR_EDITOR_H_INCLUDED
 
-#include <EditorHeaders.h>
+#include <VisualizerEditorHeaders.h>
+#include <VisualizerWindowHeaders.h>
 #include <string>
 #include <climits>
 #include <cfloat>
@@ -46,28 +47,31 @@ Editor consists of:
 
 */
 
-class CrossingDetectorEditor : public GenericEditor,
+class CrossingDetectorCanvas;
+class CDOptionsPanel;
+
+class CrossingDetectorEditor : public VisualizerEditor,
     public ComboBox::Listener, public Label::Listener
 {
 public:
     CrossingDetectorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors = false);
     ~CrossingDetectorEditor();
-
-    // implements ComboBox::Listener
     void comboBoxChanged(ComboBox* comboBoxThatHasChanged) override;
-
-    // implements Label::Listener
     void labelTextChanged(Label* labelThatHasChanged) override;
 
     // overrides GenericEditor
     void buttonEvent(Button* button) override;
 
-    // allow editor to react to changing # of channels
     void updateSettings() override;
 
     // disable input channel selection during acquisition so that events work correctly
     void startAcquisition() override;
     void stopAcquisition() override;
+
+    Visualizer* createNewCanvas() override;
+
+    // provide pointers to the UI elements which should appear in the canvas
+    Array<Component*> getCanvasElements();
 
     void saveCustomParameters(XmlElement* xml) override;
     void loadCustomParameters(XmlElement* xml) override;
@@ -75,41 +79,99 @@ public:
 private:
     typedef juce::Rectangle<int> Rectangle;
 
+    // Basic UI element creation methods. Always register "this" (the editor) as the listener,
+    // but may specify a different Component in which to actually display the element.
     Label* createEditable(const String& name, const String& initialValue,
         const String& tooltip, const Rectangle bounds);
-
     Label* createLabel(const String& name, const String& text, const Rectangle bounds);
 
-    // utilities for parsing entered values
+    // Utilities for parsing entered values
     static bool updateIntLabel(Label* label, int min, int max, int defaultValue, int* out);
     static bool updateFloatLabel(Label* label, float min, float max, float defaultValue, float* out);
 
+    // top row (channels)
+    ScopedPointer<Label> inputLabel;
     ScopedPointer<ComboBox> inputBox;
-    ScopedPointer<ComboBox> eventBox;
+    ScopedPointer<Label> outputLabel;
+    ScopedPointer<ComboBox> outputBox;
 
+    // middle row (threshold)
     ScopedPointer<UtilityButton> risingButton;
     ScopedPointer<UtilityButton> fallingButton;
-
-    ScopedPointer<Label> durationEditable;
-    ScopedPointer<Label> timeoutEditable;
+    ScopedPointer<Label> acrossLabel;
     ScopedPointer<Label> thresholdEditable;
+
+    // bottom row (timeout)
+    ScopedPointer<Label> timeoutLabel;
+    ScopedPointer<Label> timeoutEditable;
+    ScopedPointer<Label> timeoutUnitLabel;
+
+    // Canvas elements are managed by editor but invisible until visualizer is opened
+    CrossingDetectorCanvas* canvas;
+    
+    ScopedPointer<ToggleButton> randomizeButton;
+    ScopedPointer<ToggleButton> limitButton;
+
+    // editable labels
+    ScopedPointer<Label> minThreshEditable;
+    ScopedPointer<Label> maxThreshEditable;
+    ScopedPointer<Label> limitEditable;
     ScopedPointer<Label> pastPctEditable;
     ScopedPointer<Label> pastSpanEditable;
     ScopedPointer<Label> futurePctEditable;
     ScopedPointer<Label> futureSpanEditable;
+    ScopedPointer<Label> durationEditable;
 
     // static labels
-    ScopedPointer<Label> inputLabel;
-    ScopedPointer<Label> acrossLabel;
+    ScopedPointer<Label> minThreshLabel;
+    ScopedPointer<Label> maxThreshLabel;
+    ScopedPointer<Label> limitLabel;
     ScopedPointer<Label> pastSpanLabel;
     ScopedPointer<Label> pastStrictLabel;
     ScopedPointer<Label> pastPctLabel;
     ScopedPointer<Label> futureSpanLabel;
     ScopedPointer<Label> futureStrictLabel;
     ScopedPointer<Label> futurePctLabel;
-    ScopedPointer<Label> outputLabel;
     ScopedPointer<Label> durLabel;
-    ScopedPointer<Label> timeoutLabel;
+    ScopedPointer<Label> durUnitLabel;
+};
+
+// Visualizer window containing additional settings
+
+class CrossingDetectorCanvas : public Visualizer
+{
+public:
+    CrossingDetectorCanvas(GenericProcessor* n);
+    ~CrossingDetectorCanvas();
+    void refreshState() override;
+    void update() override;
+    void refresh() override;
+    void beginAnimation() override;
+    void endAnimation() override;
+    void setParameter(int, float) override;
+    void setParameter(int, int, int, float) override;
+
+    void paint(Graphics& g) override;
+    void resized() override;
+
+    GenericProcessor* processor;
+    CrossingDetectorEditor* editor;
+private:
+    ScopedPointer<Viewport> viewport;
+    ScopedPointer<CDOptionsPanel> panel;
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CrossingDetectorCanvas);
+};
+
+class CDOptionsPanel : public Component
+{
+public:
+    CDOptionsPanel(GenericProcessor* proc, CrossingDetectorCanvas* canv, Viewport* view);
+    ~CDOptionsPanel();
+    GenericProcessor* processor;
+private:
+    Viewport* viewport;
+    CrossingDetectorCanvas* canvas;
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CDOptionsPanel);
 };
 
 #endif // CROSSING_DETECTOR_EDITOR_H_INCLUDED
