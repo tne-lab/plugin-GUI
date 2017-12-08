@@ -48,10 +48,11 @@ Editor consists of:
 */
 
 class CrossingDetectorCanvas;
-class CDOptionsPanel;
 
-class CrossingDetectorEditor : public VisualizerEditor,
-    public ComboBox::Listener, public Label::Listener
+class CrossingDetectorEditor 
+    : public VisualizerEditor
+    , public ComboBox::Listener
+    , public Label::Listener
 {
 public:
     CrossingDetectorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors = false);
@@ -70,8 +71,7 @@ public:
 
     Visualizer* createNewCanvas() override;
 
-    // provide pointers to the UI elements which should appear in the canvas
-    Array<Component*> getCanvasElements();
+    Component* getOptionsPanel();
 
     void saveCustomParameters(XmlElement* xml) override;
     void loadCustomParameters(XmlElement* xml) override;
@@ -82,8 +82,8 @@ private:
     // Basic UI element creation methods. Always register "this" (the editor) as the listener,
     // but may specify a different Component in which to actually display the element.
     Label* createEditable(const String& name, const String& initialValue,
-        const String& tooltip, const Rectangle bounds);
-    Label* createLabel(const String& name, const String& text, const Rectangle bounds);
+        const String& tooltip, Rectangle bounds);
+    Label* createLabel(const String& name, const String& text, Rectangle bounds);
 
     // Utilities for parsing entered values
     static bool updateIntLabel(Label* label, int min, int max, int defaultValue, int* out);
@@ -106,33 +106,38 @@ private:
     ScopedPointer<Label> timeoutEditable;
     ScopedPointer<Label> timeoutUnitLabel;
 
-    // Canvas elements are managed by editor but invisible until visualizer is opened
+    // --- Canvas elements are managed by editor but invisible until visualizer is opened ----
     CrossingDetectorCanvas* canvas;
+    ScopedPointer<Component> optionsPanel;
     
+    // threshold randomization
     ScopedPointer<ToggleButton> randomizeButton;
-    ScopedPointer<ToggleButton> limitButton;
-
-    // editable labels
-    ScopedPointer<Label> minThreshEditable;
-    ScopedPointer<Label> maxThreshEditable;
-    ScopedPointer<Label> limitEditable;
-    ScopedPointer<Label> pastPctEditable;
-    ScopedPointer<Label> pastSpanEditable;
-    ScopedPointer<Label> futurePctEditable;
-    ScopedPointer<Label> futureSpanEditable;
-    ScopedPointer<Label> durationEditable;
-
-    // static labels
     ScopedPointer<Label> minThreshLabel;
+    ScopedPointer<Label> minThreshEditable;
     ScopedPointer<Label> maxThreshLabel;
+    ScopedPointer<Label> maxThreshEditable;
+
+    // slope limiting
+    ScopedPointer<ToggleButton> limitButton;
     ScopedPointer<Label> limitLabel;
+    ScopedPointer<Label> limitEditable;
+
+    // sample voting
     ScopedPointer<Label> pastSpanLabel;
+    ScopedPointer<Label> pastSpanEditable;
     ScopedPointer<Label> pastStrictLabel;
+    ScopedPointer<Label> pastPctEditable;
     ScopedPointer<Label> pastPctLabel;
+
     ScopedPointer<Label> futureSpanLabel;
+    ScopedPointer<Label> futureSpanEditable;
     ScopedPointer<Label> futureStrictLabel;
+    ScopedPointer<Label> futurePctEditable;
     ScopedPointer<Label> futurePctLabel;
+
+    // event duration
     ScopedPointer<Label> durLabel;
+    ScopedPointer<Label> durationEditable;
     ScopedPointer<Label> durUnitLabel;
 };
 
@@ -158,20 +163,7 @@ public:
     CrossingDetectorEditor* editor;
 private:
     ScopedPointer<Viewport> viewport;
-    ScopedPointer<CDOptionsPanel> panel;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CrossingDetectorCanvas);
-};
-
-class CDOptionsPanel : public Component
-{
-public:
-    CDOptionsPanel(GenericProcessor* proc, CrossingDetectorCanvas* canv, Viewport* view);
-    ~CDOptionsPanel();
-    GenericProcessor* processor;
-private:
-    Viewport* viewport;
-    CrossingDetectorCanvas* canvas;
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CDOptionsPanel);
 };
 
 #endif // CROSSING_DETECTOR_EDITOR_H_INCLUDED

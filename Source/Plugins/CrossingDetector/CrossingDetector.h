@@ -100,6 +100,7 @@ private:
 
     // if using fixed threshold:
     float threshold;
+    Value thresholdVal; // underlying value of the threshold label
 
     // if using random thresholds:
     bool useRandomThresh;

@@ -30,6 +30,7 @@ CrossingDetector::CrossingDetector()
     , useRandomThresh   (false)
     , minThresh         (-180)
     , maxThresh         (180)
+    , thresholdVal      (0.0)
     , posOn             (true)
     , negOn             (false)
     , inputChan         (0)
@@ -179,7 +180,10 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
 
                 // if using random thresholds, set a new threshold
                 if (useRandomThresh)
+                {
                     currRandomThresh = nextThresh();
+                    thresholdVal = currRandomThresh;
+                }
 
                 // schedule event turning off and timeout period ending
                 float sampleRate = getDataChannel(currChan)->getSampleRate();
@@ -226,20 +230,32 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
     {
     case pRandThresh:
         useRandomThresh = static_cast<bool>(newValue);
+        // update threshold
+        float newThresh;
         if (useRandomThresh)
-            currRandomThresh = nextThresh();
+        {
+            newThresh = nextThresh();
+            currRandomThresh = newThresh;
+        }
+        else
+        {
+            newThresh = threshold;
+        }
+        thresholdVal = newThresh;
         break;
 
     case pMinThresh:
         minThresh = newValue;
+        currRandomThresh = nextThresh();
         if (useRandomThresh)
-            currRandomThresh = nextThresh();
+            thresholdVal = currRandomThresh;
         break;
 
     case pMaxThresh:
         maxThresh = newValue;
+        currRandomThresh = nextThresh();
         if (useRandomThresh)
-            currRandomThresh = nextThresh();
+            thresholdVal = currRandomThresh;
         break;
 
     case pThreshold:
