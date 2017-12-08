@@ -112,73 +112,178 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     optionsPanel = new Component("CD Options Panel");
     // initial bounds, to be expanded
     Rectangle opBounds(0, 0, 1, 1);
+    const int C_TEXT_HT = 25;
+    const int LEFT_EDGE = 30;
+    const int TAB_WIDTH = 50;
+
+    Rectangle bounds;
+#define EXPAND_BOUNDS opBounds = opBounds.getUnion(bounds)
+    xPos = LEFT_EDGE;
+    yPos = 15;
+
+    optionsPanelTitle = new Label("CDOptionsTitle", "Crossing Detector Additional Settings");
+    optionsPanelTitle->setBounds(bounds = { xPos, yPos, 400, 50 });
+    optionsPanelTitle->setFont(Font(20, Font::bold));
+    optionsPanel->addAndMakeVisible(optionsPanelTitle);
+    EXPAND_BOUNDS;
 
     /* ------------- Threshold randomization -------- */
-    xPos = 30;
-    yPos = 30;
-    const int C_TEXT_HT = 25;
-    Rectangle bounds;
+    xPos = LEFT_EDGE;
+    yPos += 45;
 
     randomizeButton = new ToggleButton("Randomize threshold");
     randomizeButton->setBounds(bounds = { xPos, yPos, 150, C_TEXT_HT });
     randomizeButton->setToggleState(processor->useRandomThresh, dontSendNotification);
-    randomizeButton->setTooltip("Use thresholds sampled uniformly at random within the given range");
+    randomizeButton->setTooltip("After each event, choose a new threshold sampled uniformly at random from the given range");
     randomizeButton->addListener(this);
     optionsPanel->addAndMakeVisible(randomizeButton);
-    opBounds = opBounds.getUnion(bounds);
+    EXPAND_BOUNDS;
+
+    xPos += TAB_WIDTH;
+    yPos += 30;
 
     minThreshLabel = new Label("MinThreshL", "Minimum:");
-    minThreshLabel->setBounds(bounds = { xPos += 50, yPos += 30, 70, C_TEXT_HT });
+    minThreshLabel->setBounds(bounds = { xPos, yPos, 70, C_TEXT_HT });
     optionsPanel->addAndMakeVisible(minThreshLabel);
-    opBounds = opBounds.getUnion(bounds);
+    EXPAND_BOUNDS;
 
     minThreshEditable = createEditable("MinThreshE", String(processor->minThresh),
         "Minimum threshold voltage", bounds = { xPos += 80, yPos, 50, C_TEXT_HT });
     minThreshEditable->setEnabled(processor->useRandomThresh);
     optionsPanel->addAndMakeVisible(minThreshEditable);
-    opBounds = opBounds.getUnion(bounds);
+    EXPAND_BOUNDS;
 
     maxThreshLabel = new Label("MaxThreshL", "Maximum:");
     maxThreshLabel->setBounds(bounds = { xPos += 60, yPos, 70, C_TEXT_HT });
     optionsPanel->addAndMakeVisible(maxThreshLabel);
-    opBounds = opBounds.getUnion(bounds);
+    EXPAND_BOUNDS;
 
     maxThreshEditable = createEditable("MaxThreshE", String(processor->maxThresh),
         "Maximum threshold voltage", bounds = { xPos += 80, yPos, 50, C_TEXT_HT });
     maxThreshEditable->setEnabled(processor->useRandomThresh);
     optionsPanel->addAndMakeVisible(maxThreshEditable);
-    opBounds = opBounds.getUnion(bounds);
+    EXPAND_BOUNDS;
 
-    pastSpanLabel = createLabel("PastSpanL", "Past:   Span:", Rectangle(8, 68, 100, 18));
+    /* --------------- Jump limiting ------------------ */
+    xPos = LEFT_EDGE;
+    yPos += 40;
 
-    pastSpanEditable = createEditable("PastSpanE", String(processor->pastSpan),
-        "Number of samples considered before a potential crossing", Rectangle(110, 68, 33, 18));
+    limitButton = new ToggleButton("Limit jump size across threshold (|X[k] - X[k-1]|)");
+    limitButton->setBounds(bounds = { xPos, yPos, 340, C_TEXT_HT });
+    limitButton->setToggleState(processor->useJumpLimit, dontSendNotification);
+    limitButton->addListener(this);
+    optionsPanel->addAndMakeVisible(limitButton);
+    EXPAND_BOUNDS;
 
-    pastStrictLabel = createLabel("PastStrictL", "Strictness:", Rectangle(155, 68, 110, 18));
+    limitLabel = new Label("LimitL", "Maximum jump size:");
+    limitLabel->setBounds(bounds = { xPos += TAB_WIDTH, yPos += 30, 140, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(limitLabel);
+    EXPAND_BOUNDS;
 
-    pastPctEditable = createEditable("PastPctE", String(100 * processor->pastStrict),
-        "Percent of considered past samples required to be above/below threshold", Rectangle(250, 68, 33, 18));
+    limitEditable = createEditable("LimitE", String(processor->jumpLimit), "",
+        bounds = { xPos += 150, yPos, 50, C_TEXT_HT });
+    limitEditable->setEnabled(processor->useJumpLimit);
+    optionsPanel->addAndMakeVisible(limitEditable);
+    EXPAND_BOUNDS;
 
-    pastPctLabel = createLabel("pastPctL", "%", Rectangle(285, 68, 20, 18));
+    /* --------------- Sample voting ------------------ */
+    xPos = LEFT_EDGE;
+    yPos += 40;
 
-    futureSpanLabel = createLabel("FutureSpanL", "Future: Span:", Rectangle(8, 88, 100, 18));
+    votingHeader = new Label("VotingHeadL", "Sample voting:");
+    votingHeader->setBounds(bounds = { xPos, yPos, 120, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(votingHeader);
+    EXPAND_BOUNDS;
 
-    futureSpanEditable = createEditable("FutureSpanE", String(processor->futureSpan),
-        "Number of samples considered after a potential crossing", Rectangle(110, 88, 33, 18));
+    xPos += TAB_WIDTH;
+    yPos += 30;
 
-    futureStrictLabel = createLabel("FutureStrictL", "Strictness:", Rectangle(155, 88, 110, 18));
+    pastStrictLabel = new Label("PastStrictL", "Require");
+    pastStrictLabel->setBounds(bounds = { xPos, yPos, 65, C_TEXT_HT });
+    pastStrictLabel->setJustificationType(Justification::centredRight);
+    optionsPanel->addAndMakeVisible(pastStrictLabel);
+    EXPAND_BOUNDS;
 
-    futurePctEditable = createEditable("FuturePctE", String(100 * processor->futureStrict),
-        "Percent of considered future samples required to be above/below threshold", Rectangle(250, 88, 33, 18));
+    pastPctEditable = createEditable("PastPctE", String(100 * processor->pastStrict), "",
+        bounds = { xPos += 75, yPos, 35, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(pastPctEditable);
+    EXPAND_BOUNDS;
 
-    futurePctLabel = createLabel("futurePctL", "%", Rectangle(285, 88, 20, 18));
+    pastPctLabel = new Label("PastPctL", "% of the");
+    pastPctLabel->setBounds(bounds = { xPos += 40, yPos, 70, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(pastPctLabel);
+    EXPAND_BOUNDS;
 
-    durLabel = createLabel("DurL", "Dur:", Rectangle(112, 108, 35, 18));
+    pastSpanEditable = createEditable("PastSpanE", String(processor->pastSpan), "",
+        bounds = { xPos += 75, yPos, 35, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(pastSpanEditable);
+    EXPAND_BOUNDS;
 
-    durationEditable = createEditable("Event Duration", String(processor->eventDuration),
-        "Duration of each event", Rectangle(151, 108, 50, 18));
+    pastSpanLabel = new Label("PastSpanL", "samples immediately preceding X[k-1]...");
+    pastSpanLabel->setBounds(bounds = { xPos += 45, yPos, 260, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(pastSpanLabel);
+    EXPAND_BOUNDS;
+
+    xPos = LEFT_EDGE + TAB_WIDTH;
+    yPos += 30;
+
+    futureStrictLabel = new Label("FutureStrictL", "...and");
+    futureStrictLabel->setBounds(bounds = { xPos, yPos, 65, C_TEXT_HT });
+    futureStrictLabel->setJustificationType(Justification::centredRight);
+    optionsPanel->addAndMakeVisible(futureStrictLabel);
+    EXPAND_BOUNDS;
+
+    futurePctEditable = createEditable("FuturePctE", String(100 * processor->futureStrict), "",
+        bounds = { xPos += 75, yPos, 35, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(futurePctEditable);
+    EXPAND_BOUNDS;
+
+    futurePctLabel = new Label("FuturePctL", "% of the");
+    futurePctLabel->setBounds(bounds = { xPos += 40, yPos, 70, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(futurePctLabel);
+    EXPAND_BOUNDS;
+
+    futureSpanEditable = createEditable("FutureSpanE", String(processor->futureSpan), "",
+        bounds = { xPos += 75, yPos, 35, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(futureSpanEditable);
+    EXPAND_BOUNDS;
+
+    futureSpanLabel = new Label("FutureSpanL", "samples immediately following X[k]...");
+    futureSpanLabel->setBounds(bounds = { xPos += 45, yPos, 260, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(futureSpanLabel);
+    EXPAND_BOUNDS;
+
+    xPos = LEFT_EDGE + TAB_WIDTH;
+    yPos += 30;
+
+    votingFooter = new Label("VotingFootL", "...to be on the correct side of the threshold.");
+    votingFooter->setBounds(bounds = { xPos, yPos, 350, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(votingFooter);
+    EXPAND_BOUNDS;
+
+    /* ------------------ Event duration --------------- */
+
+    xPos = LEFT_EDGE;
+    yPos += 40;
+
+    durLabel = new Label("DurL", "Event duration:");
+    durLabel->setBounds(bounds = { xPos, yPos, 100, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(durLabel);
+    EXPAND_BOUNDS;
+
+    durationEditable = createEditable("DurE", String(processor->eventDuration), "",
+        bounds = { xPos += 105, yPos, 40, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(durationEditable);
+    EXPAND_BOUNDS;
+
+    durUnitLabel = new Label("DurUnitL", "ms");
+    durUnitLabel->setBounds(bounds = { xPos += 45, yPos, 30, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(durUnitLabel);
+    EXPAND_BOUNDS;
 
     optionsPanel->setBounds(opBounds);
+
+#undef EXPAND_BOUNDS
 }
 
 CrossingDetectorEditor::~CrossingDetectorEditor() {}
@@ -267,6 +372,14 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         if (success)
             processor->setParameter(pMaxThresh, newVal);
     }
+    else if (labelThatHasChanged == limitEditable)
+    {
+        float newVal;
+        bool success = updateFloatLabel(labelThatHasChanged, 0, FLT_MAX, processor->jumpLimit, &newVal);
+
+        if (success)
+            processor->setParameter(pJumpLimit, newVal);
+    }
 }
 
 void CrossingDetectorEditor::buttonEvent(Button* button)
@@ -287,6 +400,12 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
         minThreshEditable->setEnabled(randomizeOn);
         maxThreshEditable->setEnabled(randomizeOn);
         processor->setParameter(pRandThresh, static_cast<float>(randomizeOn));
+    }
+    else if (button == limitButton)
+    {
+        bool limitOn = button->getToggleState();
+        limitEditable->setEnabled(limitOn);
+        processor->setParameter(pUseJumpLimit, static_cast<float>(limitOn));
     }
 }
 
@@ -340,34 +459,136 @@ void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
     CrossingDetector* processor = static_cast<CrossingDetector*>(getProcessor());
     XmlElement* paramValues = xml->createNewChildElement("VALUES");
 
+    // channels
     paramValues->setAttribute("inputChanId", inputBox->getSelectedId());
+    paramValues->setAttribute("outputChanId", outputBox->getSelectedId());
+
+    // rising/falling
     paramValues->setAttribute("bRising", risingButton->getToggleState());
     paramValues->setAttribute("bFalling", fallingButton->getToggleState());
-    paramValues->setAttribute("threshold", thresholdEditable->getText());
-    paramValues->setAttribute("pastPct", pastPctEditable->getText());
-    paramValues->setAttribute("pastSpan", pastSpanEditable->getText());
-    paramValues->setAttribute("futurePct", futurePctEditable->getText());
-    paramValues->setAttribute("futureSpan", futureSpanEditable->getText());
-    paramValues->setAttribute("outputChanId", outputBox->getSelectedId());
-    paramValues->setAttribute("duration", durationEditable->getText());
-    paramValues->setAttribute("timeout", timeoutEditable->getText());
+
+    // threshold
+    paramValues->setAttribute("bRandThresh", randomizeButton->getToggleState());
+    paramValues->setAttribute("threshold", processor->threshold);
+    paramValues->setAttribute("minThresh", minThreshEditable->getText());
+    paramValues->setAttribute("maxThresh", maxThreshEditable->getText());
+
+    // voting
+    paramValues->setAttribute("pastPctExclusive", pastPctEditable->getText());
+    paramValues->setAttribute("pastSpanExclusive", pastSpanEditable->getText());
+    paramValues->setAttribute("futurePctExclusive", futurePctEditable->getText());
+    paramValues->setAttribute("futureSpanExclusive", futureSpanEditable->getText());
+
+    // jump limit
+    paramValues->setAttribute("bJumpLimit", limitButton->getToggleState());
+    paramValues->setAttribute("jumpLimit", limitEditable->getText());
+
+    // timing
+    paramValues->setAttribute("durationMS", durationEditable->getText());
+    paramValues->setAttribute("timeoutMS", timeoutEditable->getText());
 }
 
 void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
 {
+    CrossingDetector* processor = static_cast<CrossingDetector*>(getProcessor());
+
     forEachXmlChildElementWithTagName(*xml, xmlNode, "VALUES")
     {
-        inputBox->setSelectedId(xmlNode->getIntAttribute("inputChanId", inputBox->getSelectedId()), sendNotificationSync);
-        risingButton->setToggleState(xmlNode->getBoolAttribute("bRising", risingButton->getToggleState()), sendNotificationSync);
-        fallingButton->setToggleState(xmlNode->getBoolAttribute("bFalling", fallingButton->getToggleState()), sendNotificationSync);
-        thresholdEditable->setText(xmlNode->getStringAttribute("threshold", thresholdEditable->getText()), sendNotificationSync);
-        pastPctEditable->setText(xmlNode->getStringAttribute("pastPct", pastPctEditable->getText()), sendNotificationSync);
-        pastSpanEditable->setText(xmlNode->getStringAttribute("pastSpan", pastSpanEditable->getText()), sendNotificationSync);
-        futurePctEditable->setText(xmlNode->getStringAttribute("futurePct", futurePctEditable->getText()), sendNotificationSync);
-        futureSpanEditable->setText(xmlNode->getStringAttribute("futureSpan", futureSpanEditable->getText()), sendNotificationSync);
-        outputBox->setSelectedId(xmlNode->getIntAttribute("outputChanId", outputBox->getSelectedId()), sendNotificationSync);
-        durationEditable->setText(xmlNode->getStringAttribute("duration", durationEditable->getText()), sendNotificationSync);
-        timeoutEditable->setText(xmlNode->getStringAttribute("timeout", timeoutEditable->getText()), sendNotificationSync);
+        // channels
+        inputBox->setSelectedId(xmlNode->getIntAttribute("inputChanId", inputBox->getSelectedId()), sendNotificationAsync);
+        outputBox->setSelectedId(xmlNode->getIntAttribute("outputChanId", outputBox->getSelectedId()), sendNotificationAsync);
+
+        // rising/falling
+        risingButton->setToggleState(xmlNode->getBoolAttribute("bRising", risingButton->getToggleState()), sendNotificationAsync);
+        fallingButton->setToggleState(xmlNode->getBoolAttribute("bFalling", fallingButton->getToggleState()), sendNotificationAsync);
+
+        // threshold (order is important here!)
+        processor->setParameter(pThreshold, static_cast<float>(xmlNode->getDoubleAttribute("threshold", processor->threshold)));
+        minThreshEditable->setText(xmlNode->getStringAttribute("minThresh", minThreshEditable->getText()), sendNotificationSync);
+        maxThreshEditable->setText(xmlNode->getStringAttribute("maxThresh", maxThreshEditable->getText()), sendNotificationSync);
+        randomizeButton->setToggleState(xmlNode->getBoolAttribute("bRandThresh", randomizeButton->getToggleState()), sendNotificationAsync);
+
+        // voting
+        pastPctEditable->setText(xmlNode->getStringAttribute("pastPctExclusive", pastPctEditable->getText()), sendNotificationAsync);
+        pastSpanEditable->setText(xmlNode->getStringAttribute("pastSpanExclusive", pastSpanEditable->getText()), sendNotificationAsync);
+        futurePctEditable->setText(xmlNode->getStringAttribute("futurePctExclusive", futurePctEditable->getText()), sendNotificationAsync);
+        futureSpanEditable->setText(xmlNode->getStringAttribute("futureSpanExclusive", futureSpanEditable->getText()), sendNotificationAsync);
+
+        // jump limit
+        limitButton->setToggleState(xmlNode->getBoolAttribute("bJumpLimit", limitButton->getToggleState()), sendNotificationAsync);
+        limitEditable->setText(xmlNode->getStringAttribute("jumpLimit", limitEditable->getText()), sendNotificationAsync);
+
+        // timing
+        durationEditable->setText(xmlNode->getStringAttribute("durationMS", durationEditable->getText()), sendNotificationAsync);
+        timeoutEditable->setText(xmlNode->getStringAttribute("timeoutMS", timeoutEditable->getText()), sendNotificationAsync);
+        
+        // backwards compatibility
+        // old duration/timeout in samples, convert to ms.
+        if (xmlNode->hasAttribute("duration") || xmlNode->hasAttribute("timeout"))
+        {
+            // use default sample rate of 30000 if no channels present
+            int sampleRate = processor->getTotalDataChannels() > 0 ? processor->getDataChannel(0)->getSampleRate() : 30000;
+            try
+            {
+                int durationSamps = std::stoi(xmlNode->getStringAttribute("duration").toRawUTF8());
+                int durationMs = std::max((durationSamps * 1000) / sampleRate, 1);
+                durationEditable->setText(String(durationMs), sendNotificationAsync);
+            }
+            catch (const std::logic_error&) { /* give up */ }
+            try
+            {
+                int timeoutSamps = std::stoi(xmlNode->getStringAttribute("timeout").toRawUTF8());
+                int timeoutMs = (timeoutSamps * 1000) / sampleRate;
+                timeoutEditable->setText(String(timeoutMs), sendNotificationAsync);
+            }
+            catch (const std::logic_error&) { /* give up */ }
+        }
+
+        // old sample voting - convert to settings "exclusive" of X[k-1] and X[k]
+        if (xmlNode->hasAttribute("pastPct") || xmlNode->hasAttribute("futurePct"))
+        {
+            // past
+            try
+            {
+                int pastSpanOld = std::stoi(xmlNode->getStringAttribute("pastSpan").toRawUTF8());
+                float pastPctOld = std::stof(xmlNode->getStringAttribute("pastPct").toRawUTF8()) / 100;
+                float pastNumOld = ceil(pastSpanOld * pastPctOld);
+                if (pastNumOld < 1)
+                {
+                    CoreServices::sendStatusMessage("Warning: old past span/strictness behavior not supported; using defaults");
+                }
+                else
+                {
+                    int pastSpanNew = pastSpanOld - 1;
+                    pastSpanEditable->setText(String(pastSpanNew), sendNotificationAsync);
+                    float pastNumNew = pastNumOld - 1;
+                    float pastPctNew = pastSpanNew > 0 ? pastNumNew / pastSpanNew : 1.0f;
+                    pastPctEditable->setText(String(pastPctNew * 100), sendNotificationAsync);
+                }
+            }
+            catch (const std::logic_error&) { /* give up */ }
+
+            // future
+            try
+            {
+                int futureSpanOld = std::stoi(xmlNode->getStringAttribute("futureSpan").toRawUTF8());
+                float futurePctOld = std::stof(xmlNode->getStringAttribute("futurePct").toRawUTF8()) / 100;
+                float futureNumOld = ceil(futureSpanOld * futurePctOld);
+                if (futureNumOld < 1)
+                {
+                    CoreServices::sendStatusMessage("Warning: old future span/strictness behavior not supported; using defaults");
+                }
+                else
+                {
+                    int futureSpanNew = futureSpanOld - 1;
+                    futureSpanEditable->setText(String(futureSpanNew), sendNotificationAsync);
+                    float futureNumNew = futureNumOld - 1;
+                    float futurePctNew = futureSpanNew > 0 ? futureNumNew / futureSpanNew : 1.0f;
+                    futurePctEditable->setText(String(futurePctNew * 100), sendNotificationAsync);
+                }
+            }
+            catch (const std::logic_error&) { /* give up */ }
+        }
     }
 }
 
@@ -382,7 +603,8 @@ Label* CrossingDetectorEditor::createEditable(const String& name, const String& 
     editable->setBounds(bounds);
     editable->setColour(Label::backgroundColourId, Colours::grey);
     editable->setColour(Label::textColourId, Colours::white);
-    editable->setTooltip(tooltip);
+    if (tooltip.length() > 0)
+        editable->setTooltip(tooltip);
     return editable;
 }
 
@@ -407,7 +629,7 @@ bool CrossingDetectorEditor::updateIntLabel(Label* label, int min, int max, int 
     {
         parsedInt = std::stoi(in.toRawUTF8());
     }
-    catch (const std::exception& e)
+    catch (const std::logic_error&)
     {
         label->setText(String(defaultValue), dontSendNotification);
         return false;
@@ -433,7 +655,7 @@ bool CrossingDetectorEditor::updateFloatLabel(Label* label, float min, float max
     {
         parsedFloat = std::stof(in.toRawUTF8());
     }
-    catch (const std::exception& e)
+    catch (const std::logic_error&)
     {
         label->setText(String(defaultValue), dontSendNotification);
         return false;

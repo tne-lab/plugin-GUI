@@ -25,6 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define CROSSING_DETECTOR_H_INCLUDED
 
 #ifdef _WIN32
+#define NOMINMAX
 #include <Windows.h>
 #endif
 
@@ -61,7 +62,9 @@ enum
     pPastSpan,
     pPastStrict,
     pFutureSpan,
-    pFutureStrict
+    pFutureStrict,
+    pUseJumpLimit,
+    pJumpLimit
 };
 
 class CrossingDetector : public GenericProcessor
@@ -118,11 +121,11 @@ private:
     int eventDuration; // in milliseconds    
     int timeout; // milliseconds after an event onset when no more events are allowed.
 
-    /* number of past and future (including current) samples to look at at each timepoint (attention span)
-    * generally, things get messy if we try to look too far back or especially forward compared to the size of the processing buffers
+    /* Number of *additional* past and future samples to look at at each timepoint (attention span)
+    * Generally, things get messy if we try to look too far back or especially forward compared to the size of the processing buffers
     *
-    * if futureSpan samples are not available to look ahead from a timepoint, the test is delayed until the next processing cycle, and if it succeeds,
-    * the event occurs on the first sample of the next buffer. thus, setting futureSpan too large will delay some events slightly.
+    * If futureSpan samples are not available to look ahead from a timepoint, the test is delayed until the next processing cycle, and if it succeeds,
+    * the event occurs on the first sample of the next buffer. Thus, setting futureSpan too large will delay some events slightly.
     */
     int pastSpan;
     int futureSpan;
@@ -130,6 +133,10 @@ private:
     // fraction of spans required to be above / below threshold
     float pastStrict;
     float futureStrict;
+
+    // maximum absolute difference between x[k] and x[k-1] to trigger an event on x[k]
+    bool useJumpLimit;
+    float jumpLimit;
 
     // limits on numprev / numnext
     // (setting these too high could cause events near the end of a buffer to be significantly delayed,

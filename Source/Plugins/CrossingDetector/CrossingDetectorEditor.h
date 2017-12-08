@@ -29,22 +29,23 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <string>
 #include <climits>
 #include <cfloat>
+#include <algorithm>
 
 /*
-Editor consists of:
--Combo box to select crossing direction to detect
--Combo box to select input (continuous) channel
--Combo box to select output (event) channel
--Editable label to specify the duration of each event, in samples
--Editable label to specify the timeout period after each event, in samples
--Editable label to enter the threshold sample value (crossing of which triggers an event)
--Editable label to enter the percentage of past values required
--Editable label to enter the number of past values to consider
--Editable label to enter the number of future values required
--Editable label to enter the number of future values to consider
+Editor (in signal chain) contains:
+- Input channel selector
+- Ouptput event channel selector
+- Direction ("rising" and "falling") buttons
+- Threshold control (and indicator when threshold randomization is on)
+- Event timeout control
+
+Canvas/visualizer contains:
+- Threshold randomization toggle, minimum and maximum thresh boxes
+- Slope (jump size across threshold) limiting toggle and max jump box
+- Voting settings (pre/post event span and strictness)
+- Event duration control
 
 @see GenericEditor
-
 */
 
 class CrossingDetectorCanvas;
@@ -109,6 +110,8 @@ private:
     // --- Canvas elements are managed by editor but invisible until visualizer is opened ----
     CrossingDetectorCanvas* canvas;
     ScopedPointer<Component> optionsPanel;
+
+    ScopedPointer<Label> optionsPanelTitle;
     
     // threshold randomization
     ScopedPointer<ToggleButton> randomizeButton;
@@ -117,23 +120,27 @@ private:
     ScopedPointer<Label> maxThreshLabel;
     ScopedPointer<Label> maxThreshEditable;
 
-    // slope limiting
+    // jump limiting
     ScopedPointer<ToggleButton> limitButton;
     ScopedPointer<Label> limitLabel;
     ScopedPointer<Label> limitEditable;
 
     // sample voting
-    ScopedPointer<Label> pastSpanLabel;
-    ScopedPointer<Label> pastSpanEditable;
+    ScopedPointer<Label> votingHeader;
+    
     ScopedPointer<Label> pastStrictLabel;
     ScopedPointer<Label> pastPctEditable;
     ScopedPointer<Label> pastPctLabel;
+    ScopedPointer<Label> pastSpanEditable;
+    ScopedPointer<Label> pastSpanLabel;
 
-    ScopedPointer<Label> futureSpanLabel;
-    ScopedPointer<Label> futureSpanEditable;
     ScopedPointer<Label> futureStrictLabel;
     ScopedPointer<Label> futurePctEditable;
     ScopedPointer<Label> futurePctLabel;
+    ScopedPointer<Label> futureSpanLabel;
+    ScopedPointer<Label> futureSpanEditable;
+
+    ScopedPointer<Label> votingFooter;
 
     // event duration
     ScopedPointer<Label> durLabel;
