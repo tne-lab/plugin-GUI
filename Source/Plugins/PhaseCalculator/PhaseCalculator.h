@@ -59,7 +59,7 @@ given a bandpass-filtered signal.
 #define MAX_PLEN_POW 16
 
 // starting portion of the processing buffer that is AR predicted
-#define START_NUM_FUTURE (1 << (START_PLEN_POW - 3))
+#define START_NUM_FUTURE (1 << (START_PLEN_POW - 1))
 
 // "glitch limit" (how long of a segment is allowed to be unwrapped or smoothed, in samples)
 #define GLITCH_LIMIT 200
