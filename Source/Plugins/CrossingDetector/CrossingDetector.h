@@ -96,7 +96,7 @@ private:
     // dir is the crossing direction(s) (see #defines above) (must be explicitly specified)
     // uses passed nPrev and nNext rather than the member variables numPrev and numNext.
     bool shouldTrigger(const float* rpCurr, int nSamples, int t0, float currThresh,
-                       bool currPosOn, bool currNegOn, int currPastSpan, int currFutureSpan, bool delay);
+                       bool currPosOn, bool currNegOn, int currPastSpan, int currFutureSpan);
     
     // Select a new random threshold using minThresh, maxThresh, and rng.
     float nextThresh();
