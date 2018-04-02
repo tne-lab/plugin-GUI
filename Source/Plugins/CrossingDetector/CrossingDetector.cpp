@@ -50,10 +50,10 @@ CrossingDetector::CrossingDetector()
 , futureCounter     (0)
 
 //arrays
-pastBinary.resize(pastSpan); //(const int pastSpan)?
-pastBinary.fill(0); //(const bool 0)?
-futureBinary.resize(futureSpan); //(const int futureSpan)?
-futureBinary.fill(0); //(const bool 0)?
+pastBinary.resize(pastSpan); 
+pastBinary.fill(0); 
+futureBinary.resize(futureSpan); 
+futureBinary.fill(0); 
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
 }
@@ -156,9 +156,12 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
             pastBinary[j] = pastBinary[j + 1];
         }
         pastBinary[pastSpan] = futureBinary[0];
-        if(pastBinary[pastSpan] == 1)
+        if(pastBinary[pastSpan-1] == 1)
         {
             pastCounter++;
+        }
+        if(futureBinary[1] == 1)
+        {
             futureCounter--;
         }
         for (int i = 0; j < futureSpan; j++)
@@ -166,12 +169,12 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
             futureBinary[j] = (futureBinary[j + 1]);
         }
         //add new value to end of binary array
-        if(rp[i] - currThresh > 0) // >=?
+        if(rp[i] - currThresh > 0) 
         {
             futureBinary[futureSpan] = 1;
             futureCounter++;
         }
-        else //do we need <= or just <
+        else 
         {
             futureBinary[futureSpan] = 0;
         }
@@ -380,7 +383,7 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
     
     if (currPosOn && currNegOn)
         return shouldTrigger(rpCurr, nSamples, t0, currThresh, true, false, currPastSpan, currFutureSpan)
-        || shouldTrigger(rpCurr, nSamples, t0, currThresh, false, true, currPastSpan, currFutureSpan); //should delay be true here?
+        || shouldTrigger(rpCurr, nSamples, t0, currThresh, false, true, currPastSpan, currFutureSpan); 
     
     // at this point exactly one of posOn and negOn is true.
     
@@ -432,7 +435,8 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
     if(posOn)
     {
         int pastZero = pastSpan - pastCounter;
-        if(pastZero >= pastSamplesNeeded && futureCounter >= futureSamplesNeeded)
+        if(pastZero >= pastSamplesNeeded && futureCounter >= futureSamplesNeeded &&
+          pastBinary[pastSpan] == 0 && futureBinary[0] == 1)
         {
             return true;
         }
@@ -441,10 +445,11 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
             return false;
         }
     }
-    if(negOn)
+    else
     {
         int futureZero = futureSpan - futureCounter;
-        if(pastCounter >= pastSamplesNeeded && futureZero >= futureSamplesNeeded)
+        if(pastCounter >= pastSamplesNeeded && futureZero >= futureSamplesNeeded &&
+          pastBinary[pastSpan] == 1 && futureBinary[0] == 0)
         {
             return true;
         }
