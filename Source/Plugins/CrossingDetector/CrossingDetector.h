@@ -136,6 +136,10 @@ private:
     float pastStrict;
     float futureStrict;
     
+    //counters for delay keeping track of voting samples
+    int pastCounter;
+    int futureCounter;
+    
     //array for binary data of samples above/below threshold
     Array<bool> pastBinary;
     Array<bool> futureBinary;
@@ -143,12 +147,6 @@ private:
     // maximum absolute difference between x[k] and x[k-1] to trigger an event on x[k]
     bool useJumpLimit;
     float jumpLimit;
-    
-    // limits on numprev / numnext
-    // (setting these too high could cause events near the end of a buffer to be significantly delayed,
-    // plus we don't want them to exceed the length of a processing buffer)
-    const int MAX_PAST_SPAN = 20;
-    const int MAX_FUTURE_SPAN = 20;
     
     // ------internals-----------
     

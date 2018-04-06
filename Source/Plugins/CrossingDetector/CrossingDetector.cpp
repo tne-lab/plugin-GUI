@@ -25,36 +25,38 @@
 #include "CrossingDetectorEditor.h"
 
 CrossingDetector::CrossingDetector()
-: GenericProcessor  ("Crossing Detector")
-, threshold         (0.0f)
-, useRandomThresh   (false)
-, minThresh         (-180)
-, maxThresh         (180)
-, thresholdVal      (0.0)
-, posOn             (true)
-, negOn             (false)
-, inputChan         (0)
-, eventChan         (0)
-, eventDuration     (5)
-, timeout           (1000)
-, pastStrict        (1.0f)
-, pastSpan          (0)
-, futureStrict      (1.0f)
-, futureSpan        (0)
-, useJumpLimit      (false)
-, jumpLimit         (5.0f)
-, sampsToShutoff    (-1)
-, sampsToReenable   (pastSpan)
-, shutoffChan       (-1)
-, pastCounter       (0)
-, futureCounter     (0)
+    : GenericProcessor("Crossing Detector")
+    , threshold(0.0f)
+    , useRandomThresh(false)
+    , minThresh(-180)
+    , maxThresh(180)
+    , thresholdVal(0.0)
+    , posOn(true)
+    , negOn(false)
+    , inputChan(0)
+    , eventChan(0)
+    , eventDuration(5)
+    , timeout(1000)
+    , pastStrict(1.0f)
+    , pastSpan(0)
+    , futureStrict(1.0f)
+    , futureSpan(0)
+    , useJumpLimit(false)
+    , jumpLimit(5.0f)
+    , sampsToShutoff(-1)
+    , sampsToReenable(pastSpan)
+    , shutoffChan(-1)
+    , pastCounter(0)
+    , futureCounter(0)
 
-//arrays
-pastBinary.resize(pastSpan); 
-pastBinary.fill(0); 
-futureBinary.resize(futureSpan); 
-futureBinary.fill(0); 
+    //arrays
 {
+    pastBinary.resize(pastSpan + 1);
+    pastBinary.clearQuick( );
+    pastBinary.insertMultiple(0, 0, pastSpan + 1);
+    futureBinary.resize(futureSpan + 1);
+    futureBinary.clearQuick( );
+    futureBinary.insertMultiple(0, 0, futureSpan + 1);
     setProcessorType(PROCESSOR_TYPE_FILTER);
 }
 
@@ -153,9 +155,9 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         }
         for (int j = 0; j < pastSpan; j++)
         {
-            pastBinary[j] = pastBinary[j + 1];
+            pastBinary.set(j, pastBinary[j + 1]);
         }
-        pastBinary[pastSpan] = futureBinary[0];
+        pastBinary.set(pastSpan, futureBinary[0]);
         if(pastBinary[pastSpan-1] == 1)
         {
             pastCounter++;
@@ -164,19 +166,19 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         {
             futureCounter--;
         }
-        for (int i = 0; j < futureSpan; j++)
+        for (int j = 0; j < futureSpan; j++)
         {
-            futureBinary[j] = (futureBinary[j + 1]);
+            futureBinary.set(j, futureBinary[j + 1]);
         }
         //add new value to end of binary array
         if(rp[i] - currThresh > 0) 
         {
-            futureBinary[futureSpan] = 1;
+            futureBinary.set(futureSpan, 1);
             futureCounter++;
         }
         else 
         {
-            futureBinary[futureSpan] = 0;
+            futureBinary.set(futureSpan, 0);
         }
         
         
@@ -340,8 +342,9 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         case pPastSpan:
             pastSpan = static_cast<int>(newValue);
             sampsToReenable = pastSpan;
-            pastBinary.resize(pastSpan); //(const int pastSpan)?
-            pastBinary.fill(0); //(const bool 0)?
+            pastBinary.resize(pastSpan + 1); 
+            pastBinary.clearQuick( );
+            pastBinary.insertMultiple(0, 0, pastSpan + 1);
             break;
             
         case pPastStrict:
@@ -350,8 +353,9 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
             
         case pFutureSpan:
             futureSpan = static_cast<int>(newValue);
-            futureBinary.resize(futureSpan); //(const int pastSpan)?
-            futureBinary.fill(0); //(const bool 0)?
+            futureBinary.resize(futureSpan + 1); 
+            futureBinary.clearQuick( );
+            futureBinary.insertMultiple(0, 0, futureSpan + 1);
             break;
             
         case pFutureStrict:
@@ -411,7 +415,8 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
     if (!(preSat(t0 - 1) && postSat(t0) && jumpSize <= currJumpLimit))
         return false;
     
-    /*// additional past and future "voting" samples
+    /*//code before changes for extened delay
+    // additional past and future "voting" samples
      int numPastRequired = currPastSpan ? static_cast<int>(ceil(currPastSpan * pastStrict)) : 0;
      int numFutureRequired = currFutureSpan ? static_cast<int>(ceil(currFutureSpan * futureStrict)) : 0;
      
@@ -428,6 +433,7 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
      if (numFutureRequired == 0) // "next" condition satisfied
      return true;
      }*/
+
     //number of samples required before and after crossing threshold
     int pastSamplesNeeded = pastSpan ? static_cast<int>(ceil(pastSpan * pastStrict)) : 0;
     int futureSamplesNeeded = futureSpan ? static_cast<int>(ceil(futureSpan * futureStrict)) : 0;
