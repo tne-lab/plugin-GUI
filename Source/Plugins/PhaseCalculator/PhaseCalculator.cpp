@@ -515,6 +515,11 @@ void PhaseCalculator::updateSettings()
     setFilterParameters();
 }
 
+bool PhaseCalculator::isGeneratesTimestamps() const
+{
+    return true;
+}
+
 // ------------ PRIVATE METHODS ---------------
 
 void PhaseCalculator::setProcessLength(int newProcessLength, int newNumFuture)

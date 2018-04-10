@@ -141,6 +141,9 @@ public:
     // handle changing number of channels
     void updateSettings() override;
 
+    // ----- to create new channels for multiple outputs -------
+    bool isGeneratesTimestamps() const override;
+
 private:
 
     // ---- methods ----
