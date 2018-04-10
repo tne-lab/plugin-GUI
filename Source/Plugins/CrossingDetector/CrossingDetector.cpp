@@ -44,7 +44,7 @@ CrossingDetector::CrossingDetector()
     , useJumpLimit(false)
     , jumpLimit(5.0f)
     , sampsToShutoff(-1)
-    , sampsToReenable(pastSpan)
+    , sampsToReenable(pastSpan + futureSpan + 1)
     , shutoffChan(-1)
     , pastCounter(0)
     , futureCounter(0)
@@ -133,7 +133,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
     
     // loop has two functions: detect crossings and turn on events for the end of the previous buffer and most of the current buffer,
     // or if an event is currently on, turn it off if it has been on for long enough.
-    for (int i = -currFutureSpan; i < nSamples; i++)
+    for (int i = 0; i <= nSamples; i++)
     {
         float currThresh;
         if (useRandomThresh)
@@ -182,17 +182,16 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         }
         
         
-        // if enabled, check whether to trigger an event (operates on [-currFutureSpan+1, nSamples - currFutureSpan] )
-        bool turnOn = (i >= sampsToReenable && i < nSamples - currFutureSpan && shouldTrigger(rp, nSamples, i, currThresh,
-                                                                                              currPosOn, currNegOn, currPastSpan, currFutureSpan));
+        // if enabled, check whether to trigger an event
+        bool turnOn = (i >= sampsToReenable && i < nSamples && shouldTrigger(rp, nSamples, i, currThresh, currPosOn, currNegOn, currPastSpan, currFutureSpan));
         
         // if not triggering, check whether event should be shut off (operates on [0, nSamples) )
-        bool turnOff = (!turnOn && i >= 0 && i == sampsToShutoff);
+        bool turnOff = (!turnOn && sampsToShutoff >= 0 && i >= sampsToShutoff);
         
         if (turnOn || turnOff)
         {
-            // actual sample when event fires (start of current buffer if turning on and the crossing was in prev. buffer.)
-            int eventTime = turnOn ? std::max(i, 0) : i;
+            // actual sample when event fires (start of current buffer if turning on and the crossing was before this buffer.)
+            int eventTime = turnOn ? std::max(i - currFutureSpan, 0) : sampsToShutoff;
             int64 timestamp = getTimestamp(currChan) + eventTime;
             
             // construct the event's metadata array
@@ -260,16 +259,16 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         // shift so it is relative to the next buffer
         sampsToShutoff -= nSamples;
     
-    if (sampsToReenable < nSamples - currFutureSpan)
+    if (sampsToReenable < nSamples)
         // already reenabled
-        sampsToReenable = INT_MIN;
+        sampsToReenable = -1;
     else
         // shift so it is relative to the next buffer
         sampsToReenable -= nSamples;
     
-    // save this buffer for the next execution
-    lastBuffer.clearQuick();
-    lastBuffer.addArray(rp, nSamples);
+    //// save this buffer for the next execution
+    //lastBuffer.clearQuick();
+    //lastBuffer.addArray(rp, nSamples);
 }
 
 // all new values should be validated before this function is called!
@@ -341,7 +340,7 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
             
         case pPastSpan:
             pastSpan = static_cast<int>(newValue);
-            sampsToReenable = pastSpan;
+            sampsToReenable = pastSpan + futureSpan + 1;
             pastBinary.resize(pastSpan + 1); 
             pastBinary.clearQuick( );
             pastBinary.insertMultiple(0, 0, pastSpan + 1);
@@ -353,6 +352,7 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
             
         case pFutureSpan:
             futureSpan = static_cast<int>(newValue);
+            sampsToReenable = pastSpan + futureSpan + 1;
             futureBinary.resize(futureSpan + 1); 
             futureBinary.clearQuick( );
             futureBinary.insertMultiple(0, 0, futureSpan + 1);
@@ -375,7 +375,7 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 bool CrossingDetector::disable()
 {
     // set this to pastSpan so that we don't trigger on old data when we start again.
-    sampsToReenable = pastSpan;
+    sampsToReenable = pastSpan + futureSpan + 1;
     return true;
 }
 
@@ -391,29 +391,29 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
     
     // at this point exactly one of posOn and negOn is true.
     
-    int minInd = t0 - (currPastSpan + 1);
-    int maxInd = t0 + currFutureSpan;
+    //int minInd = t0 - (currPastSpan + 1);
+    //int maxInd = t0 + currFutureSpan;
+    //
+    //// check whether we have enough data
+    //// (shouldn't happen unless the buffers are too short or the spans are too long)
+    //if (minInd < -lastBuffer.size() || maxInd >= nSamples)
+    //    return false;
     
-    // check whether we have enough data
-    // (shouldn't happen unless the buffers are too short or the spans are too long)
-    if (minInd < -lastBuffer.size() || maxInd >= nSamples)
-        return false;
+//    const float* rpLast = lastBuffer.end();
     
-    const float* rpLast = lastBuffer.end();
-    
-    // allow us to treat the previous and current buffers as one array
-#define rp(x) ((x)>=0 ? rpCurr[(x)] : rpLast[(x)])
-    // satisfies pre-t0 condition
-#define preSat(i) (currPosOn ? rp(i) < currThresh : rp(i) > currThresh)
-    // satisfies post-t0 condition
-#define postSat(i) (currPosOn ? rp(i) >= currThresh : rp(i) <= currThresh)
+//    // allow us to treat the previous and current buffers as one array
+//#define rp(x) ((x)>=0 ? rpCurr[(x)] : rpLast[(x)])
+//    // satisfies pre-t0 condition
+//#define preSat(i) (currPosOn ? rp(i) < currThresh : rp(i) > currThresh)
+//    // satisfies post-t0 condition
+//#define postSat(i) (currPosOn ? rp(i) >= currThresh : rp(i) <= currThresh)
     
     // first, check transition point
     // must cross in the correct direction and (maybe) have a jump no greater than jumpLimit
-    float currJumpLimit = useJumpLimit ? jumpLimit : FLT_MAX;
-    float jumpSize = abs(rp(t0) - rp(t0 - 1));
-    if (!(preSat(t0 - 1) && postSat(t0) && jumpSize <= currJumpLimit))
-        return false;
+//    float currJumpLimit = useJumpLimit ? jumpLimit : FLT_MAX;
+////    float jumpSize = abs(rp(t0) - rp(t0 - 1));
+//    if (!(preSat(t0 - 1) && postSat(t0) && jumpSize <= currJumpLimit))
+//        return false;
     
     /*//code before changes for extened delay
     // additional past and future "voting" samples
@@ -464,11 +464,11 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
             return false;
         }
     }
-    return false;
+    //return false;
     
-#undef rp
-#undef preSat
-#undef postSat
+//#undef rp
+//#undef preSat
+//#undef postSat
 }
 
 float CrossingDetector::nextThresh()
