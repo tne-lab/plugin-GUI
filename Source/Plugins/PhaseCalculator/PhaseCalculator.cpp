@@ -23,6 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
+#include <unordered_set> // getNumSubProcessors
 
 // initializer for static instance counter
 unsigned int PhaseCalculator::numInstances = 0;
@@ -518,6 +519,23 @@ void PhaseCalculator::updateSettings()
 bool PhaseCalculator::isGeneratesTimestamps() const
 {
     return true;
+}
+
+int PhaseCalculator::getNumSubProcessors() const
+{
+    int numChannels = getTotalDataChannels();
+    unordered_set<uint32> procFullIds;
+
+    for (int i = 0; i < numChannels; ++i)
+    {
+        const DataChannel* chan = getDataChannel(i);
+        uint16 sourceNodeId = chan->getSourceNodeID();
+        uint16 subProcessorId = chan->getSubProcessorIdx();
+        uint32 procFullId = getProcessorFullId(sourceNodeId, subProcessorId);
+        procFullIds.insert(procFullId);
+    }
+
+    return procFullIds.size();
 }
 
 // ------------ PRIVATE METHODS ---------------

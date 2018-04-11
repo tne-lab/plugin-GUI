@@ -144,6 +144,8 @@ public:
     // ----- to create new channels for multiple outputs -------
     bool isGeneratesTimestamps() const override;
 
+    int getNumSubProcessors() const override;
+
 private:
 
     // ---- methods ----
