@@ -20,6 +20,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <cmath>
+#include <climits>
 
 #include "PhaseCalculatorEditor.h"
 
@@ -69,7 +71,7 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool 
 
     processLengthBox = new ComboBox("Buffer size");
     processLengthBox->setEditableText(true);
-    for (int pow = MIN_PLEN_POW; pow <= MAX_PLEN_POW; pow++)
+    for (int pow = PhaseCalculator::MIN_PLEN_POW; pow <= PhaseCalculator::MAX_PLEN_POW; ++pow)
         processLengthBox->addItem(String(1 << pow), pow);
     processLengthBox->setText(String(processor->processLength), dontSendNotification);
     processLengthBox->setTooltip(QUEUE_SIZE_TOOLTIP);
@@ -187,15 +189,15 @@ void PhaseCalculatorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
         int newId = processLengthBox->getSelectedId();
         int newProcessLength;
         if (newId) // one of the items in the list is selected
-        {
-            
+        {            
             newProcessLength = (1 << newId);
         }
         else
         {
             // try to parse input
             String input = processLengthBox->getText();
-            bool stringValid = parseInput(input, 1 << MIN_PLEN_POW, 1 << MAX_PLEN_POW, &newProcessLength);
+            bool stringValid = parseInput(input, 1 << PhaseCalculator::MIN_PLEN_POW,
+                1 << PhaseCalculator::MAX_PLEN_POW, &newProcessLength);
 
             if (!stringValid)
             {
@@ -244,7 +246,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
             int newNumFuture = sliderMax - intInput;
             numFutureSlider->setValue(intInput, dontSendNotification);
             numFutureEditable->setText(String(newNumFuture), dontSendNotification);
-            processor->setParameter(pNumFuture, static_cast<float>(newNumFuture));
+            processor->setParameter(Param::numFuture, static_cast<float>(newNumFuture));
         }        
     }
     else if (labelThatHasChanged == numFutureEditable)
@@ -258,7 +260,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
             int newNumPast = sliderMax - intInput;
             numFutureSlider->setValue(newNumPast, dontSendNotification);
             numPastEditable->setText(String(newNumPast), dontSendNotification);
-            processor->setParameter(pNumFuture, static_cast<float>(intInput));
+            processor->setParameter(Param::numFuture, static_cast<float>(intInput));
         }
     }
     else if (labelThatHasChanged == recalcIntervalEditable)
@@ -267,7 +269,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool valid = updateLabel(labelThatHasChanged, 0, INT_MAX, processor->calcInterval, &intInput);
 
         if (valid)
-            processor->setParameter(pRecalcInterval, static_cast<float>(intInput));
+            processor->setParameter(Param::recalcInterval, static_cast<float>(intInput));
     }
     else if (labelThatHasChanged == arOrderEditable)
     {
@@ -275,7 +277,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool valid = updateLabel<int>(labelThatHasChanged, 1, processor->bufferLength, processor->arOrder, &intInput);
 
         if (valid)
-            processor->setParameter(pAROrder, static_cast<float>(intInput));
+            processor->setParameter(Param::arOrder, static_cast<float>(intInput));
 
         // update slider's minimum value
         numFutureSlider->updateFromProcessor(processor);
@@ -286,7 +288,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool valid = updateLabel<float>(labelThatHasChanged, 0.01F, 10000.0F, static_cast<float>(processor->lowCut), &floatInput);
 
         if (valid)
-            processor->setParameter(pLowcut, floatInput);
+            processor->setParameter(Param::lowcut, floatInput);
     }
     else if (labelThatHasChanged == highCutEditable)
     {
@@ -294,7 +296,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool valid = updateLabel<float>(labelThatHasChanged, 0.01F, 10000.0F, static_cast<float>(processor->highCut), &floatInput);
 
         if (valid)
-            processor->setParameter(pHighcut, floatInput);
+            processor->setParameter(Param::highcut, floatInput);
     }
 }
 
@@ -308,7 +310,7 @@ void PhaseCalculatorEditor::sliderEvent(Slider* slider)
         numPastEditable->setText(String(newVal), dontSendNotification);
         numFutureEditable->setText(String(maxVal - newVal), dontSendNotification);
         
-        getProcessor()->setParameter(pNumFuture, static_cast<float>(maxVal - newVal));
+        getProcessor()->setParameter(Param::numFuture, static_cast<float>(maxVal - newVal));
     }
 }
 
@@ -326,13 +328,13 @@ void PhaseCalculatorEditor::buttonEvent(Button* button)
         for (int i = 0; i < chans.size(); i++)
         {
             pc->setCurrentChannel(chans[i]);
-            pc->setParameter(pEnabledState, newValue);
+            pc->setParameter(Param::enabledState, newValue);
         }
     }
     else if (button == applyToADC)
     {
         float newValue = button->getToggleState() ? 1.0F : 0.0F;
-        pc->setParameter(pAdcEnabled, newValue);
+        pc->setParameter(Param::adcEnabled, newValue);
     }
 }
 

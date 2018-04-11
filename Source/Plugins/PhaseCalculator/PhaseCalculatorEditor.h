@@ -25,8 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define PHASE_CALCULATOR_EDITOR_H_INCLUDED
 
 #include <EditorHeaders.h>
-#include <cmath>
-#include <climits>
+
 #include "PhaseCalculator.h"
 
 #define QUEUE_SIZE_TOOLTIP "Change the total amount of data used to calculate the phase (powers of 2 are best)"
