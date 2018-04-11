@@ -21,8 +21,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+#include <cstring>       // memset (for Burg method)
+#include <numeric>       // inner_product
+
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
+#include "burg.h"        // Autoregressive modeling
 
 // initializer for static instance counter
 unsigned int PhaseCalculator::numInstances = 0;
@@ -30,16 +34,16 @@ unsigned int PhaseCalculator::numInstances = 0;
 PhaseCalculator::PhaseCalculator()
     : GenericProcessor  ("Phase Calculator")
     , Thread            ("AR Modeler")
-    , calcInterval      (START_AR_INTERVAL)
-    , arOrder           (START_AR_ORDER)
+    , calcInterval      (50)
+    , arOrder           (20)
     , processADC        (false)
-    , lowCut            (START_LOW_CUT)
-    , highCut           (START_HIGH_CUT)
+    , lowCut            (4.0)
+    , highCut           (8.0)
     , haveSentWarning   (false)
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
     numInstances++;
-    setProcessLength(1 << START_PLEN_POW, START_NUM_FUTURE);
+    setProcessLength(1 << 13, 1 << 12);
 }
 
 PhaseCalculator::~PhaseCalculator() 
@@ -66,69 +70,43 @@ AudioProcessorEditor* PhaseCalculator::createEditor()
     return editor;
 }
 
-#ifdef MARK_BUFFERS
-void PhaseCalculator::createEventChannels()
-{
-    const DataChannel* in = getDataChannel(0);
-    if (in)
-    {
-        float sampleRate = in->getSampleRate();
-        EventChannel* chan = new EventChannel(EventChannel::TTL, 8, 1, sampleRate, this);
-        chan->setName("PhaseCalculator buffer markers");
-        chan->setDescription("Channel 1 turns on for the first half of each buffer of data channel 1");
-        chan->setIdentifier("phasecalc.buffer");
-
-        // source metadata
-        MetaDataDescriptor sourceChanDesc(MetaDataDescriptor::UINT16, 3, "Source channel",
-            "Index at source, source processor ID and subprocessor index of the channel that triggers this event",
-            "source.channel.identifier.full");
-        MetaDataValue sourceChanVal(sourceChanDesc);
-        const uint16 sourceInfo[3] = {in->getSourceIndex(), in->getSourceNodeID(), in->getSubProcessorIdx()};
-        sourceChanVal.setValue(sourceInfo);
-        chan->addMetaData(sourceChanDesc, sourceChanVal);
-
-        eventChannelPtr = eventChannelArray.add(chan);
-    }
-}
-#endif
-
 void PhaseCalculator::setParameter(int parameterIndex, float newValue)
 {
     int numInputs = getNumInputs();
 
     switch (parameterIndex) {
-    case pNumFuture:
+    case Param::numFuture:
         // precondition: acquisition is stopped.
         setNumFuture(static_cast<int>(newValue));
         break;
 
-    case pEnabledState:
+    case Param::enabledState:
         if (newValue == 0)
             shouldProcessChannel.set(currentChannel, false);
         else
             shouldProcessChannel.set(currentChannel, true);
         break;
 
-    case pRecalcInterval:
+    case Param::recalcInterval:
         calcInterval = static_cast<int>(newValue);
         break;
 
-    case pAROrder:
+    case Param::arOrder:
         arOrder = static_cast<int>(newValue);
         updateSettings(); // resize the necessary fields
         break;
 
-    case pAdcEnabled:
+    case Param::adcEnabled:
         processADC = (newValue > 0);
         break;
 
-    case pLowcut:
+    case Param::lowcut:
         // precondition: acquisition is stopped.
         lowCut = newValue;
         setFilterParameters();
         break;
 
-    case pHighcut:
+    case Param::highcut:
         // precondition: acquisition is stopped.
         highCut = newValue;
         setFilterParameters();
@@ -155,24 +133,6 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         int nSamples = getNumSamples(chan);
         if (nSamples == 0)
             continue;
-
-#ifdef MARK_BUFFERS // for debugging (see description in header file)
-        if (chan == 0)
-        {
-            int64 ts1 = getTimestamp(0);
-            uint8 ttlData1 = 1;
-            TTLEventPtr event1 = TTLEvent::createTTLEvent(eventChannelPtr, ts1,
-                &ttlData1, sizeof(uint8), 0);
-            addEvent(eventChannelPtr, event1, 0);
-
-            int halfway = nSamples / 2;
-            int64 ts2 = ts1 + halfway;
-            uint8 ttlData2 = 0;
-            TTLEventPtr event2 = TTLEvent::createTTLEvent(eventChannelPtr, ts2,
-                &ttlData2, sizeof(uint8), 0);
-            addEvent(eventChannelPtr, event2, halfway);
-        }
-#endif
 
         // Forward-filter the data.
         // Code from FilterNode.
@@ -249,13 +209,6 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
 
             arPredict(wpProcess, numFuture, rpParam, arOrder);
 
-            // backward-filter the data
-            //dataToProcess[chan]->reverse();
-            //double* wpProcessReverse = dataToProcess[chan]->getWritePointer();
-            //backwardFilters[chan]->reset();
-            //backwardFilters[chan]->process(processLength, &wpProcessReverse);
-            //dataToProcess[chan]->reverse();
-
             // Hilbert-transform dataToProcess
             pForward[chan]->execute();      // reads from dataToProcess, writes to fftData
             hilbertManip(*(fftData[chan]));
@@ -271,14 +224,6 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                 // note that doubles are cast back to floats
                 wpOut[i + startIndex] = static_cast<float>(std::arg(rpProcess[i]) * (180.0 / Dsp::doublePi));
             }
-
-            // for debugging - uncomment below and comment above from "Hilbert transform" line to just output the filtered wave            
-            //const double* rpDTP = dataToProcess[chan]->getReadPointer(bufferLength - nSamplesToProcess);
-            //float* wpOut = buffer.getWritePointer(chan);
-            //for (int i = 0; i < nSamplesToProcess; i++)
-            //{
-            //    wpOut[i + startIndex] = static_cast<float>(rpDTP[i]);
-            //}
 
             // unwrapping / smoothing
             unwrapBuffer(wpOut, nSamples, chan);
@@ -434,33 +379,34 @@ void PhaseCalculator::loadCustomChannelParametersFromXml(XmlElement* channelElem
 
 void PhaseCalculator::updateSettings()
 {
-    int nInputs = getNumInputs();
-    int prevNInputs = sharedDataBuffer.getNumChannels();
+    int numInputs = getNumInputs();
+    int prevNumInputs = sharedDataBuffer.getNumChannels();
+    int numInputsChange = numInputs - prevNumInputs;
 
-    sharedDataBuffer.setSize(nInputs, bufferLength);
+    sharedDataBuffer.setSize(numInputs, bufferLength);
 
     // update AR order dependent parameters
     if (arOrder != h.size())
     {
         h.resize(arOrder);
         g.resize(arOrder);
-        for (int i = 0; i < prevNInputs; i++)
+        for (int i = 0; i < prevNumInputs; i++)
         {
             arParams[i]->resize(arOrder);
         }
     }
 
-    if (nInputs > prevNInputs)
+    if (numInputsChange > 0)
     {
-        // initialize fields at new indices
-        for (int i = prevNInputs; i < nInputs; i++)
+        // resize simple arrays
+        bufferFreeSpace.insertMultiple(-1, bufferLength, numInputsChange);
+        shouldProcessChannel.insertMultiple(-1, true, numInputsChange);
+        chanState.insertMultiple(-1, NOT_FULL, numInputsChange);
+        lastSample.insertMultiple(-1, 0, numInputsChange);
+        
+        // add new objects at new indices
+        for (int i = prevNumInputs; i < numInputs; i++)
         {
-            // primitives
-            bufferFreeSpace.set(i, bufferLength);            
-            shouldProcessChannel.set(i, true);
-            chanState.set(i, NOT_FULL);
-            lastSample.set(i, 0);
-
             // processing buffers
             dataToProcess.set(i, new FFTWArray<double>(processLength));
             fftData.set(i, new FFTWArray<complex<double>>(processLength));
@@ -494,22 +440,20 @@ void PhaseCalculator::updateSettings()
                 (1));
         }
     }
-    else if (nInputs < prevNInputs)
+    else if (numInputsChange < 0)
     {
-        // delete unneeded fields
-        int diff = prevNInputs - nInputs;
-
-        bufferFreeSpace.removeLast(diff);
-        shouldProcessChannel.removeLast(diff);
-        dataToProcess.removeLast(diff);
-        fftData.removeLast(diff);
-        dataOut.removeLast(diff);
-        pForward.removeLast(diff);
-        pBackward.removeLast(diff);
-        sdbLock.removeLast(diff);
-        arParams.removeLast(diff);
-        forwardFilters.removeLast(diff);
-        backwardFilters.removeLast(diff);
+        // delete unneeded entries
+        bufferFreeSpace.removeLast(-numInputsChange);
+        shouldProcessChannel.removeLast(-numInputsChange);
+        dataToProcess.removeLast(-numInputsChange);
+        fftData.removeLast(-numInputsChange);
+        dataOut.removeLast(-numInputsChange);
+        pForward.removeLast(-numInputsChange);
+        pBackward.removeLast(-numInputsChange);
+        sdbLock.removeLast(-numInputsChange);
+        arParams.removeLast(-numInputsChange);
+        forwardFilters.removeLast(-numInputsChange);
+        backwardFilters.removeLast(-numInputsChange);
     }
     // call this no matter what, since the sample rate may have changed.
     setFilterParameters();

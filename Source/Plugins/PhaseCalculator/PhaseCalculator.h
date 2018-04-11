@@ -34,59 +34,25 @@ given a bandpass-filtered signal.
 
 */
 
-// debugging options
-
-/* MARK_BUFFERS: Triggers an event on event channel 1 that starts at the first sample of each
- * processing buffer of input channel 1 and ends halfway between the first and last samples.
- * Aids in determining how features in the output (e.g. glitches) interact with edges between buffers.
- */
-//#define MARK_BUFFERS
-
 #ifdef _WIN32
 #include <Windows.h>
 #endif
 
 #include <ProcessorHeaders.h>
-#include <cstring>       // memset
-#include <numeric>       // inner_product
-#include <DspLib\Dsp.h>     // Filtering
+#include <DspLib/Dsp.h>  // Filtering
+
 #include "FFTWWrapper.h" // Fourier transform
-#include "burg.h"        // Autoregressive modeling
-
-// log2(starting length of the processing buffer)
-#define START_PLEN_POW 13
-#define MIN_PLEN_POW 9
-#define MAX_PLEN_POW 16
-
-// starting portion of the processing buffer that is AR predicted
-#define START_NUM_FUTURE (1 << (START_PLEN_POW - 1))
-
-// "glitch limit" (how long of a segment is allowed to be unwrapped or smoothed, in samples)
-#define GLITCH_LIMIT 200
-
-// how often to recalculate AR model, in ms (initial value)
-#define START_AR_INTERVAL 50
-
-// starting order of the AR model
-#define START_AR_ORDER 20
-
-// priority of the AR model calculating thread (0 = lowest, 10 = highest)
-#define AR_PRIORITY 3
-
-// filter parameters
-#define START_LOW_CUT 4.0
-#define START_HIGH_CUT 8.0
 
 // parameter indices
-enum 
+enum Param
 {
-    pNumFuture,
-    pEnabledState,
-    pRecalcInterval,
-    pAROrder,
-    pAdcEnabled,
-    pLowcut,
-    pHighcut
+    numFuture,
+    enabledState,
+    recalcInterval,
+    arOrder,
+    adcEnabled,
+    lowcut,
+    highcut
 };
 
 /* each continuous channel has three possible states while acquisition is running:
@@ -114,13 +80,6 @@ public:
     bool hasEditor() const override;
 
     AudioProcessorEditor* createEditor() override;
-
-#ifdef MARK_BUFFERS
-    void createEventChannels() override;
-private:
-    EventChannel* eventChannelPtr;
-public:
-#endif
 
     void setParameter(int parameterIndex, float newValue) override;
 
@@ -250,6 +209,16 @@ private:
 
     // so that fftw_cleanup doesn't choke
     static unsigned int numInstances;
+
+    // priority of the AR model calculating thread (0 = lowest, 10 = highest)
+    static const int AR_PRIORITY = 3;
+
+    // "glitch limit" (how long of a segment is allowed to be unwrapped or smoothed, in samples)
+    static const int GLITCH_LIMIT = 200;
+
+    // process length limits (powers of 2)
+    static const int MIN_PLEN_POW = 9;
+    static const int MAX_PLEN_POW = 16;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseCalculator);
 };
