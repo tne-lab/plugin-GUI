@@ -28,12 +28,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PhaseCalculator.h"
 
-#define QUEUE_SIZE_TOOLTIP "Change the total amount of data used to calculate the phase (powers of 2 are best)"
-#define NUM_FUTURE_TOOLTIP "Select how much actual (past) vs. predicted (future) data to use when calculating the phase"
-#define APPLY_TO_CHAN_TOOLTIP "When this button is off, selected channels pass through unchanged"
-#define APPLY_TO_ADC_TOOLTIP "When this button is off, ADC and AUX channels will pass through unchanged"
-#define RECALC_INTERVAL_TOOLTIP "Time to wait between calls to update the autoregressive models"
-#define AR_ORDER_TOOLTIP "Order of the autoregressive models used to predict future data"
+
 
 using namespace std;
 
@@ -127,6 +122,14 @@ private:
 
     ScopedPointer<Label>    arOrderLabel;
     ScopedPointer<Label>    arOrderEditable;
+
+    // constants
+    const String QUEUE_SIZE_TOOLTIP = "Change the total amount of data used to calculate the phase (powers of 2 are best)";
+    const String NUM_FUTURE_TOOLTIP = "Select how much actual (past) vs. predicted (future) data to use when calculating the phase";
+    const String APPLY_TO_CHAN_TOOLTIP = "When this button is off, selected channels pass through unchanged";
+    const String APPLY_TO_ADC_TOOLTIP = "When this button is off, ADC and AUX channels will pass through unchanged";
+    const String RECALC_INTERVAL_TOOLTIP = "Time to wait between calls to update the autoregressive models";
+    const String AR_ORDER_TOOLTIP = "Order of the autoregressive models used to predict future data";
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseCalculatorEditor);
 };
