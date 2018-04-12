@@ -202,8 +202,7 @@ private:
     double highCut;
     double lowCut;
 
-    OwnedArray<Dsp::Filter> forwardFilters;
-    OwnedArray<Dsp::Filter> backwardFilters;
+    OwnedArray<Dsp::Filter> filters;
 
     // -------static------------
 

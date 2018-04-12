@@ -134,10 +134,9 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         if (nSamples == 0)
             continue;
 
-        // Forward-filter the data.
-        // Code from FilterNode.
+        // Filter the data.
         float* wpIn = buffer.getWritePointer(chan);
-        forwardFilters[chan]->process(nSamples, &wpIn);
+        filters[chan]->process(nSamples, &wpIn);
 
         // If there are more samples than we have room to process, process the most recent samples and output zero
         // for the rest (this is an error that should be noticed and fixed).
@@ -425,19 +424,12 @@ void PhaseCalculator::updateSettings()
 
             // Bandpass filters
             // filter design copied from FilterNode
-            forwardFilters.set(i, new Dsp::SmoothedFilterDesign
+            filters.set(i, new Dsp::SmoothedFilterDesign
                 <Dsp::Butterworth::Design::BandPass    // design type
                 <2>,                                   // order
                 1,                                     // number of channels (must be const)
                 Dsp::DirectFormII>                     // realization
                 (1));                                  // samples of transition when changing parameters (i.e. passband)
-
-            backwardFilters.set(i, new Dsp::SmoothedFilterDesign
-                <Dsp::Butterworth::Design::BandPass
-                <2>,
-                1,
-                Dsp::DirectFormII>
-                (1));
         }
     }
     else if (numInputsChange < 0)
@@ -452,8 +444,7 @@ void PhaseCalculator::updateSettings()
         pBackward.removeLast(-numInputsChange);
         sdbLock.removeLast(-numInputsChange);
         arParams.removeLast(-numInputsChange);
-        forwardFilters.removeLast(-numInputsChange);
-        backwardFilters.removeLast(-numInputsChange);
+        filters.removeLast(-numInputsChange);
     }
     // call this no matter what, since the sample rate may have changed.
     setFilterParameters();
@@ -510,10 +501,8 @@ void PhaseCalculator::setFilterParameters()
         params[2] = (highCut + lowCut) / 2;                 // center frequency
         params[3] = highCut - lowCut;                       // bandwidth
 
-        if (forwardFilters.size() > chan)
-            forwardFilters[chan]->setParams(params);
-        if (backwardFilters.size() > chan)
-            backwardFilters[chan]->setParams(params);
+        if (filters.size() > chan)
+            filters[chan]->setParams(params);
     }
 }
 
