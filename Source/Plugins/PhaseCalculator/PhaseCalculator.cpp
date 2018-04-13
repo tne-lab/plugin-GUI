@@ -23,7 +23,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <cstring>       // memset (for Burg method)
 #include <numeric>       // inner_product
-#include <unordered_set> // getNumSubProcessors
 
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
@@ -37,10 +36,10 @@ PhaseCalculator::PhaseCalculator()
     , Thread            ("AR Modeler")
     , calcInterval      (50)
     , arOrder           (20)
-    , processADC        (false)
     , lowCut            (4.0)
     , highCut           (8.0)
     , haveSentWarning   (false)
+    , outputMode        (PH)
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
     numInstances++;
@@ -76,61 +75,61 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
     int numInputs = getNumInputs();
 
     switch (parameterIndex) {
-    case Param::numFuture:
-        // precondition: acquisition is stopped.
+    case NUM_FUTURE:
         setNumFuture(static_cast<int>(newValue));
         break;
 
-    case Param::enabledState:
-        if (newValue == 0)
-            shouldProcessChannel.set(currentChannel, false);
-        else
-            shouldProcessChannel.set(currentChannel, true);
-        break;
-
-    case Param::recalcInterval:
+    case RECALC_INTERVAL:
         calcInterval = static_cast<int>(newValue);
         break;
 
-    case Param::arOrder:
+    case AR_ORDER:
         arOrder = static_cast<int>(newValue);
-        updateSettings(); // resize the necessary fields
+        h.resize(arOrder);
+        g.resize(arOrder);
+        for (int i = 0; i < getNumInputs(); i++)
+            arParams[i]->resize(arOrder);
         break;
 
-    case Param::adcEnabled:
-        processADC = (newValue > 0);
-        break;
-
-    case Param::lowcut:
-        // precondition: acquisition is stopped.
+    case LOWCUT:
         lowCut = newValue;
         setFilterParameters();
         break;
 
-    case Param::highcut:
-        // precondition: acquisition is stopped.
+    case HIGHCUT:
         highCut = newValue;
         setFilterParameters();
+        break;
+
+    case OUTPUT_MODE:
+        outputMode = static_cast<OutputMode>(static_cast<int>(newValue));
+        CoreServices::updateSignalChain(editor);  // add or remove channels if necessary
         break;
     }
 }
 
 void PhaseCalculator::process(AudioSampleBuffer& buffer)
 {
-    int nChannels = buffer.getNumChannels();
-
-    for (int chan = 0; chan < nChannels; chan++)
+    // handle subprocessors, if any
+    HashMap<int, uint16>::Iterator it(subProcessorMap);
+    while (it.next())
     {
-        // "+CH" button
-        if (!shouldProcessChannel[chan])
-            continue;
+        uint32 fullSourceID = static_cast<uint32>(it.getKey());
+        int subProcessor = it.getValue();
+        uint32 sourceTimestamp = getSourceTimestamp(fullSourceID);
+        uint64 sourceSamples = getNumSourceSamples(fullSourceID);
+        setTimestampAndSamples(sourceTimestamp, sourceSamples, subProcessor);
+    }
 
-        // "+ADC/AUX" button
-        DataChannel::DataChannelTypes type = getDataChannel(chan)->getChannelType();
-        if (!processADC && (type == DataChannel::ADC_CHANNEL
-                            || type == DataChannel::AUX_CHANNEL))
-            continue;
-
+    // iterate over active input channels
+    int nInputs = getNumInputs();
+    Array<int> activeChannels = editor->getActiveChannels();
+    int nActiveChannels = activeChannels.size();
+    for (int activeChan = 0;
+        activeChan < nActiveChannels && activeChannels[activeChan] < nInputs;
+        ++activeChan)
+    {
+        int chan = activeChannels[activeChan];
         int nSamples = getNumSamples(chan);
         if (nSamples == 0)
             continue;
@@ -217,17 +216,39 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             // calculate phase and write out to buffer
             const complex<double>* rpProcess = dataOut[chan]->getReadPointer(bufferLength - nSamplesToProcess);
             float* wpOut = buffer.getWritePointer(chan);
+            float* wpOut2;
+            if (outputMode == PH_AND_MAG)
+                // second output channel
+                wpOut2 = buffer.getWritePointer(nInputs + activeChan);
 
             for (int i = 0; i < nSamplesToProcess; i++)
             {
-                // output in degrees
-                // note that doubles are cast back to floats
-                wpOut[i + startIndex] = static_cast<float>(std::arg(rpProcess[i]) * (180.0 / Dsp::doublePi));
+                switch (outputMode)
+                {
+                case MAG:
+                    wpOut[i + startIndex] = static_cast<float>(std::abs(rpProcess[i]));
+                    break;
+                
+                case PH_AND_MAG:
+                    wpOut2[i + startIndex] = static_cast<float>(std::abs(rpProcess[i]));
+                    // fall through
+                case PH:
+                    // output in degrees
+                    wpOut[i + startIndex] = static_cast<float>(std::arg(rpProcess[i]) * (180.0 / Dsp::doublePi));
+                    break;
+                    
+                case IM:
+                    wpOut[i + startIndex] = static_cast<float>(std::imag(rpProcess[i]));
+                    break;
+                }
             }
 
             // unwrapping / smoothing
-            unwrapBuffer(wpOut, nSamples, chan);
-            smoothBuffer(wpOut, nSamples, chan);
+            if (outputMode == PH || outputMode == PH_AND_MAG)
+            {
+                unwrapBuffer(wpOut, nSamples, chan);
+                smoothBuffer(wpOut, nSamples, chan);
+            }
         }
         else // fifo not full / becoming full
         {
@@ -355,52 +376,19 @@ void PhaseCalculator::run()
     }
 }
 
-void PhaseCalculator::saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType)
-{
-    if (channelType == InfoObjectCommon::DATA_CHANNEL)
-    {
-        XmlElement* channelParams = channelElement->createNewChildElement("PARAMETERS");
-        channelParams->setAttribute("shouldProcess", shouldProcessChannel[channelNumber]);
-    }
-}
-
-void PhaseCalculator::loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType)
-{
-    int channelNum = channelElement->getIntAttribute("number");
-
-    forEachXmlChildElement(*channelElement, subnode)
-    {
-        if (subnode->hasTagName("PARAMETERS"))
-        {
-            shouldProcessChannel.set(channelNum, subnode->getBoolAttribute("shouldProcess", true));
-        }
-    }
-}
-
 void PhaseCalculator::updateSettings()
 {
+    // react to changed # of inputs
     int numInputs = getNumInputs();
     int prevNumInputs = sharedDataBuffer.getNumChannels();
     int numInputsChange = numInputs - prevNumInputs;
 
     sharedDataBuffer.setSize(numInputs, bufferLength);
 
-    // update AR order dependent parameters
-    if (arOrder != h.size())
-    {
-        h.resize(arOrder);
-        g.resize(arOrder);
-        for (int i = 0; i < prevNumInputs; i++)
-        {
-            arParams[i]->resize(arOrder);
-        }
-    }
-
     if (numInputsChange > 0)
     {
         // resize simple arrays
         bufferFreeSpace.insertMultiple(-1, bufferLength, numInputsChange);
-        shouldProcessChannel.insertMultiple(-1, true, numInputsChange);
         chanState.insertMultiple(-1, NOT_FULL, numInputsChange);
         lastSample.insertMultiple(-1, 0, numInputsChange);
 
@@ -437,7 +425,6 @@ void PhaseCalculator::updateSettings()
     {
         // delete unneeded entries
         bufferFreeSpace.removeLast(-numInputsChange);
-        shouldProcessChannel.removeLast(-numInputsChange);
         dataToProcess.removeLast(-numInputsChange);
         fftData.removeLast(-numInputsChange);
         dataOut.removeLast(-numInputsChange);
@@ -449,6 +436,10 @@ void PhaseCalculator::updateSettings()
     }
     // call this no matter what, since the sample rate may have changed.
     setFilterParameters();
+
+    // create new data channels if necessary
+    updateSubProcessorMap();
+    updateExtraChannels();
 }
 
 bool PhaseCalculator::isGeneratesTimestamps() const
@@ -458,19 +449,21 @@ bool PhaseCalculator::isGeneratesTimestamps() const
 
 int PhaseCalculator::getNumSubProcessors() const
 {
-    int numChannels = getTotalDataChannels();
-    unordered_set<uint32> procFullIds;
+    return subProcessorMap.size();
+}
 
-    for (int i = 0; i < numChannels; ++i)
-    {
-        const DataChannel* chan = getDataChannel(i);
-        uint16 sourceNodeId = chan->getSourceNodeID();
-        uint16 subProcessorId = chan->getSubProcessorIdx();
-        uint32 procFullId = getProcessorFullId(sourceNodeId, subProcessorId);
-        procFullIds.insert(procFullId);
-    }
+float PhaseCalculator::getSampleRate(int subProcessorIdx) const
+{
+    jassert(subProcessorIdx < getNumSubProcessors());
+    int chan = getDataChannelIndex(0, getNodeId(), subProcessorIdx);
+    return getDataChannel(chan)->getSampleRate();
+}
 
-    return procFullIds.size();
+float PhaseCalculator::getBitVolts(int subProcessorIdx) const
+{
+    jassert(subProcessorIdx < getNumSubProcessors());
+    int chan = getDataChannelIndex(0, getNodeId(), subProcessorIdx);
+    return getDataChannel(chan)->getBitVolts();
 }
 
 // ------------ PRIVATE METHODS ---------------
@@ -604,6 +597,83 @@ void PhaseCalculator::smoothBuffer(float* wp, int nSamples, int chan)
                 wp[i] = lastSample[chan] + (i + 1) * slope;
         }
     }
+}
+
+void PhaseCalculator::updateSubProcessorMap()
+{
+    subProcessorMap.clear();
+    if (outputMode == PH_AND_MAG)
+    {
+        uint16 maxUsedIdx = 0;
+        Array<int> unmappedFullIds;
+
+        // iterate over active input channels
+        int numInputs = getNumInputs();
+        Array<int> activeChans = editor->getActiveChannels();
+        int numActiveChans = activeChans.size();
+        for (int i = 0; i < numActiveChans && activeChans[i] < numInputs; ++i)
+        {
+            int c = activeChans[i];
+
+            const DataChannel* chan = getDataChannel(c);
+            uint16 sourceNodeId = chan->getSourceNodeID();
+            uint16 subProcessorIdx = chan->getSubProcessorIdx();
+            int procFullId = static_cast<int>(getProcessorFullId(sourceNodeId, subProcessorIdx));
+            if (!subProcessorMap.contains(procFullId))
+            {
+                // try to match index if possible
+                if (!subProcessorMap.containsValue(subProcessorIdx))
+                {
+                    subProcessorMap.set(procFullId, subProcessorIdx);
+                    maxUsedIdx = max(maxUsedIdx, subProcessorIdx);
+                }
+                else
+                {
+                    unmappedFullIds.add(procFullId);
+                }
+            }
+        }
+        // assign remaining unmapped ids
+        int numUnmappedIds = unmappedFullIds.size();
+        for (int i = 0; i < numUnmappedIds; ++i)
+            subProcessorMap.set(unmappedFullIds[i], ++maxUsedIdx);
+    }
+}
+
+void PhaseCalculator::updateExtraChannels()
+{
+    // reset dataChannelArray to # of inputs
+    int numInputs = getNumInputs();
+    int numChannels = dataChannelArray.size();
+    jassert(numChannels >= numInputs);
+    dataChannelArray.removeLast(numChannels - numInputs);
+
+    if (outputMode == PH_AND_MAG)
+    {
+        // iterate over active input channels
+        Array<int> activeChans = editor->getActiveChannels();
+        int numActiveChans = activeChans.size();
+        for (int i = 0; i < numActiveChans && activeChans[i] < numInputs; ++i)
+        {
+            int c = activeChans[i];
+
+            // see GenericProcessor::createDataChannelsByType
+            DataChannel* baseChan = dataChannelArray[c];
+            uint16 sourceNodeId = baseChan->getSourceNodeID();
+            uint16 subProcessorIdx = baseChan->getSubProcessorIdx();
+            uint32 baseFullId = getProcessorFullId(sourceNodeId, subProcessorIdx);
+                        
+            DataChannel* newChan = new DataChannel(
+                baseChan->getChannelType(),
+                baseChan->getSampleRate(),
+                this,
+                subProcessorMap[static_cast<int>(baseFullId)]);
+            newChan->setBitVolts(baseChan->getBitVolts());
+            newChan->addToHistoricString(getName());
+            dataChannelArray.add(newChan);
+        }
+    }
+    settings.numOutputs = dataChannelArray.size();
 }
 
 void PhaseCalculator::arPredict(double* writeStart, int writeNum, const double* params, int order)

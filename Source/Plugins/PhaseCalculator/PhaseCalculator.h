@@ -46,13 +46,12 @@ given a bandpass-filtered signal.
 // parameter indices
 enum Param
 {
-    numFuture,
-    enabledState,
-    recalcInterval,
-    arOrder,
-    adcEnabled,
-    lowcut,
-    highcut
+    NUM_FUTURE,
+    RECALC_INTERVAL,
+    AR_ORDER,
+    LOWCUT,
+    HIGHCUT,
+    OUTPUT_MODE
 };
 
 /* each continuous channel has three possible states while acquisition is running:
@@ -67,6 +66,9 @@ enum Param
                     In this state, the main thread uses the parameters to predict the future signal and output and calculate the phase.
 */
 enum ChannelState {NOT_FULL, FULL_NO_AR, FULL_AR};
+
+// Output mode - corresponds to itemIDs on the ComboBox
+enum OutputMode {PH = 1, MAG, PH_AND_MAG, IM};
 
 class PhaseCalculator : public GenericProcessor, public Thread
 {
@@ -94,16 +96,14 @@ public:
     // thread code - recalculates AR parameters.
     void run() override;
 
-    void saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType) override;
-    void loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType) override;
-
     // handle changing number of channels
     void updateSettings() override;
 
     // ----- to create new channels for multiple outputs -------
     bool isGeneratesTimestamps() const override;
-
     int getNumSubProcessors() const override;
+    float getSampleRate(int subProcessorIdx = 0) const override;
+    float getBitVolts(int subProcessorIdx = 0) const override;
 
 private:
 
@@ -123,6 +123,12 @@ private:
 
     // do start-of-buffer smoothing
     void smoothBuffer(float* wp, int nSamples, int chan);
+
+    // updates subProcessorMap
+    void updateSubProcessorMap();
+
+    // creates an extra output channel for each processed input channel if PH_AND_MAG is selected
+    void updateExtraChannels();
 
     // ---- static utility methods ----
 
@@ -151,18 +157,14 @@ private:
 
     // size of sharedDataBuffer ( = processLength - numFuture)
     int bufferLength;
-    
-    // ADC/AUX processing (overriedes shouldProcessChannel)
-    bool processADC;
-
-    // enable / disable channels
-    Array<bool> shouldProcessChannel;
 
     // time to wait between AR model recalculations in ms
     int calcInterval;
 
     // Order of the AR model
     int arOrder;
+
+    OutputMode outputMode;
 
     // ---- internals -------
 
@@ -202,6 +204,9 @@ private:
 
     // so that the warning message only gets sent once per run
     bool haveSentWarning;
+
+    // maps full IDs of incoming streams to indices of corresponding subprocessors created here.
+    HashMap<int, uint16> subProcessorMap;
 
     // ------ filtering --------
     double highCut;

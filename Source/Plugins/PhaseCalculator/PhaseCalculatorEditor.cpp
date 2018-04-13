@@ -29,7 +29,7 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool 
     : GenericEditor     (parentNode, useDefaultParameterEditors)
 {
     int filterWidth = 80;
-    desiredWidth = filterWidth + 260;
+    desiredWidth = filterWidth + 245;
 
     PhaseCalculator* processor = static_cast<PhaseCalculator*>(parentNode);
 
@@ -133,7 +133,7 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool 
     recalcIntervalEditable = new Label("recalcE");
     recalcIntervalEditable->setEditable(true);
     recalcIntervalEditable->addListener(this);
-    recalcIntervalEditable->setBounds(filterWidth + 145, 45, 55, 18);
+    recalcIntervalEditable->setBounds(filterWidth + 145, 44, 55, 18);
     recalcIntervalEditable->setColour(Label::backgroundColourId, Colours::grey);
     recalcIntervalEditable->setColour(Label::textColourId, Colours::white);
     recalcIntervalEditable->setText(String(processor->calcInterval), dontSendNotification);
@@ -141,13 +141,13 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool 
     addAndMakeVisible(recalcIntervalEditable);
 
     recalcIntervalUnit = new Label("recalcU", "ms");
-    recalcIntervalUnit->setBounds(filterWidth + 200, 48, 25, 15);
+    recalcIntervalUnit->setBounds(filterWidth + 200, 47, 25, 15);
     recalcIntervalUnit->setFont(Font("Small Text", 12, Font::plain));
     recalcIntervalUnit->setColour(Label::textColourId, Colours::darkgrey);
     addAndMakeVisible(recalcIntervalUnit);
 
-    arOrderLabel = new Label("arOrderL", "AR Order:");
-    arOrderLabel->setBounds(filterWidth + 140, 65, 115, 20);
+    arOrderLabel = new Label("arOrderL", "Order:");
+    arOrderLabel->setBounds(filterWidth + 140, 65, 60, 20);
     arOrderLabel->setFont(Font("Small Text", 12, Font::plain));
     arOrderLabel->setColour(Label::textColourId, Colours::darkgrey);
     addAndMakeVisible(arOrderLabel);
@@ -155,37 +155,42 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool 
     arOrderEditable = new Label("arOrderE");
     arOrderEditable->setEditable(true);
     arOrderEditable->addListener(this);
-    arOrderEditable->setBounds(filterWidth + 145, 85, 55, 18);
+    arOrderEditable->setBounds(filterWidth + 195, 66, 25, 18);
     arOrderEditable->setColour(Label::backgroundColourId, Colours::grey);
     arOrderEditable->setColour(Label::textColourId, Colours::white);
-    arOrderEditable->setText(String(processor->arOrder), dontSendNotification);
+    arOrderEditable->setText(String(processor->arOrder), sendNotificationAsync);
     arOrderEditable->setTooltip(AR_ORDER_TOOLTIP);
     addAndMakeVisible(arOrderEditable);
 
-    applyToChan = new UtilityButton("+CH", Font("Default", 10, Font::plain));
-    applyToChan->addListener(this);
-    applyToChan->setBounds(filterWidth + 144, 108, 30, 18);
-    applyToChan->setClickingTogglesState(true);
-    applyToChan->setToggleState(true, dontSendNotification);
-    applyToChan->setTooltip(APPLY_TO_CHAN_TOOLTIP);
-    addAndMakeVisible(applyToChan);
+    outputModeLabel = new Label("outputModeL", "Output:");
+    outputModeLabel->setBounds(filterWidth + 140, 87, 70, 20);
+    outputModeLabel->setFont(Font("Small Text", 12, Font::plain));
+    outputModeLabel->setColour(Label::textColourId, Colours::darkgrey);
+    addAndMakeVisible(outputModeLabel);
 
-    applyToADC = new UtilityButton("+ADC/AUX", Font("Default", 10, Font::plain));
-    applyToADC->addListener(this);
-    applyToADC->setBounds(filterWidth + 180, 108, 60, 18);
-    applyToADC->setClickingTogglesState(true);
-    applyToADC->setToggleState(false, dontSendNotification);
-    applyToADC->setTooltip(APPLY_TO_ADC_TOOLTIP);
-    addAndMakeVisible(applyToADC);
+    outputModeBox = new ComboBox("outputModeB");
+    outputModeBox->addItem("PHASE", PH);
+    outputModeBox->addItem("MAG", MAG);
+    outputModeBox->addItem("PH+MAG", PH_AND_MAG);
+    outputModeBox->addItem("IMAG", IM);
+    outputModeBox->setSelectedId(processor->outputMode);
+    outputModeBox->setTooltip(OUTPUT_MODE_TOOLTIP);
+    outputModeBox->setBounds(filterWidth + 145, 105, 76, 19);
+    outputModeBox->addListener(this);
+    addAndMakeVisible(outputModeBox);
+
+    // new channels should be disabled by default
+    channelSelector->paramButtonsToggledByDefault(false);
 }
 
 PhaseCalculatorEditor::~PhaseCalculatorEditor() {}
 
 void PhaseCalculatorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
 {
+    PhaseCalculator* processor = static_cast<PhaseCalculator*>(getProcessor());
+
     if (comboBoxThatHasChanged == processLengthBox)
     {
-        PhaseCalculator* processor = static_cast<PhaseCalculator*>(getProcessor());
         int newId = processLengthBox->getSelectedId();
         int newProcessLength;
         if (newId) // one of the items in the list is selected
@@ -226,6 +231,10 @@ void PhaseCalculatorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
         // update slider
         numFutureSlider->updateFromProcessor(processor);
     }
+    else if (comboBoxThatHasChanged == outputModeBox)
+    {
+        processor->setParameter(OUTPUT_MODE, static_cast<float>(outputModeBox->getSelectedId()));
+    }
 }
 
 void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
@@ -246,7 +255,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
             int newNumFuture = sliderMax - intInput;
             numFutureSlider->setValue(intInput, dontSendNotification);
             numFutureEditable->setText(String(newNumFuture), dontSendNotification);
-            processor->setParameter(Param::numFuture, static_cast<float>(newNumFuture));
+            processor->setParameter(NUM_FUTURE, static_cast<float>(newNumFuture));
         }        
     }
     else if (labelThatHasChanged == numFutureEditable)
@@ -260,7 +269,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
             int newNumPast = sliderMax - intInput;
             numFutureSlider->setValue(newNumPast, dontSendNotification);
             numPastEditable->setText(String(newNumPast), dontSendNotification);
-            processor->setParameter(Param::numFuture, static_cast<float>(intInput));
+            processor->setParameter(NUM_FUTURE, static_cast<float>(intInput));
         }
     }
     else if (labelThatHasChanged == recalcIntervalEditable)
@@ -269,7 +278,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool valid = updateLabel(labelThatHasChanged, 0, INT_MAX, processor->calcInterval, &intInput);
 
         if (valid)
-            processor->setParameter(Param::recalcInterval, static_cast<float>(intInput));
+            processor->setParameter(RECALC_INTERVAL, static_cast<float>(intInput));
     }
     else if (labelThatHasChanged == arOrderEditable)
     {
@@ -277,7 +286,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool valid = updateLabel<int>(labelThatHasChanged, 1, processor->bufferLength, processor->arOrder, &intInput);
 
         if (valid)
-            processor->setParameter(Param::arOrder, static_cast<float>(intInput));
+            processor->setParameter(AR_ORDER, static_cast<float>(intInput));
 
         // update slider's minimum value
         numFutureSlider->updateFromProcessor(processor);
@@ -288,7 +297,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool valid = updateLabel<float>(labelThatHasChanged, 0.01F, 10000.0F, static_cast<float>(processor->lowCut), &floatInput);
 
         if (valid)
-            processor->setParameter(Param::lowcut, floatInput);
+            processor->setParameter(LOWCUT, floatInput);
     }
     else if (labelThatHasChanged == highCutEditable)
     {
@@ -296,7 +305,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool valid = updateLabel<float>(labelThatHasChanged, 0.01F, 10000.0F, static_cast<float>(processor->highCut), &floatInput);
 
         if (valid)
-            processor->setParameter(Param::highcut, floatInput);
+            processor->setParameter(HIGHCUT, floatInput);
     }
 }
 
@@ -310,39 +319,16 @@ void PhaseCalculatorEditor::sliderEvent(Slider* slider)
         numPastEditable->setText(String(newVal), dontSendNotification);
         numFutureEditable->setText(String(maxVal - newVal), dontSendNotification);
         
-        getProcessor()->setParameter(Param::numFuture, static_cast<float>(maxVal - newVal));
+        getProcessor()->setParameter(NUM_FUTURE, static_cast<float>(maxVal - newVal));
     }
 }
 
-
-// based on FilterEditor code
-void PhaseCalculatorEditor::buttonEvent(Button* button)
-{
-    PhaseCalculator* pc = static_cast<PhaseCalculator*>(getProcessor());
-    if (button == applyToChan)
-    {
-        float newValue = button->getToggleState() ? 1.0F : 0.0F;
-
-        // apply to active channels
-        Array<int> chans = getActiveChannels();
-        for (int i = 0; i < chans.size(); i++)
-        {
-            pc->setCurrentChannel(chans[i]);
-            pc->setParameter(Param::enabledState, newValue);
-        }
-    }
-    else if (button == applyToADC)
-    {
-        float newValue = button->getToggleState() ? 1.0F : 0.0F;
-        pc->setParameter(Param::adcEnabled, newValue);
-    }
-}
-
-// based on FilterEditor code
 void PhaseCalculatorEditor::channelChanged(int chan, bool newState)
 {
+    // if the channel is an input and outputMode is PH+MAG, update the extra channels
     PhaseCalculator* pc = static_cast<PhaseCalculator*>(getProcessor());
-    applyToChan->setToggleState(pc->shouldProcessChannel[chan], dontSendNotification);
+    if (chan < pc->getNumInputs() && outputModeBox->getSelectedId() == PH_AND_MAG)
+        CoreServices::updateSignalChain(this);
 }
 
 void PhaseCalculatorEditor::startAcquisition()
@@ -355,6 +341,9 @@ void PhaseCalculatorEditor::startAcquisition()
     lowCutEditable->setEnabled(false);
     highCutEditable->setEnabled(false);
     arOrderEditable->setEnabled(false);
+    outputModeBox->setEnabled(false);
+    if (outputModeBox->getSelectedId() == OutputMode::PH_AND_MAG)
+        channelSelector->inactivateButtons();
 }
 
 void PhaseCalculatorEditor::stopAcquisition()
@@ -367,6 +356,8 @@ void PhaseCalculatorEditor::stopAcquisition()
     lowCutEditable->setEnabled(true);
     highCutEditable->setEnabled(true);
     arOrderEditable->setEnabled(true);
+    outputModeBox->setEnabled(true);
+    channelSelector->activateButtons();
 }
 
 void PhaseCalculatorEditor::saveCustomParameters(XmlElement* xml)
@@ -379,9 +370,9 @@ void PhaseCalculatorEditor::saveCustomParameters(XmlElement* xml)
     paramValues->setAttribute("numFuture", processor->numFuture);
     paramValues->setAttribute("calcInterval", processor->calcInterval);
     paramValues->setAttribute("arOrder", processor->arOrder);
-    paramValues->setAttribute("processADC", processor->processADC);
     paramValues->setAttribute("lowCut", processor->lowCut);
     paramValues->setAttribute("highCut", processor->highCut);
+    paramValues->setAttribute("outputMode", processor->outputMode);
 }
 
 void PhaseCalculatorEditor::loadCustomParameters(XmlElement* xml)
@@ -392,9 +383,9 @@ void PhaseCalculatorEditor::loadCustomParameters(XmlElement* xml)
         numFutureEditable->setText(xmlNode->getStringAttribute("numFuture", numFutureEditable->getText()), sendNotificationSync);
         recalcIntervalEditable->setText(xmlNode->getStringAttribute("calcInterval", recalcIntervalEditable->getText()), sendNotificationSync);
         arOrderEditable->setText(xmlNode->getStringAttribute("glitchLim", arOrderEditable->getText()), sendNotificationSync);
-        applyToADC->setToggleState(xmlNode->getBoolAttribute("processADC", applyToADC->getToggleState()), sendNotificationSync);
         lowCutEditable->setText(xmlNode->getStringAttribute("lowCut", lowCutEditable->getText()), sendNotificationSync);
         highCutEditable->setText(xmlNode->getStringAttribute("highCut", highCutEditable->getText()), sendNotificationSync);
+        outputModeBox->setSelectedId(xmlNode->getIntAttribute("outputMode", outputModeBox->getSelectedId()), sendNotificationSync);
     }
 }
 

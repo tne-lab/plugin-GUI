@@ -72,9 +72,6 @@ public:
     // overrides GenericEditor
     void sliderEvent(Slider* slider) override;
 
-    // overrides GenericEditor
-    void buttonEvent(Button* button) override;
-
     // update display based on current channel
     void channelChanged(int chan, bool newState) override;
 
@@ -111,11 +108,6 @@ private:
     ScopedPointer<Label>               numFutureLabel;
     ScopedPointer<Label>               numFutureEditable;
 
-    ScopedPointer<UtilityButton> applyToChan;
-
-    // controls whether ADC and AUX channels are processed.
-    ScopedPointer<UtilityButton> applyToADC;
-
     ScopedPointer<Label>    recalcIntervalLabel;
     ScopedPointer<Label>    recalcIntervalEditable;
     ScopedPointer<Label>    recalcIntervalUnit;
@@ -123,13 +115,17 @@ private:
     ScopedPointer<Label>    arOrderLabel;
     ScopedPointer<Label>    arOrderEditable;
 
+    ScopedPointer<Label>    outputModeLabel;
+    ScopedPointer<ComboBox> outputModeBox;
+
     // constants
     const String QUEUE_SIZE_TOOLTIP = "Change the total amount of data used to calculate the phase (powers of 2 are best)";
     const String NUM_FUTURE_TOOLTIP = "Select how much actual (past) vs. predicted (future) data to use when calculating the phase";
-    const String APPLY_TO_CHAN_TOOLTIP = "When this button is off, selected channels pass through unchanged";
-    const String APPLY_TO_ADC_TOOLTIP = "When this button is off, ADC and AUX channels will pass through unchanged";
     const String RECALC_INTERVAL_TOOLTIP = "Time to wait between calls to update the autoregressive models";
     const String AR_ORDER_TOOLTIP = "Order of the autoregressive models used to predict future data";
+    const String OUTPUT_MODE_TOOLTIP = "Which component of the analytic signal to output. If 'PH+MAG' is selected, " +
+        String("creates a second channel for each enabled input channel and outputs phases ") +
+        "on the original channels and magnitudes on the corresponding new channels.";
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseCalculatorEditor);
 };
