@@ -143,6 +143,8 @@ private:
     //array for binary data of samples above/below threshold
     Array<bool> pastBinary;
     Array<bool> futureBinary;
+    //array to compare jumpLimit
+    Array<float> jumpSize;
     
     // maximum absolute difference between x[k] and x[k-1] to trigger an event on x[k]
     bool useJumpLimit;
