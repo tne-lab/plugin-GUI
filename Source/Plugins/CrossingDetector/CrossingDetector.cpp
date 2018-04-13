@@ -58,6 +58,9 @@ CrossingDetector::CrossingDetector()
     futureBinary.clearQuick( );
     futureBinary.insertMultiple(0, 0, futureSpan + 1);
     setProcessorType(PROCESSOR_TYPE_FILTER);
+    jumpSize.resize(pastSpan + futureSpan + 2);
+    jumpSize.clearQuick();
+    jumpSize.insertMultiple(0, 0, pastSpan + futureSpan + 2);
 }
 
 CrossingDetector::~CrossingDetector() {}
@@ -115,6 +118,11 @@ void CrossingDetector::createEventChannels()
     chan->addEventMetaData(negOnDesc);
     eventMetaDataDescriptors.add(negOnDesc);
     
+    MetaDataDescriptor* crossingPoint = new MetaDataDescriptor(MetaDataDescriptor::INT64, 1, "Crossing Point",
+                                                             "Time when threshold was crossed", "crossing.point");
+    chan->addEventMetaData(crossingPoint);
+    eventMetaDataDescriptors.add(crossingPoint);    
+    
     eventChannelPtr = eventChannelArray.add(chan);
 }
 
@@ -170,6 +178,11 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         {
             futureBinary.set(j, futureBinary[j + 1]);
         }
+        //set jumpSize array to compare to jumpLimit
+        for (int j = 0; j < pastSpan + futureSpan + 1; j++)
+        {
+            jumpSize.set(j, jumpSize[j + 1]);
+        }
         //add new value to end of binary array
         if(rp[i] - currThresh > 0) 
         {
@@ -180,8 +193,10 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         {
             futureBinary.set(futureSpan, 0);
         }
+        //add new value to jumpSize array
+        jumpSize.set(pastSpan + futureSpan + 1, abs(rp[i] - currThresh));
         
-        
+
         // if enabled, check whether to trigger an event
         bool turnOn = (i >= sampsToReenable && i < nSamples && shouldTrigger(rp, nSamples, i, currThresh, currPosOn, currNegOn, currPastSpan, currFutureSpan));
         
@@ -193,6 +208,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
             // actual sample when event fires (start of current buffer if turning on and the crossing was before this buffer.)
             int eventTime = turnOn ? std::max(i - currFutureSpan, 0) : sampsToShutoff;
             int64 timestamp = getTimestamp(currChan) + eventTime;
+            //int64 crossingTimestamp = pastBinary[pastSpan] != futureBinary[0] ? getTimestamp(currChan): sampsToShutoff;
             
             // construct the event's metadata array
             // The order of metadata has to match the order they are stored in createEventChannels.
@@ -215,6 +231,10 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
             negOnVal->setValue(static_cast<uint8>(negOn));
             mdArray.add(negOnVal);
             
+            MetaDataValue* crossingPointVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
+            //crossingPointVal->setValue(crossingTimestamp);
+            mdArray.add(crossingPointVal);
+
             if (turnOn)
             {
                 // add event
@@ -433,6 +453,9 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
      if (numFutureRequired == 0) // "next" condition satisfied
      return true;
      }*/
+    //check jumpLimit
+    if (jumpSize[pastSpan] + jumpSize[pastSpan + 1] >= jumpLimit)
+        return false;
 
     //number of samples required before and after crossing threshold
     int pastSamplesNeeded = pastSpan ? static_cast<int>(ceil(pastSpan * pastStrict)) : 0;
