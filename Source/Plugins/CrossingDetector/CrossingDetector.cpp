@@ -58,9 +58,9 @@ CrossingDetector::CrossingDetector()
     futureBinary.clearQuick( );
     futureBinary.insertMultiple(0, 0, futureSpan + 1);
     setProcessorType(PROCESSOR_TYPE_FILTER);
-    jumpSize.resize(2);
+    jumpSize.resize(pastSpan + futureSpan + 2);
     jumpSize.clearQuick();
-    jumpSize.insertMultiple(0, 0, 2);
+    jumpSize.insertMultiple(0, 0, pastSpan + futureSpan + 2);
 }
 
 CrossingDetector::~CrossingDetector() {}
@@ -188,10 +188,13 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         {
             futureBinary.set(futureSpan, 0);
         }
-        //move back jumpSize value to compare to jumpLimit
-        jumpSize.set(0, jumpSize[1]);
+        //move back jumpSize values to compare to jumpLimit
+        for (int j = 0; j < pastSpan + futureSpan + 1; j++)
+        {
+            jumpSize.set(j, jumpSize[j + 1]);
+        }
         //add new value to jumpSize array
-        jumpSize.set(1, rp[i]);
+        jumpSize.set(pastSpan + futureSpan + 1, rp[i]);
         
 
         // if enabled, check whether to trigger an event
@@ -451,9 +454,10 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
      return true;
      }*/
     //check jumpLimit
-    if (abs(jumpSize[0] - jumpSize[1]) >= jumpLimit)
+    if (useJumpLimit && abs(jumpSize[pastSpan] - jumpSize[pastSpan + 1]) >= jumpLimit)
+    {
         return false;
-
+    }
     //number of samples required before and after crossing threshold
     int pastSamplesNeeded = pastSpan ? static_cast<int>(ceil(pastSpan * pastStrict)) : 0;
     int futureSamplesNeeded = futureSpan ? static_cast<int>(ceil(futureSpan * futureStrict)) : 0;
