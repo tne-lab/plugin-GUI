@@ -49,7 +49,7 @@ CrossingDetector::CrossingDetector()
     , pastCounter(0)
     , futureCounter(0)
 
-    //arrays
+    //binary arrays to keep track of threshold crossing, jumpSize array to compare to jumpLimit
 {
     pastBinary.resize(pastSpan + 1);
     pastBinary.clearQuick( );
@@ -155,8 +155,8 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         bool currPosOn = posOn;
         bool currNegOn = negOn;
         
-        //move previous values back and make space for new value
-        //include counter for above thresh
+        //in binary arrays move previous values back and make space for new value
+        //include counter for above threshold
         if(pastBinary[0] == 1)
         {
             pastCounter--;
@@ -188,7 +188,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         {
             futureBinary.set(futureSpan, 0);
         }
-        //move back jumpSize values to compare to jumpLimit
+        //move back jumpSize values back to make space for new value
         for (int j = 0; j < pastSpan + futureSpan + 1; j++)
         {
             jumpSize.set(j, jumpSize[j + 1]);
@@ -286,9 +286,6 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         // shift so it is relative to the next buffer
         sampsToReenable -= nSamples;
     
-    //// save this buffer for the next execution
-    //lastBuffer.clearQuick();
-    //lastBuffer.addArray(rp, nSamples);
 }
 
 // all new values should be validated before this function is called!
@@ -409,50 +406,6 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
         return shouldTrigger(rpCurr, nSamples, t0, currThresh, true, false, currPastSpan, currFutureSpan)
         || shouldTrigger(rpCurr, nSamples, t0, currThresh, false, true, currPastSpan, currFutureSpan); 
     
-    // at this point exactly one of posOn and negOn is true.
-    
-    //int minInd = t0 - (currPastSpan + 1);
-    //int maxInd = t0 + currFutureSpan;
-    //
-    //// check whether we have enough data
-    //// (shouldn't happen unless the buffers are too short or the spans are too long)
-    //if (minInd < -lastBuffer.size() || maxInd >= nSamples)
-    //    return false;
-    
-//    const float* rpLast = lastBuffer.end();
-    
-//    // allow us to treat the previous and current buffers as one array
-//#define rp(x) ((x)>=0 ? rpCurr[(x)] : rpLast[(x)])
-//    // satisfies pre-t0 condition
-//#define preSat(i) (currPosOn ? rp(i) < currThresh : rp(i) > currThresh)
-//    // satisfies post-t0 condition
-//#define postSat(i) (currPosOn ? rp(i) >= currThresh : rp(i) <= currThresh)
-    
-    // first, check transition point
-    // must cross in the correct direction and (maybe) have a jump no greater than jumpLimit
-//    float currJumpLimit = useJumpLimit ? jumpLimit : FLT_MAX;
-////    float jumpSize = abs(rp(t0) - rp(t0 - 1));
-//    if (!(preSat(t0 - 1) && postSat(t0) && jumpSize <= currJumpLimit))
-//        return false;
-    
-    /*//code before changes for extened delay
-    // additional past and future "voting" samples
-     int numPastRequired = currPastSpan ? static_cast<int>(ceil(currPastSpan * pastStrict)) : 0;
-     int numFutureRequired = currFutureSpan ? static_cast<int>(ceil(currFutureSpan * futureStrict)) : 0;
-     
-     for (int i = minInd; i < t0 - 1 && numPastRequired > 0; i++)
-     if (preSat(i))
-     numPastRequired--;
-     
-     if (numPastRequired == 0) // "prev" condition satisfied
-     {
-     for (int i = t0 + 1; i <= maxInd && numFutureRequired > 0; i++)
-     if (postSat(i))
-     numFutureRequired--;
-     
-     if (numFutureRequired == 0) // "next" condition satisfied
-     return true;
-     }*/
     //check jumpLimit
     if (useJumpLimit && abs(jumpSize[pastSpan] - jumpSize[pastSpan + 1]) >= jumpLimit)
     {
@@ -488,11 +441,6 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
             return false;
         }
     }
-    //return false;
-    
-//#undef rp
-//#undef preSat
-//#undef postSat
 }
 
 float CrossingDetector::nextThresh()
