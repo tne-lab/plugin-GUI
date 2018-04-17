@@ -58,9 +58,9 @@ CrossingDetector::CrossingDetector()
     futureBinary.clearQuick( );
     futureBinary.insertMultiple(0, 0, futureSpan + 1);
     setProcessorType(PROCESSOR_TYPE_FILTER);
-    jumpSize.resize(pastSpan + futureSpan + 2);
+    jumpSize.resize(2);
     jumpSize.clearQuick();
-    jumpSize.insertMultiple(0, 0, pastSpan + futureSpan + 2);
+    jumpSize.insertMultiple(0, 0, 2);
 }
 
 CrossingDetector::~CrossingDetector() {}
@@ -178,11 +178,6 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         {
             futureBinary.set(j, futureBinary[j + 1]);
         }
-        //set jumpSize array to compare to jumpLimit
-        for (int j = 0; j < pastSpan + futureSpan + 1; j++)
-        {
-            jumpSize.set(j, jumpSize[j + 1]);
-        }
         //add new value to end of binary array
         if(rp[i] - currThresh > 0) 
         {
@@ -193,8 +188,10 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         {
             futureBinary.set(futureSpan, 0);
         }
+        //move back jumpSize value to compare to jumpLimit
+        jumpSize.set(0, jumpSize[1]);
         //add new value to jumpSize array
-        jumpSize.set(pastSpan + futureSpan + 1, abs(rp[i] - currThresh));
+        jumpSize.set(1, rp[i]);
         
 
         // if enabled, check whether to trigger an event
@@ -208,8 +205,8 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
             // actual sample when event fires (start of current buffer if turning on and the crossing was before this buffer.)
             int eventTime = turnOn ? std::max(i - currFutureSpan, 0) : sampsToShutoff;
             int64 timestamp = getTimestamp(currChan) + eventTime;
-            //int64 crossingTimestamp = pastBinary[pastSpan] != futureBinary[0] ? getTimestamp(currChan): sampsToShutoff;
-            
+            int64 crossingTimestamp = getTimestamp(currChan) + (i - currFutureSpan);
+
             // construct the event's metadata array
             // The order of metadata has to match the order they are stored in createEventChannels.
             MetaDataValueArray mdArray;
@@ -232,7 +229,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
             mdArray.add(negOnVal);
             
             MetaDataValue* crossingPointVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
-            //crossingPointVal->setValue(crossingTimestamp);
+            crossingPointVal->setValue(crossingTimestamp);
             mdArray.add(crossingPointVal);
 
             if (turnOn)
@@ -454,7 +451,7 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
      return true;
      }*/
     //check jumpLimit
-    if (jumpSize[pastSpan] + jumpSize[pastSpan + 1] >= jumpLimit)
+    if (abs(jumpSize[0] - jumpSize[1]) >= jumpLimit)
         return false;
 
     //number of samples required before and after crossing threshold
