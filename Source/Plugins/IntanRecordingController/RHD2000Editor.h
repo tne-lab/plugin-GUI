@@ -31,7 +31,6 @@ class SampleRateInterface;
 class BandwidthInterface;
 class DSPInterface;
 class AudioInterface;
-class ClockDivideInterface;
 class RHD2000Thread;
 
 class UtilityButton;
@@ -118,7 +117,7 @@ private:
     Array<float> gains;
     FPGAchannelList* channelList;
     ScopedPointer<Label> staticLabel, editName, impedance;
-    ScopedPointer<ComboBox> rangeComboBox;
+    ScopedPointer<ComboBox> gainComboBox;
     int channel;
     String name;
     int gainIndex;
@@ -196,11 +195,9 @@ private:
     ScopedPointer<DSPInterface> dspInterface;
 
     ScopedPointer<AudioInterface> audioInterface;
-    ScopedPointer<ClockDivideInterface> clockInterface;
 
-    ScopedPointer<UtilityButton> rescanButton,dacTTLButton;
+	ScopedPointer<UtilityButton> rescanButton,dacTTLButton;
     ScopedPointer<UtilityButton> adcButton;
-	ScopedPointer<UtilityButton> ledButton;
 
     ScopedPointer<UtilityButton> dspoffsetButton;
     ScopedPointer<ComboBox> ttlSettleCombo,dacHPFcombo;
@@ -320,8 +317,6 @@ public:
     int getSelectedId();
     void setSelectedId(int);
 
-	String getText();
-
     void paint(Graphics& g);
     void comboBoxChanged(ComboBox* cb);
 
@@ -371,28 +366,4 @@ private:
 
 };
 
-class ClockDivideInterface : public Component,
-    public Label::Listener
-{
-public:
-    ClockDivideInterface(RHD2000Thread*, RHD2000Editor*);
-
-    void paint(Graphics& g);
-    void labelTextChanged(Label* te);
-
-    void setClockDivideRatio(int value);
-    int getClockDivideRatio() const { return actualDivideRatio; };
-
-private:
-
-    String name;
-    String lastDivideRatioString;
-
-    RHD2000Thread * board;
-    RHD2000Editor * editor;
-
-    ScopedPointer<Label> divideRatioSelection;
-    int actualDivideRatio;
-
-};
 #endif  // __RHD2000EDITOR_H_2AD3C591__
