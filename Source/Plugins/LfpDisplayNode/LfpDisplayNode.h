@@ -67,6 +67,10 @@ public:
 
     CriticalSection* getMutex() { return &displayMutex; }
 
+	void setSubprocessor(int sp);
+	int getNumSubprocessorChannels();
+
+	float getSubprocessorSampleRate();
 
 private:
     void initializeEventChannels();
@@ -92,7 +96,13 @@ private:
 
     bool resizeBuffer();
 
+	int subprocessorToDraw;
+	int numChannelsInSubprocessor;
+	int numSubprocessors;
+	float subprocessorSampleRate;
+
     CriticalSection displayMutex;
+	bool updateSubprocessorsFlag;
 
 	uint32 getChannelSourceID(const EventChannel* event) const;
 
