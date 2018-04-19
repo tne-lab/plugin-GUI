@@ -391,7 +391,7 @@ void PhaseCalculatorEditor::loadCustomParameters(XmlElement* xml)
         processLengthBox->setText(xmlNode->getStringAttribute("processLength", processLengthBox->getText()), sendNotificationSync);
         numFutureEditable->setText(xmlNode->getStringAttribute("numFuture", numFutureEditable->getText()), sendNotificationSync);
         recalcIntervalEditable->setText(xmlNode->getStringAttribute("calcInterval", recalcIntervalEditable->getText()), sendNotificationSync);
-        arOrderEditable->setText(xmlNode->getStringAttribute("glitchLim", arOrderEditable->getText()), sendNotificationSync);
+        arOrderEditable->setText(xmlNode->getStringAttribute("arOrder", arOrderEditable->getText()), sendNotificationSync);
         applyToADC->setToggleState(xmlNode->getBoolAttribute("processADC", applyToADC->getToggleState()), sendNotificationSync);
         lowCutEditable->setText(xmlNode->getStringAttribute("lowCut", lowCutEditable->getText()), sendNotificationSync);
         highCutEditable->setText(xmlNode->getStringAttribute("highCut", highCutEditable->getText()), sendNotificationSync);
