@@ -136,7 +136,6 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
     juce::int64 endTs = startTs + nSamples; // 1 past end
 
     // turn off event from previous buffer if necessary
-    juce::int64 turnoffTs;
     if (turnoffEvent != nullptr && turnoffEvent->getTimestamp() < endTs)
     {
         int turnoffOffset = static_cast<int>(turnoffEvent->getTimestamp() - startTs);
@@ -322,6 +321,7 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         pastBinary.resize(pastSpan + 1);
         pastBinary.clearQuick( );
         pastBinary.insertMultiple(0, 0, pastSpan + 1);
+        pastCounter = 0; // must reflect current contents of pastBinary
         jumpSize.resize(pastSpan + futureSpan + 2);
         thresholdHistory.resize(pastSpan + futureSpan + 2);
         break;
@@ -336,6 +336,7 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         futureBinary.resize(futureSpan + 1);
         futureBinary.clearQuick( );
         futureBinary.insertMultiple(0, 0, futureSpan + 1);
+        futureCounter = 0; // must reflect current contents of futureBinary
         jumpSize.resize(pastSpan + futureSpan + 2);
         thresholdHistory.resize(pastSpan + futureSpan + 2);
         break;
@@ -369,8 +370,6 @@ bool CrossingDetector::disable()
     sampToReenable = pastSpan + futureSpan + 1;
     // cancel any pending turning-off
     turnoffEvent = nullptr;
-    pastCounter = 0;
-    futureCounter = 0;
     return true;
 }
 
@@ -381,7 +380,7 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
         return false;
 
     if (currPosOn && currNegOn)
-        return shouldTrigger(rpCurr, nSamples, t0, currThresh, true, false, currPastSpan, currFutureSpan)
+        return shouldTrigger(rpCurr, nSamples, t0, currThresh, true, false, currPastSpan, currFutureSpan) 
         || shouldTrigger(rpCurr, nSamples, t0, currThresh, false, true, currPastSpan, currFutureSpan);
 
     //check jumpLimit
@@ -393,7 +392,7 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
     int pastSamplesNeeded = pastSpan ? static_cast<int>(ceil(pastSpan * pastStrict)) : 0;
     int futureSamplesNeeded = futureSpan ? static_cast<int>(ceil(futureSpan * futureStrict)) : 0;
     // if enough values cross threshold
-    if(posOn)
+    if(currPosOn)
     {
         int pastZero = pastSpan - pastCounter;
         if(pastZero >= pastSamplesNeeded && futureCounter >= futureSamplesNeeded &&
