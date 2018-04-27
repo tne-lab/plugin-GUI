@@ -120,6 +120,7 @@
     <ClCompile Include="..\..\..\..\Source\Plugins\CrossingDetector\OpenEphysLib.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\..\Source\Plugins\CrossingDetector\CircularArray.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\CrossingDetector\CrossingDetector.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\CrossingDetector\CrossingDetectorEditor.h" />
   </ItemGroup>

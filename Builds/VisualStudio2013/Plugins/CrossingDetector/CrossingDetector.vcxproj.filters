@@ -32,5 +32,8 @@
     <ClInclude Include="..\..\..\..\Source\Plugins\CrossingDetector\CrossingDetectorEditor.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Source\Plugins\CrossingDetector\CircularArray.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

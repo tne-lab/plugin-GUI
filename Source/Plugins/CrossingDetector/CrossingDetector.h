@@ -31,6 +31,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <ProcessorHeaders.h>
 #include <algorithm> // max
+#include "CircularArray.h"
 
 /*
  * The crossing detector plugin is designed to read in one continuous channel c, and generate events on one events channel
@@ -91,12 +92,11 @@ private:
 
     // -----utility funcs--------
 
-    /* Whether there should be a trigger at sample t0, where t0 may be negative (interpreted in relation to the end of prevBuffer)
-     * nSamples is the number of samples in the current buffer, determined within the process function.
-     * dir is the crossing direction(s) (see #defines above) (must be explicitly specified)
-     * uses passed nPrev and nNext rather than the member variables numPrev and numNext.
+    /* Whether there should be a trigger in the given direction (true = rising, float = falling),
+     * given the current pastCounter and futureCounter and the passed values and thresholds
+     * surrounding the point where a crossing may be.
      */
-    bool shouldTrigger(bool currPosOn, bool currNegOn);
+    bool shouldTrigger(bool direction, float preVal, float postVal, float preThresh, float postThresh);
 
     // Select a new random threshold using minThresh, maxThresh, and rng.
     float nextThresh();
@@ -156,16 +156,14 @@ private:
     // samples past the start of the current processing buffer. Less than -numNext if there is no scheduled reenable (i.e. the detector is enabled).
     int sampToReenable;
 
-     //counters for delay keeping track of voting samples
+     // counters for delay keeping track of voting samples
     int pastCounter;
     int futureCounter;
 
-    //array for binary data of samples above/below threshold
-    Array<bool> pastBinary;
-    Array<bool> futureBinary;
-    //array to compare jumpLimit
-    Array<float> jumpSize;
-    Array<float> thresholdHistory;
+    // arrays to implement past/future voting
+    CircularArray<float> inputHistory;
+    CircularArray<float> thresholdHistory;
+
 
     EventChannel* eventChannelPtr;
     MetaDataDescriptorArray eventMetaDataDescriptors;
