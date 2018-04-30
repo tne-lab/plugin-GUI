@@ -145,7 +145,7 @@ public:
         for (int i = 0; i < nFirstSegment; ++i)
             array.set(start + i, newValues[nToSkip + i]);
 
-        for (int i = 0; i < nSecondSegment; ++1)
+        for (int i = 0; i < nSecondSegment; ++i)
             array.set(i, newValues[nToSkip + nFirstSegment + i]);
 
         start = mod(start + n, length);
@@ -234,12 +234,12 @@ public:
 
 private:
     // precondition: array is nonempty.
-    int circToLinInd(int index)
+    int circToLinInd(int index) const
     {
         return mod(start + index, size());
     }
 
-    int mod(int x, int m)
+    static int mod(int x, int m)
     {
         jassert(m > 0);
         return (x % m + m) % m;

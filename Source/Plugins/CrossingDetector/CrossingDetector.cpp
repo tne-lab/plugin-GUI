@@ -141,9 +141,22 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         }
     }
 
-    // loop over current buffer and add events for newly detected crossings
+    // store threshold for each sample of current buffer
     Array<float> currThresholds;
     currThresholds.resize(nSamples);
+
+    // define lambdas to access history values more easily
+    auto inputAt = [=](int index)
+    {
+        return index < 0 ? inputHistory[index] : rp[index];
+    };
+
+    auto thresholdAt = [=](int index)
+    {
+        return index < 0 ? thresholdHistory[index] : currThresholds[index];
+    };
+
+    // loop over current buffer and add events for newly detected crossings
     for (int i = 0; i < nSamples; ++i)
     {
         // state to keep constant during each iteration
@@ -157,17 +170,6 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         }
         bool currPosOn = posOn;
         bool currNegOn = negOn;
-        
-        // define lambdas to access history values more easily
-        auto inputAt = [=](int index)
-        {
-            return index < 0 ? inputHistory[index] : rp[index];
-        };
-
-        auto thresholdAt = [=](int index)
-        {
-            return index < 0 ? thresholdHistory[index] : currThresholds[index];
-        };
 
         // update pastCounter and futureCounter
         if (pastSpan >= 1)
