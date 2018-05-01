@@ -215,12 +215,12 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     EXPAND_BOUNDS;
 
     pastSpanEditable = createEditable("PastSpanE", String(processor->pastSpan), "",
-        bounds = { xPos += 75, yPos, 35, C_TEXT_HT });
+        bounds = { xPos += 70, yPos, 45, C_TEXT_HT });
     optionsPanel->addAndMakeVisible(pastSpanEditable);
     EXPAND_BOUNDS;
 
     pastSpanLabel = new Label("PastSpanL", "samples immediately preceding X[k-1]...");
-    pastSpanLabel->setBounds(bounds = { xPos += 45, yPos, 260, C_TEXT_HT });
+    pastSpanLabel->setBounds(bounds = { xPos += 50, yPos, 260, C_TEXT_HT });
     optionsPanel->addAndMakeVisible(pastSpanLabel);
     EXPAND_BOUNDS;
 
@@ -244,12 +244,12 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     EXPAND_BOUNDS;
 
     futureSpanEditable = createEditable("FutureSpanE", String(processor->futureSpan), "",
-        bounds = { xPos += 75, yPos, 35, C_TEXT_HT });
+        bounds = { xPos += 70, yPos, 45, C_TEXT_HT });
     optionsPanel->addAndMakeVisible(futureSpanEditable);
     EXPAND_BOUNDS;
 
     futureSpanLabel = new Label("FutureSpanL", "samples immediately following X[k]...");
-    futureSpanLabel->setBounds(bounds = { xPos += 45, yPos, 260, C_TEXT_HT });
+    futureSpanLabel->setBounds(bounds = { xPos += 50, yPos, 260, C_TEXT_HT });
     optionsPanel->addAndMakeVisible(futureSpanLabel);
     EXPAND_BOUNDS;
 
