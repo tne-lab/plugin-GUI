@@ -507,7 +507,7 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         fallingButton->setToggleState(xmlNode->getBoolAttribute("bFalling", fallingButton->getToggleState()), sendNotificationSync);
 
         // threshold (order is important here!)
-        processor->setParameter(pThreshold, static_cast<float>(xmlNode->getDoubleAttribute("threshold", processor->threshold)));
+        thresholdEditable->setText(xmlNode->getStringAttribute("threshold", thresholdEditable->getText()), sendNotificationSync);
         minThreshEditable->setText(xmlNode->getStringAttribute("minThresh", minThreshEditable->getText()), sendNotificationSync);
         maxThreshEditable->setText(xmlNode->getStringAttribute("maxThresh", maxThreshEditable->getText()), sendNotificationSync);
         randomizeButton->setToggleState(xmlNode->getBoolAttribute("bRandThresh", randomizeButton->getToggleState()), sendNotificationSync);

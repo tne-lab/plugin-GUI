@@ -151,7 +151,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         return index < 0 ? inputHistory[index] : rp[index];
     };
 
-    auto thresholdAt = [=](int index)
+    auto thresholdAt = [&, this](int index)
     {
         return index < 0 ? thresholdHistory[index] : currThresholds[index];
     };
