@@ -194,16 +194,6 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
                 futureCounter++;
         }
 
-        ////move back inputHistory and thresholdHistory values back to make space for new values
-        //for (int j = 0; j < pastSpan + futureSpan + 1; j++)
-        //{
-        //    inputHistory.set(j, inputHistory[j + 1]);
-        //    thresholdHistory.set(j, thresholdHistory[j + 1]);
-        //}
-        ////add new value to inputHistory array
-        //inputHistory.set(pastSpan + futureSpan + 1, rp[i]);
-        //thresholdHistory.set(pastSpan + futureSpan + 1, currThresh);
-
         if (i < sampToReenable)
             // can't trigger an event now
             continue;
