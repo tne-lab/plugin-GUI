@@ -24,13 +24,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef PHASE_CALCULATOR_EDITOR_H_INCLUDED
 #define PHASE_CALCULATOR_EDITOR_H_INCLUDED
 
-#include <EditorHeaders.h>
+#include <VisualizerEditorHeaders.h>
 
 #include "PhaseCalculator.h"
 
-
-
-using namespace std;
 
 // modified slider type
 class ProcessBufferSlider : public Slider
@@ -52,16 +49,14 @@ private:
     LookAndFeel_V3 myLookAndFeel;
 };
 
-class PhaseCalculatorEditor : public GenericEditor, public ComboBox::Listener, public Label::Listener
+class PhaseCalculatorEditor
+    : public VisualizerEditor
+    , public ComboBox::Listener
+    , public Label::Listener
 {
 public:
     PhaseCalculatorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors = false);
-
     ~PhaseCalculatorEditor();
-
-    // enable/disable controls when acquisiton starts/ends
-    void startAcquisition() override;
-    void stopAcquisition() override;
 
     // implements ComboBox::Listener
     void comboBoxChanged(ComboBox* comboBoxThatHasChanged) override;
@@ -74,6 +69,12 @@ public:
 
     // update display based on current channel
     void channelChanged(int chan, bool newState) override;
+
+    // enable/disable controls when acquisiton starts/ends
+    void startAcquisition() override;
+    void stopAcquisition() override;
+
+    Visualizer* createNewCanvas() override;
 
     void saveCustomParameters(XmlElement* xml) override;
     void loadCustomParameters(XmlElement* xml) override;

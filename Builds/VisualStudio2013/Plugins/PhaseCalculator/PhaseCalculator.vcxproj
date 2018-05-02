@@ -182,12 +182,14 @@ copy /Y "$(MSBuildProjectDirectory)\fftw-dll64\libfftw3-3.dll" "$(PluginDir)\..\
     <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\burg.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\OpenEphysLib.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculator.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorCanvas.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorEditor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\burg.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\FFTWWrapper.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculator.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorCanvas.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorEditor.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -24,12 +24,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <climits>
 
 #include "PhaseCalculatorEditor.h"
+#include "PhaseCalculatorCanvas.h"
 
 PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
-    : GenericEditor     (parentNode, useDefaultParameterEditors)
+    : VisualizerEditor     (parentNode, 325, useDefaultParameterEditors)
 {
+    tabText = "Phase Calculator";
     int filterWidth = 80;
-    desiredWidth = filterWidth + 245;
 
     PhaseCalculator* processor = static_cast<PhaseCalculator*>(parentNode);
 
@@ -358,6 +359,11 @@ void PhaseCalculatorEditor::stopAcquisition()
     arOrderEditable->setEnabled(true);
     outputModeBox->setEnabled(true);
     channelSelector->activateButtons();
+}
+
+Visualizer* PhaseCalculatorEditor::createNewCanvas()
+{
+    return new PhaseCalculatorCanvas();
 }
 
 void PhaseCalculatorEditor::saveCustomParameters(XmlElement* xml)
