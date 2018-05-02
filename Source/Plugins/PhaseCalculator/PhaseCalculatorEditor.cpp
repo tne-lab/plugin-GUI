@@ -363,7 +363,8 @@ void PhaseCalculatorEditor::stopAcquisition()
 
 Visualizer* PhaseCalculatorEditor::createNewCanvas()
 {
-    return new PhaseCalculatorCanvas();
+    canvas = new PhaseCalculatorCanvas();
+    return canvas;
 }
 
 void PhaseCalculatorEditor::saveCustomParameters(XmlElement* xml)

@@ -121,6 +121,9 @@ public:
     void paint(Graphics& g) override;
     void resized() override;
 
+    void addAngle(double newAngle);
+    void clearAngles();
+
 private:
     ScopedPointer<Viewport> viewport;
     ScopedPointer<Component> canvas;

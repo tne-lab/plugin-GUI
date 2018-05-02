@@ -63,6 +63,16 @@ void PhaseCalculatorCanvas::resized()
     viewport->setBounds(0, 0, getWidth(), getHeight());
 }
 
+void PhaseCalculatorCanvas::addAngle(double newAngle)
+{
+    rosePlot->addAngle(newAngle);
+}
+
+void PhaseCalculatorCanvas::clearAngles()
+{
+    rosePlot->clear();
+}
+
 /**** RosePlot ****/
 
 RosePlot::RosePlot()

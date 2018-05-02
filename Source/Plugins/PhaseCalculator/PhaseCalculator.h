@@ -99,6 +99,9 @@ public:
     // handle changing number of channels
     void updateSettings() override;
 
+    // control canvas
+    void addAngleToCanvas(double newAngle);
+
     // ----- to create new channels for multiple outputs -------
     bool isGeneratesTimestamps() const override;
     int getNumSubProcessors() const override;

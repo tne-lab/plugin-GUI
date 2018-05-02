@@ -26,6 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
+#include "PhaseCalculatorCanvas.h"
 #include "burg.h"        // Autoregressive modeling
 
 // initializer for static instance counter
@@ -440,6 +441,16 @@ void PhaseCalculator::updateSettings()
     // create new data channels if necessary
     updateSubProcessorMap();
     updateExtraChannels();
+}
+
+void PhaseCalculator::addAngleToCanvas(double newAngle)
+{
+    PhaseCalculatorEditor* editor = static_cast<PhaseCalculatorEditor*>(editor);
+    if (editor->canvas != nullptr)
+    {
+        PhaseCalculatorCanvas* canvas = static_cast<PhaseCalculatorCanvas*>(editor->canvas.get());
+        canvas->addAngle(newAngle);
+    }
 }
 
 bool PhaseCalculator::isGeneratesTimestamps() const
