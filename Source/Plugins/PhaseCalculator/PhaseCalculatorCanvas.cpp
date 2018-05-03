@@ -25,19 +25,19 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cmath>    // std::atan, std::fmod, std::floor
 #include <iterator> // std::move_iterator
 
-PhaseCalculatorCanvas::PhaseCalculatorCanvas()
+PhaseCalculatorCanvas::PhaseCalculatorCanvas(PhaseCalculator* pc)
+    : processor (pc)
+    , viewport  (new Viewport())
+    , canvas    (new Component())
+    , rosePlot  (new RosePlot())
 {
-    canvas = new Component();
-
-    Rectangle<int> bounds;
+    juce::Rectangle<int> bounds;
     
-    rosePlot = new RosePlot();
     rosePlot->setBounds(bounds = { 0, 0, 600, 500 });
     canvas->addAndMakeVisible(rosePlot);
 
     canvas->setBounds(bounds);
 
-    viewport = new Viewport();
     viewport->setViewedComponent(canvas, false);
     viewport->setScrollBarsShown(true, true);
     addAndMakeVisible(viewport);
@@ -101,9 +101,9 @@ void RosePlot::paint(Graphics& g)
     g.fillAll(Colours::black);
 
     // dimensions
-    Rectangle<int> bounds = getBounds();
+    juce::Rectangle<int> bounds = getBounds();
     int squareSide = jmin(bounds.getHeight(), bounds.getWidth());
-    Rectangle<float> plotBounds = bounds.withSizeKeepingCentre(squareSide, squareSide).toFloat();
+    juce::Rectangle<float> plotBounds = bounds.withSizeKeepingCentre(squareSide, squareSide).toFloat();
     g.setColour(Colours::darkgrey);
     g.fillEllipse(plotBounds);
 

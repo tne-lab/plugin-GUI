@@ -40,7 +40,7 @@ given a bandpass-filtered signal.
 
 #include <ProcessorHeaders.h>
 #include <DspLib/Dsp.h>  // Filtering
-
+#include <queue>
 #include "FFTWWrapper.h" // Fourier transform
 
 // parameter indices
@@ -51,7 +51,8 @@ enum Param
     AR_ORDER,
     LOWCUT,
     HIGHCUT,
-    OUTPUT_MODE
+    OUTPUT_MODE,
+    STIM_CHAN
 };
 
 /* each continuous channel has three possible states while acquisition is running:
@@ -99,9 +100,6 @@ public:
     // handle changing number of channels
     void updateSettings() override;
 
-    // control canvas
-    void addAngleToCanvas(double newAngle);
-
     // ----- to create new channels for multiple outputs -------
     bool isGeneratesTimestamps() const override;
     int getNumSubProcessors() const override;
@@ -112,25 +110,32 @@ private:
 
     // ---- methods ----
 
-    // update processLength and numFuture, reallocating fields that depend on these.
+    // Allow responding to stim events if a stimEventChannel is selected.
+    void handleEvent(const EventChannel* eventInfo, const MidiMessage& event,
+        int samplePosition = 0) override;
+
+    // Control canvas
+    void addAngleToCanvas(double newAngle);
+
+    // Update processLength and numFuture, reallocating fields that depend on these.
     void setProcessLength(int newProcessLength, int newNumFuture);
 
-    // update numFuture without reallocating processing arrays
+    // Update numFuture without reallocating processing arrays
     void setNumFuture(int newNumFuture);
 
     // Update the filters. From FilterNode code.
     void setFilterParameters();
 
-    // do glitch unwrapping
+    // Do glitch unwrapping
     void unwrapBuffer(float* wp, int nSamples, int chan);
 
-    // do start-of-buffer smoothing
+    // Do start-of-buffer smoothing
     void smoothBuffer(float* wp, int nSamples, int chan);
 
-    // updates subProcessorMap
+    // Update subProcessorMap
     void updateSubProcessorMap();
 
-    // creates an extra output channel for each processed input channel if PH_AND_MAG is selected
+    // Create an extra output channel for each processed input channel if PH_AND_MAG is selected
     void updateExtraChannels();
 
     // ---- static utility methods ----
@@ -158,16 +163,19 @@ private:
     // number of future values to predict (0 <= numFuture <= processLength - AR_ORDER)
     int numFuture;
 
-    // size of sharedDataBuffer ( = processLength - numFuture)
+    // size of sharedDataBuffer ( = max(GT_HILBERT_LENGTH, processLength - numFuture))
     int bufferLength;
 
     // time to wait between AR model recalculations in ms
     int calcInterval;
 
-    // Order of the AR model
+    // order of the AR model
     int arOrder;
 
     OutputMode outputMode;
+
+    // event channel to watch for phases to plot on the canvas (-1 = none)
+    int stimEventChannel;
 
     // ---- internals -------
 
@@ -211,6 +219,12 @@ private:
     // maps full IDs of incoming streams to indices of corresponding subprocessors created here.
     HashMap<int, uint16> subProcessorMap;
 
+    // holds stimulation timestamps until the GT phase is ready to be calculated
+    std::queue<juce::int64> stimTsBuffer;
+
+    // for phases of stimulations, to be read by the visualizer.
+    std::queue<double> stimPhaseBuffer;
+
     // ------ filtering --------
     double highCut;
     double lowCut;
@@ -231,6 +245,10 @@ private:
     // process length limits (powers of 2)
     static const int MIN_PLEN_POW = 9;
     static const int MAX_PLEN_POW = 16;
+
+    // process length for real-time visualization ground truth hilbert transform
+    // based on evaluation of phase error compared to offline processing
+    static const int GT_HILBERT_LENGTH = 32768;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseCalculator);
 };

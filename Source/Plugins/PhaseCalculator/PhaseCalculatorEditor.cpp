@@ -363,7 +363,7 @@ void PhaseCalculatorEditor::stopAcquisition()
 
 Visualizer* PhaseCalculatorEditor::createNewCanvas()
 {
-    canvas = new PhaseCalculatorCanvas();
+    canvas = new PhaseCalculatorCanvas(static_cast<PhaseCalculator*>(getProcessor()));
     return canvas;
 }
 

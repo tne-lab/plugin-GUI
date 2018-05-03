@@ -26,7 +26,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
-#include "PhaseCalculatorCanvas.h"
 #include "burg.h"        // Autoregressive modeling
 
 // initializer for static instance counter
@@ -41,6 +40,7 @@ PhaseCalculator::PhaseCalculator()
     , highCut           (8.0)
     , haveSentWarning   (false)
     , outputMode        (PH)
+    , stimEventChannel  (-1)
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
     numInstances++;
@@ -106,6 +106,21 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
         outputMode = static_cast<OutputMode>(static_cast<int>(newValue));
         CoreServices::updateSignalChain(editor);  // add or remove channels if necessary
         break;
+
+    case STIM_CHAN:
+        int newStimChan = static_cast<int>(newValue);
+        jassert(newStimChan >= -1);
+        stimEventChannel = newStimChan;
+
+        if (newStimChan == -1)
+        {
+            // Turning off collection, so clear queues
+            while (!stimTsBuffer.empty())
+                stimTsBuffer.pop();
+
+            while (!stimPhaseBuffer.empty())
+                stimPhaseBuffer.pop();
+        }
     }
 }
 
@@ -141,13 +156,19 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
 
         // If there are more samples than we have room to process, process the most recent samples and output zero
         // for the rest (this is an error that should be noticed and fixed).
-        int startIndex = std::max(nSamples - bufferLength, 0);
-        int nSamplesToProcess = nSamples - startIndex;
+        int processPastLength = processLength - numFuture;
+        int bufferStartIndex = jmax(nSamples - bufferLength, 0);
+        int processStartIndex = jmax(nSamples - processPastLength, 0);
+        
+        jassert(processStartIndex >= bufferStartIndex); // since bufferLength >= processPastLength
+        
+        int nSamplesToEnqueue = nSamples - bufferStartIndex;
+        int nSamplesToProcess = nSamples - processStartIndex;
 
-        if (startIndex != 0)
+        if (processStartIndex != 0)
         {
             // clear the extra samples and send a warning message
-            buffer.clear(chan, 0, startIndex);
+            buffer.clear(chan, 0, processStartIndex);
             if (!haveSentWarning)
             {
                 CoreServices::sendStatusMessage("WARNING: Phase Calculator buffer is shorter than the sample buffer!");
@@ -155,15 +176,10 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             }
         }
 
-        int freeSpace = bufferFreeSpace[chan];
-
-        // if buffer wasn't full, check whether it will become so.
-        bool willBecomeFull = (chanState[chan] == NOT_FULL && freeSpace <= nSamplesToProcess);
-
         // shift old data and copy new data into sharedDataBuffer
-        int nOldSamples = bufferLength - nSamplesToProcess;
+        int nOldSamples = bufferLength - nSamplesToEnqueue;
 
-        const double* rpBuffer = sharedDataBuffer.getReadPointer(chan, nSamplesToProcess);
+        const double* rpBuffer = sharedDataBuffer.getReadPointer(chan, nSamplesToEnqueue);
         double* wpBuffer = sharedDataBuffer.getWritePointer(chan);
 
         // critical section for this channel's sharedDataBuffer
@@ -176,30 +192,35 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                 *wpBuffer++ = *rpBuffer++;
 
             // copy new data
-            wpIn += startIndex;
-            for (int i = 0; i < nSamplesToProcess; i++)
+            wpIn += bufferStartIndex;
+            for (int i = 0; i < nSamplesToEnqueue; i++)
                 *wpBuffer++ = *wpIn++;
         }
 
-        if (willBecomeFull) {
-            // now that dataToProcess for this channel has data, let the thread start calculating the AR model.
-            chanState.set(chan, FULL_NO_AR);
-            bufferFreeSpace.set(chan, 0);
-        }
-        else if (chanState[chan] == NOT_FULL)
+        if (chanState[chan] == NOT_FULL)
         {
-            bufferFreeSpace.set(chan, bufferFreeSpace[chan] - nSamplesToProcess);
+            if (bufferFreeSpace[chan] <= nSamplesToEnqueue)
+            {
+                // now that dataToProcess for this channel is full,
+                // let the thread start calculating the AR model.
+                chanState.set(chan, FULL_NO_AR);
+                bufferFreeSpace.set(chan, 0);
+            }
+            else
+            {
+                bufferFreeSpace.set(chan, bufferFreeSpace[chan] - nSamplesToEnqueue);
+            }
         }
 
         // calc phase and write out (only if AR model has been calculated)
         if (chanState[chan] == FULL_AR) {
 
             // copy data to dataToProcess
-            const double* rpSDB = sharedDataBuffer.getReadPointer(chan);
-            dataToProcess[chan]->copyFrom(rpSDB, bufferLength);
+            const double* rpSDB = sharedDataBuffer.getReadPointer(chan, bufferLength - processPastLength);
+            dataToProcess[chan]->copyFrom(rpSDB, processPastLength);
 
             // use AR(20) model to predict upcoming data and append to dataToProcess
-            double* wpProcess = dataToProcess[chan]->getWritePointer(bufferLength);
+            double* wpProcess = dataToProcess[chan]->getWritePointer(processPastLength);
 
             // quasi-atomic access of AR parameters
             Array<double> currParams;
@@ -215,7 +236,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             pBackward[chan]->execute();     // reads from fftData, writes to dataOut
 
             // calculate phase and write out to buffer
-            const complex<double>* rpProcess = dataOut[chan]->getReadPointer(bufferLength - nSamplesToProcess);
+            const complex<double>* rpProcess = dataOut[chan]->getReadPointer(processPastLength - nSamplesToProcess);
             float* wpOut = buffer.getWritePointer(chan);
             float* wpOut2;
             if (outputMode == PH_AND_MAG)
@@ -227,19 +248,19 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                 switch (outputMode)
                 {
                 case MAG:
-                    wpOut[i + startIndex] = static_cast<float>(std::abs(rpProcess[i]));
+                    wpOut[i + processStartIndex] = static_cast<float>(std::abs(rpProcess[i]));
                     break;
                 
                 case PH_AND_MAG:
-                    wpOut2[i + startIndex] = static_cast<float>(std::abs(rpProcess[i]));
+                    wpOut2[i + processStartIndex] = static_cast<float>(std::abs(rpProcess[i]));
                     // fall through
                 case PH:
                     // output in degrees
-                    wpOut[i + startIndex] = static_cast<float>(std::arg(rpProcess[i]) * (180.0 / Dsp::doublePi));
+                    wpOut[i + processStartIndex] = static_cast<float>(std::arg(rpProcess[i]) * (180.0 / Dsp::doublePi));
                     break;
                     
                 case IM:
-                    wpOut[i + startIndex] = static_cast<float>(std::imag(rpProcess[i]));
+                    wpOut[i + processStartIndex] = static_cast<float>(std::imag(rpProcess[i]));
                     break;
                 }
             }
@@ -254,12 +275,13 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         else // fifo not full / becoming full
         {
             // just output zeros
-            buffer.clear(chan, startIndex, nSamplesToProcess);
+            buffer.clear(chan, processStartIndex, nSamplesToProcess);
         }
 
         // keep track of last sample
         lastSample.set(chan, buffer.getSample(chan, nSamples - 1));
     }
+    checkForEvents();
 }
 
 // starts thread when acquisition begins
@@ -443,16 +465,6 @@ void PhaseCalculator::updateSettings()
     updateExtraChannels();
 }
 
-void PhaseCalculator::addAngleToCanvas(double newAngle)
-{
-    PhaseCalculatorEditor* editor = static_cast<PhaseCalculatorEditor*>(editor);
-    if (editor->canvas != nullptr)
-    {
-        PhaseCalculatorCanvas* canvas = static_cast<PhaseCalculatorCanvas*>(editor->canvas.get());
-        canvas->addAngle(newAngle);
-    }
-}
-
 bool PhaseCalculator::isGeneratesTimestamps() const
 {
     return true;
@@ -478,6 +490,28 @@ float PhaseCalculator::getBitVolts(int subProcessorIdx) const
 }
 
 // ------------ PRIVATE METHODS ---------------
+
+void PhaseCalculator::handleEvent(const EventChannel* eventInfo,
+    const MidiMessage& event, int samplePosition)
+{
+    if (stimEventChannel < 0)
+        return;
+
+    if (Event::getEventType(event) == EventChannel::TTL)
+    {
+        TTLEventPtr ttl = TTLEvent::deserializeFromMessage(event, eventInfo);
+        if (ttl->getChannel() == stimEventChannel)
+        {
+            // add event to stimEventBuffer
+            juce::int64 ts = ttl->getTimestamp();
+            stimTsBuffer.push(ts);
+        }
+    }
+}
+
+void PhaseCalculator::addAngleToCanvas(double newAngle)
+{
+}
 
 void PhaseCalculator::setProcessLength(int newProcessLength, int newNumFuture)
 {
@@ -505,7 +539,7 @@ void PhaseCalculator::setProcessLength(int newProcessLength, int newNumFuture)
 void PhaseCalculator::setNumFuture(int newNumFuture)
 {
     numFuture = newNumFuture;
-    bufferLength = processLength - newNumFuture;
+    bufferLength = jmax(GT_HILBERT_LENGTH, processLength - newNumFuture);
     int nInputs = getNumInputs();
     sharedDataBuffer.setSize(nInputs, bufferLength);
 

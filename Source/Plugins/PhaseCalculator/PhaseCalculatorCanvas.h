@@ -24,6 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef PHASE_CALCULATOR_CANVAS_H_INCLUDED
 #define PHASE_CALCULATOR_CANVAS_H_INCLUDED
 
+#include "PhaseCalculator.h"
 #include <VisualizerWindowHeaders.h>
 #include <set> // std::multiset
 
@@ -108,7 +109,7 @@ private:
 class PhaseCalculatorCanvas : public Visualizer
 {
 public:
-    PhaseCalculatorCanvas();
+    PhaseCalculatorCanvas(PhaseCalculator* pc);
     ~PhaseCalculatorCanvas();
     void refreshState() override;
     void update() override;
@@ -125,10 +126,13 @@ public:
     void clearAngles();
 
 private:
+    PhaseCalculator* processor;
+
     ScopedPointer<Viewport> viewport;
     ScopedPointer<Component> canvas;
 
     ScopedPointer<RosePlot> rosePlot;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseCalculatorCanvas);
 };
 
