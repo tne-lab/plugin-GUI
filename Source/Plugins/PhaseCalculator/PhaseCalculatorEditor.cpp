@@ -367,6 +367,11 @@ Visualizer* PhaseCalculatorEditor::createNewCanvas()
     return canvas;
 }
 
+void PhaseCalculatorEditor::updateSettings()
+{
+    updateVisualizer();
+}
+
 void PhaseCalculatorEditor::saveCustomParameters(XmlElement* xml)
 {
     xml->setAttribute("Type", "PhaseCalculatorEditor");
@@ -439,7 +444,7 @@ bool PhaseCalculatorEditor::parseInput(String& in, float min, float max, float* 
     float parsedFloat;
     try
     {
-        parsedFloat = stof(in.toRawUTF8());
+        parsedFloat = std::stof(in.toRawUTF8());
     }
     catch (...)
     {

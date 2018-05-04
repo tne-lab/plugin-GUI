@@ -47,7 +47,20 @@ PhaseCalculatorCanvas::~PhaseCalculatorCanvas() {}
 
 void PhaseCalculatorCanvas::refreshState() {}
 void PhaseCalculatorCanvas::update() {}
-void PhaseCalculatorCanvas::refresh() {}
+
+void PhaseCalculatorCanvas::refresh() 
+{
+    // get new angles from stim phase buffer
+    ScopedPointer<ScopedLock> bufferLock;
+    std::queue<double>& buffer = processor->getStimPhaseBuffer(bufferLock);
+
+    while (!buffer.empty())
+    {
+        addAngle(buffer.front());
+        buffer.pop();
+    }
+}
+
 void PhaseCalculatorCanvas::beginAnimation() {}
 void PhaseCalculatorCanvas::endAnimation() {}
 void PhaseCalculatorCanvas::setParameter(int, float) {}
@@ -85,13 +98,6 @@ RosePlot::RosePlot()
 {
     updateAngles();
     reorganizeAngleData();
-
-    // test
-    for (int kSeg = 0; kSeg < numBins; ++kSeg)
-        for (int i = 0; i < kSeg; ++i)
-            addAngle(binMidpoints[kSeg]);
-
-    setNumBins(4);
 }
 
 RosePlot::~RosePlot() {}

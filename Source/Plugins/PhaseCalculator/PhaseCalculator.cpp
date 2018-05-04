@@ -28,35 +28,23 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "PhaseCalculatorEditor.h"
 #include "burg.h"        // Autoregressive modeling
 
-// initializer for static instance counter
-unsigned int PhaseCalculator::numInstances = 0;
-
 PhaseCalculator::PhaseCalculator()
-    : GenericProcessor  ("Phase Calculator")
-    , Thread            ("AR Modeler")
-    , calcInterval      (50)
-    , arOrder           (20)
-    , lowCut            (4.0)
-    , highCut           (8.0)
-    , haveSentWarning   (false)
-    , outputMode        (PH)
-    , stimEventChannel  (-1)
+    : GenericProcessor      ("Phase Calculator")
+    , Thread                ("AR Modeler")
+    , calcInterval          (50)
+    , arOrder               (20)
+    , lowCut                (4.0)
+    , highCut               (8.0)
+    , haveSentWarning       (false)
+    , outputMode            (PH)
+    , stimEventChannel      (0)
+    , stimContinuousChannel (0)
+    , gtHilbertBuffer       (GT_HILBERT_LENGTH)
+    , gtPlanForward         (GT_HILBERT_LENGTH, &gtHilbertBuffer, FFTW_MEASURE)
+    , gtPlanBackward        (GT_HILBERT_LENGTH, &gtHilbertBuffer, FFTW_BACKWARD, FFTW_MEASURE)
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
-    numInstances++;
     setProcessLength(1 << 13, 1 << 12);
-}
-
-PhaseCalculator::~PhaseCalculator()
-{
-    // technically not necessary since the OwnedArrays are self-destructing, but calling fftw_cleanup prevents erroneous memory leak reports.
-    pForward.clear();
-    pBackward.clear();
-    dataToProcess.clear();
-    fftData.clear();
-    dataOut.clear();
-    if (--numInstances == 0)
-        fftw_cleanup();
 }
 
 bool PhaseCalculator::hasEditor() const
@@ -107,20 +95,29 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
         CoreServices::updateSignalChain(editor);  // add or remove channels if necessary
         break;
 
-    case STIM_CHAN:
-        int newStimChan = static_cast<int>(newValue);
-        jassert(newStimChan >= -1);
-        stimEventChannel = newStimChan;
+    case STIM_E_CHAN:
+        jassert(newValue >= -1);
+        stimEventChannel = static_cast<int>(newValue);
+        break;
 
-        if (newStimChan == -1)
-        {
-            // Turning off collection, so clear queues
-            while (!stimTsBuffer.empty())
-                stimTsBuffer.pop();
+    case STIM_C_CHAN:
+    {
+        int newStimContChan = static_cast<int>(newValue);
+        jassert(newStimContChan >= 0 && newStimContChan < filters.size());
+        int tempStimEventChan = stimEventChannel;
+        stimEventChannel = -1; // disable temporarily
 
-            while (!stimPhaseBuffer.empty())
-                stimPhaseBuffer.pop();
-        }
+        // clear timestamp queue
+        while (!stimTsBuffer.empty())
+            stimTsBuffer.pop();
+
+        // update filter settings
+        gtReverseFilter.copyParamsFrom(filters[newStimContChan]);
+
+        stimContinuousChannel = newStimContChan;
+        stimEventChannel = tempStimEventChan;
+        break;
+    }        
     }
 }
 
@@ -217,12 +214,12 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
 
             // copy data to dataToProcess
             const double* rpSDB = sharedDataBuffer.getReadPointer(chan, bufferLength - processPastLength);
-            dataToProcess[chan]->copyFrom(rpSDB, processPastLength);
+            hilbertBuffer[chan]->copyFrom(rpSDB, processPastLength);
 
             // use AR(20) model to predict upcoming data and append to dataToProcess
-            double* wpProcess = dataToProcess[chan]->getWritePointer(processPastLength);
+            double* wpProcess = hilbertBuffer[chan]->getRealPointer(processPastLength);
 
-            // quasi-atomic access of AR parameters
+            // read current AR parameters once
             Array<double> currParams;
             for (int i = 0; i < arOrder; i++)
                 currParams.set(i, (*arParams[chan])[i]);
@@ -232,11 +229,12 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
 
             // Hilbert-transform dataToProcess
             pForward[chan]->execute();      // reads from dataToProcess, writes to fftData
-            hilbertManip(*(fftData[chan]));
+            hilbertManip(hilbertBuffer[chan]);
             pBackward[chan]->execute();     // reads from fftData, writes to dataOut
 
             // calculate phase and write out to buffer
-            const complex<double>* rpProcess = dataOut[chan]->getReadPointer(processPastLength - nSamplesToProcess);
+            const std::complex<double>* rpProcess =
+                hilbertBuffer[chan]->getReadPointer(processPastLength - nSamplesToProcess);
             float* wpOut = buffer.getWritePointer(chan);
             float* wpOut2;
             if (outputMode == PH_AND_MAG)
@@ -281,7 +279,12 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         // keep track of last sample
         lastSample.set(chan, buffer.getSample(chan, nSamples - 1));
     }
-    checkForEvents();
+
+    if (stimEventChannel >= 0)
+    {
+        checkForEvents();
+        calcStimPhases(getTimestamp(stimContinuousChannel) + getNumSamples(stimContinuousChannel) - 1);
+    }
 }
 
 // starts thread when acquisition begins
@@ -419,13 +422,11 @@ void PhaseCalculator::updateSettings()
         for (int i = prevNumInputs; i < numInputs; i++)
         {
             // processing buffers
-            dataToProcess.set(i, new FFTWArray<double>(processLength));
-            fftData.set(i, new FFTWArray<complex<double>>(processLength));
-            dataOut.set(i, new FFTWArray<complex<double>>(processLength));
+            hilbertBuffer.set(i, new FFTWArray(processLength));
 
             // FFT plans
-            pForward.set(i, new FFTWPlan(processLength, dataToProcess[i], fftData[i], FFTW_MEASURE));
-            pBackward.set(i, new FFTWPlan(processLength, fftData[i], dataOut[i], FFTW_BACKWARD, FFTW_MEASURE));
+            pForward.set(i, new FFTWPlan(processLength, hilbertBuffer[i], FFTW_MEASURE));
+            pBackward.set(i, new FFTWPlan(processLength, hilbertBuffer[i], FFTW_BACKWARD, FFTW_MEASURE));
 
             // mutexes
             sdbLock.set(i, new CriticalSection());
@@ -435,22 +436,14 @@ void PhaseCalculator::updateSettings()
             arParams[i]->resize(arOrder);
 
             // Bandpass filters
-            // filter design copied from FilterNode
-            filters.set(i, new Dsp::SmoothedFilterDesign
-                <Dsp::Butterworth::Design::BandPass    // design type
-                <2>,                                   // order
-                1,                                     // number of channels (must be const)
-                Dsp::DirectFormII>                     // realization
-                (1));                                  // samples of transition when changing parameters (i.e. passband)
+            filters.set(i, new BandpassFilter());
         }
     }
     else if (numInputsChange < 0)
     {
         // delete unneeded entries
         bufferFreeSpace.removeLast(-numInputsChange);
-        dataToProcess.removeLast(-numInputsChange);
-        fftData.removeLast(-numInputsChange);
-        dataOut.removeLast(-numInputsChange);
+        hilbertBuffer.removeLast(-numInputsChange);
         pForward.removeLast(-numInputsChange);
         pBackward.removeLast(-numInputsChange);
         sdbLock.removeLast(-numInputsChange);
@@ -487,6 +480,12 @@ float PhaseCalculator::getBitVolts(int subProcessorIdx) const
     jassert(subProcessorIdx < getNumSubProcessors());
     int chan = getDataChannelIndex(0, getNodeId(), subProcessorIdx);
     return getDataChannel(chan)->getBitVolts();
+}
+
+std::queue<double>& PhaseCalculator::getStimPhaseBuffer(ScopedPointer<ScopedLock>& lock)
+{
+    lock = new ScopedLock(stimPhaseBufferLock);
+    return stimPhaseBuffer;
 }
 
 // ------------ PRIVATE METHODS ---------------
@@ -526,13 +525,11 @@ void PhaseCalculator::setProcessLength(int newProcessLength, int newNumFuture)
     for (int i = 0; i < nInputs; i++)
     {
         // processing buffers
-        dataToProcess[i]->resize(processLength);
-        fftData[i]->resize(processLength);
-        dataOut[i]->resize(processLength);
+        hilbertBuffer[i]->resize(processLength);
 
         // FFT plans
-        pForward.set(i, new FFTWPlan(processLength, dataToProcess[i], fftData[i], FFTW_MEASURE));
-        pBackward.set(i, new FFTWPlan(processLength, fftData[i], dataOut[i], FFTW_BACKWARD, FFTW_MEASURE));
+        pForward.set(i, new FFTWPlan(processLength, hilbertBuffer[i], FFTW_MEASURE));
+        pBackward.set(i, new FFTWPlan(processLength, hilbertBuffer[i], FFTW_BACKWARD, FFTW_MEASURE));
     }
 }
 
@@ -556,14 +553,21 @@ void PhaseCalculator::setFilterParameters()
     int nChan = getNumInputs();
     for (int chan = 0; chan < nChan; chan++)
     {
+        jassert(chan < filters.size());
+
         Dsp::Params params;
         params[0] = getDataChannel(chan)->getSampleRate();  // sample rate
         params[1] = 2;                                      // order
         params[2] = (highCut + lowCut) / 2;                 // center frequency
         params[3] = highCut - lowCut;                       // bandwidth
 
-        if (filters.size() > chan)
-            filters[chan]->setParams(params);
+        filters[chan]->setParams(params);
+    }
+
+    // copy settings for corresponding channel to gtReverseFilter
+    if (stimContinuousChannel >= 0 && stimContinuousChannel < nChan)
+    {
+        gtReverseFilter.copyParamsFrom(filters[stimContinuousChannel]);
     }
 }
 
@@ -581,7 +585,7 @@ void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int chan)
             // for downward jumps, unwrap if there's a jump back up within GLITCH_LIMIT samples
             {
                 endInd = -1;
-                maxInd = min(startInd + GLITCH_LIMIT, nSamples - 1);
+                maxInd = jmin(startInd + GLITCH_LIMIT, nSamples - 1);
             }
             else
             // for upward jumps, default to unwrapping until the end of the buffer, but stop if there's a jump back down sooner.
@@ -612,7 +616,7 @@ void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int chan)
 
 void PhaseCalculator::smoothBuffer(float* wp, int nSamples, int chan)
 {
-    int actualMaxGL = min(GLITCH_LIMIT, nSamples - 1);
+    int actualMaxGL = jmin(GLITCH_LIMIT, nSamples - 1);
     float diff = wp[0] - lastSample[chan];
     if (diff < 0 && diff > -180)
     {
@@ -670,7 +674,7 @@ void PhaseCalculator::updateSubProcessorMap()
                 if (!subProcessorMap.containsValue(subProcessorIdx))
                 {
                     subProcessorMap.set(procFullId, subProcessorIdx);
-                    maxUsedIdx = max(maxUsedIdx, subProcessorIdx);
+                    maxUsedIdx = jmax(maxUsedIdx, subProcessorIdx);
                 }
                 else
                 {
@@ -721,25 +725,60 @@ void PhaseCalculator::updateExtraChannels()
     settings.numOutputs = dataChannelArray.size();
 }
 
-void PhaseCalculator::arPredict(double* writeStart, int writeNum, const double* params, int order)
+void PhaseCalculator::calcStimPhases(juce::int64 sdbEndTs)
 {
-    reverse_iterator<double*> dataIter;
-    int i;
-    for (i = 0; i < writeNum; i++)
+    juce::int64 minTs = sdbEndTs - GT_TS_MAX_DELAY;
+    juce::int64 maxTs = sdbEndTs - GT_TS_MIN_DELAY;
+
+    // discard any timestamps less than minTs
+    while (!stimTsBuffer.empty() && stimTsBuffer.front() < minTs)
+        stimTsBuffer.pop();
+
+    if (!stimTsBuffer.empty() && stimTsBuffer.front() <= maxTs)
     {
-        dataIter = reverse_iterator<double*>(writeStart + i); // the reverse iterator actually starts out pointing at element i-1
-        writeStart[i] = -inner_product<const double*, reverse_iterator<const double*>, double>(params, params + order, dataIter, 0);
+        // perform reverse filtering and Hilbert transform
+        const double* rpBuffer = sharedDataBuffer.getReadPointer(stimContinuousChannel, bufferLength - 1);
+        for (int i = 0; i < GT_HILBERT_LENGTH; ++i)
+        {
+            gtHilbertBuffer.set(i, rpBuffer[-i]);
+        }
+        gtPlanForward.execute();
+        hilbertManip(&gtHilbertBuffer);
+        gtPlanBackward.execute();
+
+        juce::int64 ts;
+        ScopedLock phaseBufferLock(stimPhaseBufferLock);
+        while (!stimTsBuffer.empty() && (ts = stimTsBuffer.front()) <= maxTs)
+        {
+            stimTsBuffer.pop();
+            juce::int64 delay = sdbEndTs - ts;
+            std::complex<double> analyticPt = gtHilbertBuffer[delay];
+            stimPhaseBuffer.push(std::arg(analyticPt));
+        }
     }
 }
 
-void PhaseCalculator::hilbertManip(FFTWArray<complex<double>>& fftData)
+void PhaseCalculator::arPredict(double* writeStart, int writeNum, const double* params, int order)
 {
-    int n = fftData.getLength();
+    std::reverse_iterator<double*> dataIter;
+    int i;
+    for (i = 0; i < writeNum; i++)
+    {
+        // the reverse iterator actually starts out pointing at element i-1
+        dataIter = std::reverse_iterator<double*>(writeStart + i);
+        writeStart[i] = -std::inner_product<const double*, std::reverse_iterator<const double*>, double>(
+            params, params + order, dataIter, 0);
+    }
+}
+
+void PhaseCalculator::hilbertManip(FFTWArray* fftData)
+{
+    int n = fftData->getLength();
 
     // Normalize DC and Nyquist, normalize and double prositive freqs, and set negative freqs to 0.
-    int lastPosFreq = static_cast<int>(round(ceil(n / 2.0) - 1));
-    int firstNegFreq = static_cast<int>(round(floor(n / 2.0) + 1));
-    complex<double>* wp = fftData.getWritePointer();
+    int lastPosFreq = (n + 1) / 2 - 1;
+    int firstNegFreq = n / 2 + 1;
+    std::complex<double>* wp = fftData->getWritePointer();
 
     for (int i = 0; i < n; i++) {
         if (i > 0 && i <= lastPosFreq)

@@ -33,17 +33,18 @@ transform library
 #include <complex>
 #include <algorithm> // reverse array
 
-using namespace std;
-
-template<class T>
+/*
+FFTW-friendly array that can hold complex or real doubles.
+*/
 class FFTWArray
 {
 public:
     // creation / deletion
-    FFTWArray(int len)
+    FFTWArray(int complexLen)
     {
-        length = len;
-        data = static_cast<T*>(fftw_malloc(sizeof(T) * len));
+        jassert(complexLen >= 0);
+        length = complexLen;
+        data = reinterpret_cast<std::complex<double>*>(fftw_alloc_complex(complexLen));
     }
 
     ~FFTWArray()
@@ -53,29 +54,44 @@ public:
 
     void resize(int newLength)
     {
+        jassert(newLength >= 0);
         if (newLength != length)
         {
             length = newLength;
             fftw_free(data);
-            data = static_cast<T*>(fftw_malloc(sizeof(T) * newLength));
+            data = reinterpret_cast<std::complex<double>*>(fftw_alloc_complex(newLength));
         }
     }
 
-    // accession
-    T operator[](int i)
+    // access
+    std::complex<double> operator[](int i)
     {
+        jassert(i >= 0 && i < length);
         return data[i];
     }
 
-    const T* getReadPointer(int index = 0)
+    double getAsReal(int i)
+    {
+        jassert(i >= 0 && i < length * 2);
+        return reinterpret_cast<double*>(data)[i];
+    }
+
+    const std::complex<double>* getReadPointer(int index = 0)
     {
         return getWritePointer(index);
     }
 
-    T* getWritePointer(int index = 0)
+    std::complex<double>* getWritePointer(int index = 0)
     {
         if (index < length && index >= 0)
             return data + index;
+        return nullptr;
+    }
+
+    double* getRealPointer(int index = 0)
+    {
+        if (index < length * 2 && index >= 0)
+            return reinterpret_cast<double*>(data)+index;
         return nullptr;
     }
 
@@ -85,32 +101,57 @@ public:
     }
 
     // modification
-    void set(int i, T val)
+    void set(int i, std::complex<double> val)
     {
+        jassert(i >= 0 && i < length);
         data[i] = val;
     }
 
-    void reverse(void)
+    void set(int i, double val)
     {
-        T* first = data;
-        T* last = data + length;
+        jassert(i >= 0 && i < length * 2);
+        reinterpret_cast<double*>(data)[i] = val;
+    }
 
-        std::reverse<T*>(first, last);
+    void reverseComplex()
+    {
+        std::complex<double>* first = data;
+        std::complex<double>* last = data + length;
+        std::reverse<std::complex<double>*>(first, last);
+    }
+
+    void reverseReal()
+    {
+        double* first = reinterpret_cast<double*>(data);
+        double* last = first + (2 * length);
+        std::reverse<double*>(first, last);
     }
 
     /* Copies up to num elements starting at fromArr to the array starting at startInd.
      * Returns the number of elements actually copied.
      */
-    int copyFrom(const T* fromArr, int num, int startInd = 0)
+    int copyFrom(const std::complex<double>* fromArr, int num, int startInd = 0)
     {
-        int i;
-        for (i = 0; i < num && i < (length - startInd); i++)
-            data[i + startInd] = fromArr[i];
-        return i;
+        int numToCopy = jmin(num, length - startInd);
+        std::complex<double>* wp = getWritePointer(startInd);
+        for (int i = 0; i < numToCopy; ++i)
+            wp[i] = fromArr[i];
+        
+        return numToCopy;
+    }
+
+    int copyFrom(const double* fromArr, int num, int startInd = 0)
+    {
+        int numToCopy = jmin(num, 2 * length - startInd);
+        double* wpReal = getRealPointer(startInd);
+        for (int i = 0; i < numToCopy; ++i)
+            wpReal[i] = fromArr[i];
+        
+        return numToCopy;
     }
 
 private:
-    T* data;
+    std::complex<double>* data;
     int length;
 };
 
@@ -118,20 +159,26 @@ class FFTWPlan
 {
 public:
     // r2c constructor
-    FFTWPlan(int n, FFTWArray<double>* in, FFTWArray<complex<double>>* out, unsigned int flags)
+    FFTWPlan(int n, FFTWArray* in, FFTWArray* out, unsigned int flags)
     {
-        double* ptr_in = in->getWritePointer();
+        double* ptr_in = in->getRealPointer();
         fftw_complex* ptr_out = reinterpret_cast<fftw_complex*>(out->getWritePointer());
         plan = fftw_plan_dft_r2c_1d(n, ptr_in, ptr_out, flags);
     }
 
+    // r2c in-place
+    FFTWPlan(int n, FFTWArray* buf, unsigned int flags) : FFTWPlan(n, buf, buf, flags) {}
+
     // c2c constructor
-    FFTWPlan(int n, FFTWArray<complex<double>>* in, FFTWArray<complex<double>>* out, int sign, unsigned int flags)
+    FFTWPlan(int n, FFTWArray* in, FFTWArray* out, int sign, unsigned int flags)
     {
         fftw_complex* ptr_in = reinterpret_cast<fftw_complex*>(in->getWritePointer());
         fftw_complex* ptr_out = reinterpret_cast<fftw_complex*>(out->getWritePointer());
         plan = fftw_plan_dft_1d(n, ptr_in, ptr_out, sign, flags);
     }
+
+    // c2c in-place
+    FFTWPlan(int n, FFTWArray* buf, int sign, unsigned int flags) : FFTWPlan(n, buf, buf, sign, flags) {}
 
     ~FFTWPlan()
     {

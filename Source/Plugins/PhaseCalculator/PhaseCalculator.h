@@ -52,7 +52,8 @@ enum Param
     LOWCUT,
     HIGHCUT,
     OUTPUT_MODE,
-    STIM_CHAN
+    STIM_E_CHAN,
+    STIM_C_CHAN
 };
 
 /* each continuous channel has three possible states while acquisition is running:
@@ -106,6 +107,9 @@ public:
     float getSampleRate(int subProcessorIdx = 0) const override;
     float getBitVolts(int subProcessorIdx = 0) const override;
 
+    // for the visualizer
+    std::queue<double>& getStimPhaseBuffer(ScopedPointer<ScopedLock>& lock);
+
 private:
 
     // ---- methods ----
@@ -138,6 +142,10 @@ private:
     // Create an extra output channel for each processed input channel if PH_AND_MAG is selected
     void updateExtraChannels();
 
+    // Check the timestamp queue, clear any that are expired (too late to calculate phase),
+    // and calculate phase of any that are ready.
+    void calcStimPhases(juce::int64 sdbEndTs);
+
     // ---- static utility methods ----
 
     /*
@@ -153,7 +161,7 @@ private:
     * hilbertManip: Hilbert transforms data in the frequency domain (including normalization by length of data).
     * Modifies fftData in place.
     */
-    static void hilbertManip(FFTWArray<complex<double>>& fftData);
+    static void hilbertManip(FFTWArray* fftData);
 
     // ---- customizable parameters ------
     
@@ -177,6 +185,9 @@ private:
     // event channel to watch for phases to plot on the canvas (-1 = none)
     int stimEventChannel;
 
+    // channel to calculate phases from at received stim event times
+    int stimContinuousChannel;
+
     // ---- internals -------
 
     // Storage area for filtered data to be read by the thread to calculate AR model,
@@ -192,13 +203,11 @@ private:
     Array<ChannelState> chanState;
 
     // Plans for the FFTW Fourier Transform library
-    OwnedArray<FFTWPlan> pForward;     // dataToProcess -> fftData
-    OwnedArray<FFTWPlan> pBackward;    // fftData -> dataOut
+    OwnedArray<FFTWPlan> pForward;  // FFT
+    OwnedArray<FFTWPlan> pBackward; // IFFT
 
-    // Input/output vectors for FFTW processing
-    OwnedArray<FFTWArray<double>>          dataToProcess;    // Input (real)
-    OwnedArray<FFTWArray<complex<double>>> fftData;  // DFT of input (complex)
-    OwnedArray<FFTWArray<complex<double>>> dataOut;  // Hilbert transform of input (complex)
+    // Buffers for FFTW processing
+    OwnedArray<FFTWArray> hilbertBuffer;
 
     // mutexes for sharedDataBuffer arrays, which must be used in the side thread to calculate AR parameters.
     // since the side thread only READS sharedDataBuffer, only needs to be locked in the main thread when it's WRITTEN to.
@@ -219,22 +228,39 @@ private:
     // maps full IDs of incoming streams to indices of corresponding subprocessors created here.
     HashMap<int, uint16> subProcessorMap;
 
+    // arrays of ground-truth data for visualization
+    FFTWArray gtHilbertBuffer;
+    FFTWPlan  gtPlanForward, gtPlanBackward;
+
     // holds stimulation timestamps until the GT phase is ready to be calculated
     std::queue<juce::int64> stimTsBuffer;
 
     // for phases of stimulations, to be read by the visualizer.
     std::queue<double> stimPhaseBuffer;
+    CriticalSection stimPhaseBufferLock;  // avoid race conditions when updating visualizer
 
     // ------ filtering --------
     double highCut;
     double lowCut;
 
-    OwnedArray<Dsp::Filter> filters;
+    // filter design copied from FilterNode
+    typedef Dsp::SmoothedFilterDesign
+        <Dsp::Butterworth::Design::BandPass // design type
+        <2>,                                // order
+        1,                                  // number of channels
+        Dsp::DirectFormII>                  // realization
+        BandpassFilterBase;
+
+    class BandpassFilter : public BandpassFilterBase
+    {
+    public:
+        BandpassFilter() : BandpassFilterBase(1) {} // # of transition samples
+    };
+
+    OwnedArray<BandpassFilter> filters;
+    BandpassFilter gtReverseFilter;
 
     // -------static------------
-
-    // so that fftw_cleanup doesn't choke
-    static unsigned int numInstances;
 
     // priority of the AR model calculating thread (0 = lowest, 10 = highest)
     static const int AR_PRIORITY = 3;
@@ -248,7 +274,9 @@ private:
 
     // process length for real-time visualization ground truth hilbert transform
     // based on evaluation of phase error compared to offline processing
-    static const int GT_HILBERT_LENGTH = 32768;
+    static const int GT_HILBERT_LENGTH = 65536;
+    static const int GT_TS_MIN_DELAY = 40000;
+    static const int GT_TS_MAX_DELAY = 48000;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseCalculator);
 };
