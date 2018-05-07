@@ -34,10 +34,6 @@ given a bandpass-filtered signal.
 
 */
 
-#ifdef _WIN32
-#include <Windows.h>
-#endif
-
 #include <ProcessorHeaders.h>
 #include <DspLib/Dsp.h>  // Filtering
 #include <queue>

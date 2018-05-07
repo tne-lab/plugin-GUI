@@ -47,6 +47,8 @@ PhaseCalculator::PhaseCalculator()
     setProcessLength(1 << 13, 1 << 12);
 }
 
+PhaseCalculator::~PhaseCalculator() {}
+
 bool PhaseCalculator::hasEditor() const
 {
     return true;
