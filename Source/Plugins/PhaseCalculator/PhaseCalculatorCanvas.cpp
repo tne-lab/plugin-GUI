@@ -61,8 +61,18 @@ void PhaseCalculatorCanvas::refresh()
     }
 }
 
-void PhaseCalculatorCanvas::beginAnimation() {}
-void PhaseCalculatorCanvas::endAnimation() {}
+void PhaseCalculatorCanvas::beginAnimation() 
+{
+    // TODO: when have a variable for the event channel, don't start callbacks if it's disabled
+    startCallbacks();
+}
+
+void PhaseCalculatorCanvas::endAnimation()
+{
+    // TODO: use event channel variable
+    stopCallbacks();
+}
+
 void PhaseCalculatorCanvas::setParameter(int, float) {}
 void PhaseCalculatorCanvas::setParameter(int, int, int, float) {}
 
