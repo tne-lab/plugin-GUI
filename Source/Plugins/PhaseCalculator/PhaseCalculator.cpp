@@ -37,7 +37,7 @@ PhaseCalculator::PhaseCalculator()
     , highCut               (8.0)
     , haveSentWarning       (false)
     , outputMode            (PH)
-    , stimEventChannel      (0)
+    , stimEventChannel      (1)
     , stimContinuousChannel (0)
     , gtHilbertBuffer       (GT_HILBERT_LENGTH)
     , gtPlanForward         (GT_HILBERT_LENGTH, &gtHilbertBuffer, FFTW_MEASURE)
@@ -296,11 +296,18 @@ bool PhaseCalculator::enable()
         return false;
 
     startThread(AR_PRIORITY);
+
+    // have to manually enable editor, I guess...
+    PhaseCalculatorEditor* editor = static_cast<PhaseCalculatorEditor*>(getEditor());
+    editor->enable();
     return true;
 }
 
 bool PhaseCalculator::disable()
 {
+    PhaseCalculatorEditor* editor = static_cast<PhaseCalculatorEditor*>(getEditor());
+    editor->disable();
+
     signalThreadShouldExit();
 
     // reset channel states
