@@ -374,9 +374,11 @@ void PhaseCalculatorEditor::updateSettings()
 
 void PhaseCalculatorEditor::saveCustomParameters(XmlElement* xml)
 {
-    xml->setAttribute("Type", "PhaseCalculatorEditor");
+    VisualizerEditor::saveCustomParameters(xml);
 
+    xml->setAttribute("Type", "PhaseCalculatorEditor");
     PhaseCalculator* processor = (PhaseCalculator*)(getProcessor());
+    
     XmlElement* paramValues = xml->createNewChildElement("VALUES");
     paramValues->setAttribute("processLength", processor->processLength);
     paramValues->setAttribute("numFuture", processor->numFuture);
@@ -389,6 +391,8 @@ void PhaseCalculatorEditor::saveCustomParameters(XmlElement* xml)
 
 void PhaseCalculatorEditor::loadCustomParameters(XmlElement* xml)
 {
+    VisualizerEditor::loadCustomParameters(xml);
+
     forEachXmlChildElementWithTagName(*xml, xmlNode, "VALUES")
     {
         processLengthBox->setText(xmlNode->getStringAttribute("processLength", processLengthBox->getText()), sendNotificationSync);

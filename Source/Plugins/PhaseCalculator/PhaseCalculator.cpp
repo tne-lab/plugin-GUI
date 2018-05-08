@@ -22,7 +22,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <cstring>       // memset (for Burg method)
-#include <numeric>       // inner_product
 
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
@@ -508,7 +507,7 @@ void PhaseCalculator::handleEvent(const EventChannel* eventInfo,
     if (Event::getEventType(event) == EventChannel::TTL)
     {
         TTLEventPtr ttl = TTLEvent::deserializeFromMessage(event, eventInfo);
-        if (ttl->getChannel() == stimEventChannel)
+        if (ttl->getChannel() == stimEventChannel && ttl->getState())
         {
             // add event to stimEventBuffer
             juce::int64 ts = ttl->getTimestamp();
@@ -748,9 +747,8 @@ void PhaseCalculator::calcStimPhases(juce::int64 sdbEndTs)
         // perform reverse filtering and Hilbert transform
         const double* rpBuffer = sharedDataBuffer.getReadPointer(stimContinuousChannel, bufferLength - 1);
         for (int i = 0; i < GT_HILBERT_LENGTH; ++i)
-        {
             gtHilbertBuffer.set(i, rpBuffer[-i]);
-        }
+
         gtPlanForward.execute();
         hilbertManip(&gtHilbertBuffer);
         gtPlanBackward.execute();
@@ -769,14 +767,13 @@ void PhaseCalculator::calcStimPhases(juce::int64 sdbEndTs)
 
 void PhaseCalculator::arPredict(double* writeStart, int writeNum, const double* params, int order)
 {
-    std::reverse_iterator<double*> dataIter;
-    int i;
-    for (i = 0; i < writeNum; i++)
+    for (int s = 0; s < writeNum; ++s)
     {
-        // the reverse iterator actually starts out pointing at element i-1
-        dataIter = std::reverse_iterator<double*>(writeStart + i);
-        writeStart[i] = -std::inner_product<const double*, std::reverse_iterator<const double*>, double>(
-            params, params + order, dataIter, 0);
+        writeStart[s] = 0;
+        for (int p = 0; p < order; ++p)
+        {
+            writeStart[s] -= params[p] * writeStart[s - 1 - p];
+        }
     }
 }
 
@@ -787,19 +784,23 @@ void PhaseCalculator::hilbertManip(FFTWArray* fftData)
     // Normalize DC and Nyquist, normalize and double prositive freqs, and set negative freqs to 0.
     int lastPosFreq = (n + 1) / 2 - 1;
     int firstNegFreq = n / 2 + 1;
+    int numPosNegFreqDoubles = lastPosFreq * 2; // sizeof(complex<double>) = 2 * sizeof(double)
+    bool hasNyquist = (n % 2 == 0);
+
     std::complex<double>* wp = fftData->getWritePointer();
 
-    for (int i = 0; i < n; i++) {
-        if (i > 0 && i <= lastPosFreq)
-            // normalize and double
-            wp[i] *= (2.0 / n);
-        else if (i < firstNegFreq)
-            // normalize but don't double
-            wp[i] /= n;
-        else
-            // set to 0
-            wp[i] = 0;
-    }
+    // normalize but don't double DC value
+    wp[0] /= n;
+
+    // normalize and double positive frequencies
+    FloatVectorOperations::multiply(reinterpret_cast<double*>(wp + 1), 2.0 / n, numPosNegFreqDoubles);
+    
+    if (hasNyquist)
+        // normalize but don't double Nyquist frequency
+        wp[lastPosFreq + 1] /= n;
+
+    // set negative frequencies to 0
+    FloatVectorOperations::clear(reinterpret_cast<double*>(wp + firstNegFreq), numPosNegFreqDoubles);
 }
 
 // ----------- ARTimer ---------------

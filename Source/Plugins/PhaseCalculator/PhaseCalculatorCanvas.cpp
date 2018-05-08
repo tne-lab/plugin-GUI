@@ -102,8 +102,9 @@ RosePlot::RosePlot()
     : referenceAngle(0.0)
     , useReference  (true)
     , numBins       (36)
-    , faceColor     (Colours::white)
+    , faceColor     (Colours::blanchedalmond)
     , edgeColor     (Colours::black)
+    , bgColor       (Colours::black)
     , edgeWeight    (1)
 {
     updateAngles();
@@ -114,13 +115,11 @@ RosePlot::~RosePlot() {}
 
 void RosePlot::paint(Graphics& g)
 {
-    g.fillAll(Colours::black);
-
     // dimensions
     juce::Rectangle<int> bounds = getBounds();
     int squareSide = jmin(bounds.getHeight(), bounds.getWidth());
     juce::Rectangle<float> plotBounds = bounds.withSizeKeepingCentre(squareSide, squareSide).toFloat();
-    g.setColour(Colours::darkgrey);
+    g.setColour(bgColor);
     g.fillEllipse(plotBounds);
 
     // get count for each rose plot segment

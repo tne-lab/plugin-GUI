@@ -99,6 +99,7 @@ private:
 
     Colour faceColor;
     Colour edgeColor;
+    Colour bgColor;
     float edgeWeight;
 
     static const double PI;
