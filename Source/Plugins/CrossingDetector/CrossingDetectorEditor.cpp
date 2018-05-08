@@ -428,7 +428,7 @@ void CrossingDetectorEditor::updateSettings()
         else
             inputBox->setSelectedId(currId, dontSendNotification);
     }
-    
+
 }
 
 void CrossingDetectorEditor::startAcquisition()
@@ -458,8 +458,9 @@ Component* CrossingDetectorEditor::getOptionsPanel()
 
 void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
 {
-    xml->setAttribute("Type", "CrossingDetectorEditor");
+    VisualizerEditor::saveCustomParameters(xml);
 
+    xml->setAttribute("Type", "CrossingDetectorEditor");
     CrossingDetector* processor = static_cast<CrossingDetector*>(getProcessor());
     XmlElement* paramValues = xml->createNewChildElement("VALUES");
 
@@ -494,6 +495,8 @@ void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
 
 void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
 {
+    VisualizerEditor::loadCustomParameters(xml);
+
     CrossingDetector* processor = static_cast<CrossingDetector*>(getProcessor());
 
     forEachXmlChildElementWithTagName(*xml, xmlNode, "VALUES")
@@ -525,7 +528,7 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         // timing
         durationEditable->setText(xmlNode->getStringAttribute("durationMS", durationEditable->getText()), sendNotificationSync);
         timeoutEditable->setText(xmlNode->getStringAttribute("timeoutMS", timeoutEditable->getText()), sendNotificationSync);
-        
+
         // backwards compatibility
         // old duration/timeout in samples, convert to ms.
         if (xmlNode->hasAttribute("duration") || xmlNode->hasAttribute("timeout"))
