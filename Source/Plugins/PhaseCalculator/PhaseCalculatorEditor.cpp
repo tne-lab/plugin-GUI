@@ -29,7 +29,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
     : VisualizerEditor     (parentNode, 325, useDefaultParameterEditors)
 {
-    tabText = "Phase Calculator";
+    tabText = "Event Phase Plot";
     int filterWidth = 80;
 
     PhaseCalculator* processor = static_cast<PhaseCalculator*>(parentNode);

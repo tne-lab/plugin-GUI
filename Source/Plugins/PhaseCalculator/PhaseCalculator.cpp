@@ -135,6 +135,13 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         setTimestampAndSamples(sourceTimestamp, sourceSamples, subProcessor);
     }
 
+    // check for stim events
+    bool hasCanvas = static_cast<PhaseCalculatorEditor*>(getEditor())->canvas != nullptr;
+    if (hasCanvas && stimEventChannel > -1)
+    {
+        checkForEvents();
+    }
+
     // iterate over active input channels
     int nInputs = getNumInputs();
     Array<int> activeChannels = editor->getActiveChannels();
@@ -146,7 +153,9 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         int chan = activeChannels[activeChan];
         int nSamples = getNumSamples(chan);
         if (nSamples == 0)
+        {
             continue;
+        }
 
         // Filter the data.
         float* wpIn = buffer.getWritePointer(chan);
@@ -187,12 +196,16 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
 
             // shift old data
             for (int i = 0; i < nOldSamples; i++)
+            {
                 *wpBuffer++ = *rpBuffer++;
+            }
 
             // copy new data
             wpIn += bufferStartIndex;
             for (int i = 0; i < nSamplesToEnqueue; i++)
+            {
                 *wpBuffer++ = *wpIn++;
+            }
         }
 
         if (chanState[chan] == NOT_FULL)
@@ -223,7 +236,9 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             // read current AR parameters once
             Array<double> currParams;
             for (int i = 0; i < arOrder; i++)
+            {
                 currParams.set(i, (*arParams[chan])[i]);
+            }
             double* rpParam = currParams.getRawDataPointer();
 
             arPredict(wpProcess, numFuture, rpParam, arOrder);
@@ -239,8 +254,10 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             float* wpOut = buffer.getWritePointer(chan);
             float* wpOut2;
             if (outputMode == PH_AND_MAG)
+            {
                 // second output channel
                 wpOut2 = buffer.getWritePointer(nInputs + activeChan);
+            }
 
             for (int i = 0; i < nSamplesToProcess; i++)
             {
@@ -271,20 +288,20 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                 smoothBuffer(wpOut, nSamples, chan);
             }
         }
-        else // fifo not full / becoming full
+        else // fifo not full or AR model not ready
         {
             // just output zeros
             buffer.clear(chan, processStartIndex, nSamplesToProcess);
         }
 
+        // if this is the monitored channel for stims, check whether we can add a new phase
+        if (hasCanvas && chan == stimContinuousChannel && chanState[chan] != NOT_FULL)
+        {
+            calcStimPhases(getTimestamp(chan) + getNumSamples(chan) - 1);
+        }
+
         // keep track of last sample
         lastSample.set(chan, buffer.getSample(chan, nSamples - 1));
-    }
-
-    if (stimEventChannel >= 0)
-    {
-        checkForEvents();
-        calcStimPhases(getTimestamp(stimContinuousChannel) + getNumSamples(stimContinuousChannel) - 1);
     }
 }
 
