@@ -84,14 +84,45 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     acrossLabel = createLabel("AcrossL", "threshold:", Rectangle(xPos += 70, Y_POS_UPPER - 3, 100, TEXT_HT));
     addAndMakeVisible(acrossLabel);
 
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
     //thresholdEditable = createEditable("Threshold", "", "Threshold voltage",
-    //    Rectangle(xPos += 63, yPos, 50, TEXT_HT));
-    thresholdEditable = createEditable("Threshold", "", "Threshold voltage",
-        Rectangle(xPos + 5, Y_POS_LOWER - 3, 80, TEXT_HT));
-    thresholdEditable->setEnabled(!processor->useRandomThresh);
+    //Rectangle(xPos += 63, yPos, 50, TEXT_HT));
+    //thresholdEditable = createEditable("Threshold", "", "Threshold voltage",
+    //Rectangle(xPos + 5, Y_POS_LOWER - 3, 80, TEXT_HT));
+    useChannelBox = new ComboBox("useChannel");
+    useChannelBox->addItem("CONST", 1);
+    useChannelBox->addItem("CHAN", 2);
+    useChannelBox->setSelectedId(processor->useChannel ? 2 : 1, dontSendNotification);
+    useChannelBox->setBounds(xPos + 5, Y_POS_LOWER - 3, 40, TEXT_HT);
+    useChannelBox->addListener(this);
+    addAndMakeVisible(useChannelBox);
+
+    channelSelectionBox = new ComboBox("channelSelection");
+    channelSelectionBox->setBounds(xPos + 45, Y_POS_LOWER - 3, 40, TEXT_HT);
+    channelSelectionBox->addListener(this);
+    channelSelectionBox->setTooltip(CHANNEL_SELECT_TOOLTIP);
+    channelSelectionBox->setVisible(processor->useChannel);
+    addChildComponent(channelSelectionBox);
+
+    constantEditable = new Label("constantE");
+    constantEditable->setEditable(true);
+    constantEditable->setBounds(xPos + 45, Y_POS_LOWER - 3, 40, TEXT_HT);
+    constantEditable->setText(String(processor->constant, dontSendNotification);
+    constantEditable->setColour(Label::backgroundColourId, Colours::grey);
+    constantEditable->setColour(Label::textColourId, Colours::white);
+    constantEditable->addListener(this);
+    constantEditable->setVisible(!channelSelectionBox->isVisible());
+    addChildComponent(constantEditable);
+
+    //how to make sure this doesn't prevent randomThresh?
+
+    
+    //thresholdEditable->setEnabled(!processor->useRandomThresh);
     // setup 2-way communication b/w processor and editor re: threshold
-    thresholdEditable->getTextValue().referTo(processor->thresholdVal);
-    addAndMakeVisible(thresholdEditable);
+    //thresholdEditable->getTextValue().referTo(processor->thresholdVal);
+    //addAndMakeVisible(thresholdEditable);
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+
 
     /* --------- Bottom row (timeout) ------------- */
     xPos = 30;
@@ -323,6 +354,9 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
 
         if (success)
             processor->setParameter(pThreshold, newVal);
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+        //need to add things here
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
     }
     else if (labelThatHasChanged == pastPctEditable)
     {
@@ -396,7 +430,10 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
     else if (button == randomizeButton)
     {
         bool randomizeOn = button->getToggleState();
-        thresholdEditable->setEnabled(!randomizeOn);
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+        constantEditable->setEnabled(!randomizeOn);
+        channelSelectionBox->setEnabled(!randomizeOn);
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
         minThreshEditable->setEnabled(randomizeOn);
         maxThreshEditable->setEnabled(randomizeOn);
         processor->setParameter(pRandThresh, static_cast<float>(randomizeOn));
@@ -476,6 +513,9 @@ void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
     paramValues->setAttribute("threshold", processor->threshold);
     paramValues->setAttribute("minThresh", minThreshEditable->getText());
     paramValues->setAttribute("maxThresh", maxThreshEditable->getText());
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+    //add here?
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
     // voting
     paramValues->setAttribute("pastPctExclusive", pastPctEditable->getText());
@@ -511,6 +551,9 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         minThreshEditable->setText(xmlNode->getStringAttribute("minThresh", minThreshEditable->getText()), sendNotificationSync);
         maxThreshEditable->setText(xmlNode->getStringAttribute("maxThresh", maxThreshEditable->getText()), sendNotificationSync);
         randomizeButton->setToggleState(xmlNode->getBoolAttribute("bRandThresh", randomizeButton->getToggleState()), sendNotificationSync);
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+        //add here??
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
         // voting
         pastPctEditable->setText(xmlNode->getStringAttribute("pastPctExclusive", pastPctEditable->getText()), sendNotificationSync);

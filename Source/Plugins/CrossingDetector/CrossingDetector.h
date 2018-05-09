@@ -53,6 +53,11 @@ enum
     pMinThresh,
     pMaxThresh,
     pThreshold,
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+    pUseChannel,
+    pConstant,
+    pSelectedChannel,
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
     pPosOn,
     pNegOn,
     pInputChan,
@@ -100,7 +105,10 @@ private:
 
     // Select a new random threshold using minThresh, maxThresh, and rng.
     float nextThresh();
-
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+    void validateActiveChannels();
+    juce::uint32 chanToFullID(int chanNum) const;
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
     /* Add "turning-on" and "turning-off" event for a crossing.
      *  - bufferTs:       Timestamp of start of current buffer
      *  - crossingOffset: Difference betweeen time of actual crossing and bufferTs
@@ -116,6 +124,12 @@ private:
     // if using fixed threshold:
     float threshold;
     Value thresholdVal; // underlying value of the threshold label
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+    bool useChannel;
+    float constant;         
+    int selectedChannel;
+    juce::uint32 validSubProcFullID;
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
     // if using random thresholds:
     bool useRandomThresh;
