@@ -26,11 +26,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <iterator> // std::move_iterator
 
 PhaseCalculatorCanvas::PhaseCalculatorCanvas(PhaseCalculator* pc)
-    : processor (pc)
-    , viewport  (new Viewport())
-    , canvas    (new Component())
-    , rosePlot  (new RosePlot())
+    : processor     (pc)
+    , viewport      (new Viewport())
+    , canvas        (new Component())
+    , rosePlot      (new RosePlot())
 {
+    refreshRate = 5;
+
     juce::Rectangle<int> bounds;
     
     rosePlot->setBounds(bounds = { 0, 0, 600, 500 });
@@ -50,9 +52,9 @@ void PhaseCalculatorCanvas::update() {}
 
 void PhaseCalculatorCanvas::refresh() 
 {
-    // get new angles from stim phase buffer
+    // get new angles from visualization phase buffer
     ScopedPointer<ScopedLock> bufferLock;
-    std::queue<double>& buffer = processor->getStimPhaseBuffer(bufferLock);
+    std::queue<double>& buffer = processor->getVisPhaseBuffer(bufferLock);
 
     while (!buffer.empty())
     {

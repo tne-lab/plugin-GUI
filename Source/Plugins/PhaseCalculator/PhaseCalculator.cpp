@@ -36,11 +36,11 @@ PhaseCalculator::PhaseCalculator()
     , highCut               (8.0)
     , haveSentWarning       (false)
     , outputMode            (PH)
-    , stimEventChannel      (1)
-    , stimContinuousChannel (0)
-    , gtHilbertBuffer       (GT_HILBERT_LENGTH)
-    , gtPlanForward         (GT_HILBERT_LENGTH, &gtHilbertBuffer, FFTW_MEASURE)
-    , gtPlanBackward        (GT_HILBERT_LENGTH, &gtHilbertBuffer, FFTW_BACKWARD, FFTW_MEASURE)
+    , visEventChannel      (1)
+    , visContinuousChannel (0)
+    , visHilbertBuffer       (VIS_HILBERT_LENGTH)
+    , visPlanForward         (VIS_HILBERT_LENGTH, &visHilbertBuffer, FFTW_MEASURE)
+    , visPlanBackward        (VIS_HILBERT_LENGTH, &visHilbertBuffer, FFTW_BACKWARD, FFTW_MEASURE)
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
     setProcessLength(1 << 13, 1 << 12);
@@ -96,27 +96,27 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
         CoreServices::updateSignalChain(editor);  // add or remove channels if necessary
         break;
 
-    case STIM_E_CHAN:
+    case VIS_E_CHAN:
         jassert(newValue >= -1);
-        stimEventChannel = static_cast<int>(newValue);
+        visEventChannel = static_cast<int>(newValue);
         break;
 
-    case STIM_C_CHAN:
+    case VIS_C_CHAN:
     {
-        int newStimContChan = static_cast<int>(newValue);
-        jassert(newStimContChan >= 0 && newStimContChan < filters.size());
-        int tempStimEventChan = stimEventChannel;
-        stimEventChannel = -1; // disable temporarily
+        int newVisContChan = static_cast<int>(newValue);
+        jassert(newVisContChan >= 0 && newVisContChan < filters.size());
+        int tempVisEventChan = visEventChannel;
+        visEventChannel = -1; // disable temporarily
 
         // clear timestamp queue
-        while (!stimTsBuffer.empty())
-            stimTsBuffer.pop();
+        while (!visTsBuffer.empty())
+            visTsBuffer.pop();
 
         // update filter settings
-        gtReverseFilter.copyParamsFrom(filters[newStimContChan]);
+        visReverseFilter.copyParamsFrom(filters[newVisContChan]);
 
-        stimContinuousChannel = newStimContChan;
-        stimEventChannel = tempStimEventChan;
+        visContinuousChannel = newVisContChan;
+        visEventChannel = tempVisEventChan;
         break;
     }        
     }
@@ -135,9 +135,9 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         setTimestampAndSamples(sourceTimestamp, sourceSamples, subProcessor);
     }
 
-    // check for stim events
+    // check for events to visualize
     bool hasCanvas = static_cast<PhaseCalculatorEditor*>(getEditor())->canvas != nullptr;
-    if (hasCanvas && stimEventChannel > -1)
+    if (hasCanvas && visEventChannel > -1)
     {
         checkForEvents();
     }
@@ -294,10 +294,10 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             buffer.clear(chan, processStartIndex, nSamplesToProcess);
         }
 
-        // if this is the monitored channel for stims, check whether we can add a new phase
-        if (hasCanvas && chan == stimContinuousChannel && chanState[chan] != NOT_FULL)
+        // if this is the monitored channel for events, check whether we can add a new phase
+        if (hasCanvas && chan == visContinuousChannel && chanState[chan] != NOT_FULL)
         {
-            calcStimPhases(getTimestamp(chan) + getNumSamples(chan) - 1);
+            calcVisPhases(getTimestamp(chan) + getNumSamples(chan) - 1);
         }
 
         // keep track of last sample
@@ -507,10 +507,10 @@ float PhaseCalculator::getBitVolts(int subProcessorIdx) const
     return getDataChannel(chan)->getBitVolts();
 }
 
-std::queue<double>& PhaseCalculator::getStimPhaseBuffer(ScopedPointer<ScopedLock>& lock)
+std::queue<double>& PhaseCalculator::getVisPhaseBuffer(ScopedPointer<ScopedLock>& lock)
 {
-    lock = new ScopedLock(stimPhaseBufferLock);
-    return stimPhaseBuffer;
+    lock = new ScopedLock(visPhaseBufferLock);
+    return visPhaseBuffer;
 }
 
 // ------------ PRIVATE METHODS ---------------
@@ -518,17 +518,17 @@ std::queue<double>& PhaseCalculator::getStimPhaseBuffer(ScopedPointer<ScopedLock
 void PhaseCalculator::handleEvent(const EventChannel* eventInfo,
     const MidiMessage& event, int samplePosition)
 {
-    if (stimEventChannel < 0)
+    if (visEventChannel < 0)
         return;
 
     if (Event::getEventType(event) == EventChannel::TTL)
     {
         TTLEventPtr ttl = TTLEvent::deserializeFromMessage(event, eventInfo);
-        if (ttl->getChannel() == stimEventChannel && ttl->getState())
+        if (ttl->getChannel() == visEventChannel && ttl->getState())
         {
-            // add event to stimEventBuffer
+            // add timestamp to the queue for visualization
             juce::int64 ts = ttl->getTimestamp();
-            stimTsBuffer.push(ts);
+            visTsBuffer.push(ts);
         }
     }
 }
@@ -561,7 +561,7 @@ void PhaseCalculator::setProcessLength(int newProcessLength, int newNumFuture)
 void PhaseCalculator::setNumFuture(int newNumFuture)
 {
     numFuture = newNumFuture;
-    bufferLength = jmax(GT_HILBERT_LENGTH, processLength - newNumFuture);
+    bufferLength = jmax(VIS_HILBERT_LENGTH, processLength - newNumFuture);
     int nInputs = getNumInputs();
     sharedDataBuffer.setSize(nInputs, bufferLength);
 
@@ -589,10 +589,10 @@ void PhaseCalculator::setFilterParameters()
         filters[chan]->setParams(params);
     }
 
-    // copy settings for corresponding channel to gtReverseFilter
-    if (stimContinuousChannel >= 0 && stimContinuousChannel < nChan)
+    // copy settings for corresponding channel to visReverseFilter
+    if (visContinuousChannel >= 0 && visContinuousChannel < nChan)
     {
-        gtReverseFilter.copyParamsFrom(filters[stimContinuousChannel]);
+        visReverseFilter.copyParamsFrom(filters[visContinuousChannel]);
     }
 }
 
@@ -750,34 +750,34 @@ void PhaseCalculator::updateExtraChannels()
     settings.numOutputs = dataChannelArray.size();
 }
 
-void PhaseCalculator::calcStimPhases(juce::int64 sdbEndTs)
+void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
 {
-    juce::int64 minTs = sdbEndTs - GT_TS_MAX_DELAY;
-    juce::int64 maxTs = sdbEndTs - GT_TS_MIN_DELAY;
+    juce::int64 minTs = sdbEndTs - VIS_TS_MAX_DELAY;
+    juce::int64 maxTs = sdbEndTs - VIS_TS_MIN_DELAY;
 
     // discard any timestamps less than minTs
-    while (!stimTsBuffer.empty() && stimTsBuffer.front() < minTs)
-        stimTsBuffer.pop();
+    while (!visTsBuffer.empty() && visTsBuffer.front() < minTs)
+        visTsBuffer.pop();
 
-    if (!stimTsBuffer.empty() && stimTsBuffer.front() <= maxTs)
+    if (!visTsBuffer.empty() && visTsBuffer.front() <= maxTs)
     {
         // perform reverse filtering and Hilbert transform
-        const double* rpBuffer = sharedDataBuffer.getReadPointer(stimContinuousChannel, bufferLength - 1);
-        for (int i = 0; i < GT_HILBERT_LENGTH; ++i)
-            gtHilbertBuffer.set(i, rpBuffer[-i]);
+        const double* rpBuffer = sharedDataBuffer.getReadPointer(visContinuousChannel, bufferLength - 1);
+        for (int i = 0; i < VIS_HILBERT_LENGTH; ++i)
+            visHilbertBuffer.set(i, rpBuffer[-i]);
 
-        gtPlanForward.execute();
-        hilbertManip(&gtHilbertBuffer);
-        gtPlanBackward.execute();
+        visPlanForward.execute();
+        hilbertManip(&visHilbertBuffer);
+        visPlanBackward.execute();
 
         juce::int64 ts;
-        ScopedLock phaseBufferLock(stimPhaseBufferLock);
-        while (!stimTsBuffer.empty() && (ts = stimTsBuffer.front()) <= maxTs)
+        ScopedLock phaseBufferLock(visPhaseBufferLock);
+        while (!visTsBuffer.empty() && (ts = visTsBuffer.front()) <= maxTs)
         {
-            stimTsBuffer.pop();
+            visTsBuffer.pop();
             juce::int64 delay = sdbEndTs - ts;
-            std::complex<double> analyticPt = gtHilbertBuffer[delay];
-            stimPhaseBuffer.push(std::arg(analyticPt));
+            std::complex<double> analyticPt = visHilbertBuffer[delay];
+            visPhaseBuffer.push(std::arg(analyticPt));
         }
     }
 }

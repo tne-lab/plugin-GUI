@@ -48,8 +48,8 @@ enum Param
     LOWCUT,
     HIGHCUT,
     OUTPUT_MODE,
-    STIM_E_CHAN,
-    STIM_C_CHAN
+    VIS_E_CHAN,
+    VIS_C_CHAN
 };
 
 /* each continuous channel has three possible states while acquisition is running:
@@ -104,7 +104,7 @@ public:
     float getBitVolts(int subProcessorIdx = 0) const override;
 
     // for the visualizer
-    std::queue<double>& getStimPhaseBuffer(ScopedPointer<ScopedLock>& lock);
+    std::queue<double>& getVisPhaseBuffer(ScopedPointer<ScopedLock>& lock);
 
 private:
 
@@ -138,9 +138,9 @@ private:
     // Create an extra output channel for each processed input channel if PH_AND_MAG is selected
     void updateExtraChannels();
 
-    // Check the timestamp queue, clear any that are expired (too late to calculate phase),
-    // and calculate phase of any that are ready.
-    void calcStimPhases(juce::int64 sdbEndTs);
+    // Check the visualization timestamp queue, clear any that are expired
+    // (too late to calculate phase), and calculate phase of any that are ready.
+    void calcVisPhases(juce::int64 sdbEndTs);
 
     // ---- static utility methods ----
 
@@ -167,7 +167,7 @@ private:
     // number of future values to predict (0 <= numFuture <= processLength - AR_ORDER)
     int numFuture;
 
-    // size of sharedDataBuffer ( = max(GT_HILBERT_LENGTH, processLength - numFuture))
+    // size of sharedDataBuffer ( = max(VIS_HILBERT_LENGTH, processLength - numFuture))
     int bufferLength;
 
     // time to wait between AR model recalculations in ms
@@ -179,10 +179,10 @@ private:
     OutputMode outputMode;
 
     // event channel to watch for phases to plot on the canvas (-1 = none)
-    int stimEventChannel;
+    int visEventChannel;
 
     // channel to calculate phases from at received stim event times
-    int stimContinuousChannel;
+    int visContinuousChannel;
 
     // ---- internals -------
 
@@ -224,16 +224,16 @@ private:
     // maps full IDs of incoming streams to indices of corresponding subprocessors created here.
     HashMap<int, uint16> subProcessorMap;
 
-    // arrays of ground-truth data for visualization
-    FFTWArray gtHilbertBuffer;
-    FFTWPlan  gtPlanForward, gtPlanBackward;
+    // delayed analysis for visualization
+    FFTWArray visHilbertBuffer;
+    FFTWPlan  visPlanForward, visPlanBackward;
 
-    // holds stimulation timestamps until the GT phase is ready to be calculated
-    std::queue<juce::int64> stimTsBuffer;
+    // holds stimulation timestamps until the delayed phase is ready to be calculated
+    std::queue<juce::int64> visTsBuffer;
 
     // for phases of stimulations, to be read by the visualizer.
-    std::queue<double> stimPhaseBuffer;
-    CriticalSection stimPhaseBufferLock;  // avoid race conditions when updating visualizer
+    std::queue<double> visPhaseBuffer;
+    CriticalSection visPhaseBufferLock;  // avoid race conditions when updating visualizer
 
     // ------ filtering --------
     double highCut;
@@ -254,7 +254,7 @@ private:
     };
 
     OwnedArray<BandpassFilter> filters;
-    BandpassFilter gtReverseFilter;
+    BandpassFilter visReverseFilter;
 
     // -------static------------
 
@@ -270,9 +270,9 @@ private:
 
     // process length for real-time visualization ground truth hilbert transform
     // based on evaluation of phase error compared to offline processing
-    static const int GT_HILBERT_LENGTH = 65536;
-    static const int GT_TS_MIN_DELAY = 40000;
-    static const int GT_TS_MAX_DELAY = 48000;
+    static const int VIS_HILBERT_LENGTH = 65536;
+    static const int VIS_TS_MIN_DELAY = 40000;
+    static const int VIS_TS_MAX_DELAY = 48000;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseCalculator);
 };
