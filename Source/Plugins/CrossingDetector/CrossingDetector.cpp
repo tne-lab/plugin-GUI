@@ -31,11 +31,9 @@ CrossingDetector::CrossingDetector()
     , minThresh         (-180)
     , maxThresh         (180)
     , thresholdVal      (0.0)
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
     , useChannel        (false)
     , constant          (0)
     , selectedChannel   (-1)
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
     , posOn             (true)
     , negOn             (false)
     , inputChan         (0)
@@ -162,7 +160,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         {
             currThresh = threshold;
         }
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+
         //threshold using active channels
         const float* rpThresh;
         if (useChannel)
@@ -180,17 +178,16 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
                 continue; //processed at end
             }
             if (useChannel)
-                thresholdVal = rpThresh;
+                currThresh = rpThresh[i]; 
             else
-                thresholdVal = constant;
+                currThresh = constant; 
         }
         if (selectedChannelIsActive)
         {
             //what to do if the selected channel = input channel
             jassertfalse; break; //?
-
         }
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+
         bool currPosOn = posOn;
         bool currNegOn = negOn;
 
@@ -305,9 +302,9 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
     case pThreshold:
         threshold = newValue;
         break;
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
-    case pUseChannel:
-        if (newValue)
+
+    case pUseChannel: 
+        if (newValue) 
             validateActiveChannels();
         useChannel = static_cast<bool>(newValue);
         break;
@@ -317,14 +314,9 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         break;
 
     case pSelectedChannel:
-        int newChanNum = static_cast<int>(newValue);
-        if (newChanNum == -1 || newChanNum >= getTotalDataChannels())
-        {
-            if (!CoreServices::getAcquisitionStatus())
-                selectedChannel = -1;
-            break;
-        }
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+        selectedChannel = static_cast<int>(newValue);
+        break;
+
     case pPosOn:
         posOn = static_cast<bool>(newValue);
         break;
@@ -401,7 +393,7 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         break;
     }
 }
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+
 void CrossingDetector::validateActiveChannels()
 {
     Array<int> activeChannels = editor->getActiveChannels();
@@ -430,7 +422,7 @@ juce::uint32 CrossingDetector::chanToFullID(int chanNum) const
     uint16 subProcessorIdx = chan->getSubProcessorIdx();
     return getProcessorFullId(sourceNodeID, subProcessorIdx);
 }
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+
 bool CrossingDetector::enable()
 {
     // input channel is fixed once acquisition starts, so convert timeout and eventDuration

@@ -60,10 +60,8 @@ public:
     ~CrossingDetectorEditor();
     void comboBoxChanged(ComboBox* comboBoxThatHasChanged) override;
     void labelTextChanged(Label* labelThatHasChanged) override;
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
-    // catch invalid channel selections
-    void channelChanged(int chan, bool newState) override;
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+    // catch invalid channel selections 
+   // void channelChanged(int chan, bool newState) override; //do we need this?
 
     // overrides GenericEditor
     void buttonEvent(Button* button) override;
@@ -104,15 +102,14 @@ private:
     ScopedPointer<UtilityButton> risingButton;
     ScopedPointer<UtilityButton> fallingButton;
     ScopedPointer<Label> acrossLabel;
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
-    //ScopedPointer<Label> thresholdEditable;
-    //add useChannelBox and channelSelectionBox
-    ScopedPointer<ComboBox> useChannelBox;
-    ScopedPointer<ComboBox> channelSelectionBox;
-    ScopedPointer<Label> constantEditable;
+    //ScopedPointer<Label> thresholdEditable; 
+    //add useChannelBox and channelSelectionBox 
+    ScopedPointer<ComboBox> useChannelBox; 
+    ScopedPointer<ComboBox> channelSelectionBox; 
+    ScopedPointer<Label> constantEditable; 
+     
+    const String CHANNEL_SELECT_TOOLTIP = "Note: Can only be applied to channels from the same source/subprocessor."; 
 
-    const String CHANNEL_SELECT_TOOLTIP = "Note: Can only be applied to channels from the same source/subprocessor.";
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
     // bottom row (timeout)
     ScopedPointer<Label> timeoutLabel;
     ScopedPointer<Label> timeoutEditable;
