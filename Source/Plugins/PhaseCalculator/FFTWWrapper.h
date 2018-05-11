@@ -113,17 +113,21 @@ public:
         reinterpret_cast<double*>(data)[i] = val;
     }
 
-    void reverseComplex()
+    // Reverses first reverseLength complex values (default = all)
+    void reverseComplex(int reverseLength = -1)
     {
+        reverseLength = reverseLength >= 0 ? reverseLength : length;
         std::complex<double>* first = data;
-        std::complex<double>* last = data + length;
+        std::complex<double>* last = data + reverseLength;
         std::reverse<std::complex<double>*>(first, last);
     }
 
-    void reverseReal()
+    // Reverses first reverseLength real values (default = all)
+    void reverseReal(int reverseLength = -1)
     {
+        reverseLength = reverseLength >= 0 ? reverseLength : length * 2;
         double* first = reinterpret_cast<double*>(data);
-        double* last = first + (2 * length);
+        double* last = first + reverseLength;
         std::reverse<double*>(first, last);
     }
 

@@ -138,25 +138,28 @@ private:
     // Create an extra output channel for each processed input channel if PH_AND_MAG is selected
     void updateExtraChannels();
 
-    // Check the visualization timestamp queue, clear any that are expired
-    // (too late to calculate phase), and calculate phase of any that are ready.
+    /* 
+     * Check the visualization timestamp queue, clear any that are expired
+     * (too late to calculate phase), and calculate phase of any that are ready.
+     * sdbEndTs = timestamp 1 past end of current buffer
+     */
     void calcVisPhases(juce::int64 sdbEndTs);
 
     // ---- static utility methods ----
 
     /*
-    * arPredict: use autoregressive model of order to predict future data.
-    * Input params is an array of coefficients of an AR model of length 'order'.
-    * Writes writeNum future data values starting at location writeStart.
-    * *** assumes there are at least 'order' existing data points *before* writeStart
-    * to use to calculate future data points.
-    */
+     * arPredict: use autoregressive model of order to predict future data.
+     * Input params is an array of coefficients of an AR model of length 'order'.
+     * Writes writeNum future data values starting at location writeStart.
+     * *** assumes there are at least 'order' existing data points *before* writeStart
+     * to use to calculate future data points.
+     */
     static void arPredict(double* writeStart, int writeNum, const double* params, int order);
 
     /*
-    * hilbertManip: Hilbert transforms data in the frequency domain (including normalization by length of data).
-    * Modifies fftData in place.
-    */
+     * hilbertManip: Hilbert transforms data in the frequency domain (including normalization by length of data).
+     * Modifies fftData in place.
+     */
     static void hilbertManip(FFTWArray* fftData);
 
     // ---- customizable parameters ------

@@ -36,11 +36,11 @@ PhaseCalculator::PhaseCalculator()
     , highCut               (8.0)
     , haveSentWarning       (false)
     , outputMode            (PH)
-    , visEventChannel      (1)
-    , visContinuousChannel (0)
-    , visHilbertBuffer       (VIS_HILBERT_LENGTH)
-    , visPlanForward         (VIS_HILBERT_LENGTH, &visHilbertBuffer, FFTW_MEASURE)
-    , visPlanBackward        (VIS_HILBERT_LENGTH, &visHilbertBuffer, FFTW_BACKWARD, FFTW_MEASURE)
+    , visEventChannel       (1)
+    , visContinuousChannel  (0)
+    , visHilbertBuffer      (VIS_HILBERT_LENGTH)
+    , visPlanForward        (VIS_HILBERT_LENGTH, &visHilbertBuffer, FFTW_MEASURE)
+    , visPlanBackward       (VIS_HILBERT_LENGTH, &visHilbertBuffer, FFTW_BACKWARD, FFTW_MEASURE)
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
     setProcessLength(1 << 13, 1 << 12);
@@ -297,7 +297,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         // if this is the monitored channel for events, check whether we can add a new phase
         if (hasCanvas && chan == visContinuousChannel && chanState[chan] != NOT_FULL)
         {
-            calcVisPhases(getTimestamp(chan) + getNumSamples(chan) - 1);
+            calcVisPhases(getTimestamp(chan) + getNumSamples(chan));
         }
 
         // keep track of last sample
@@ -589,10 +589,10 @@ void PhaseCalculator::setFilterParameters()
         filters[chan]->setParams(params);
     }
 
-    // copy settings for corresponding channel to visReverseFilter
+    // copy filter parameters for corresponding channel to visReverseFilter
     if (visContinuousChannel >= 0 && visContinuousChannel < nChan)
     {
-        visReverseFilter.copyParamsFrom(filters[visContinuousChannel]);
+        visReverseFilter.setParams(filters[visContinuousChannel]->getParams());
     }
 }
 
@@ -766,9 +766,19 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
         for (int i = 0; i < VIS_HILBERT_LENGTH; ++i)
             visHilbertBuffer.set(i, rpBuffer[-i]);
 
+        double* realPtr = visHilbertBuffer.getRealPointer();
+        visReverseFilter.reset();
+        visReverseFilter.process(VIS_HILBERT_LENGTH, &realPtr);
+
+        // un-reverse values
+        visHilbertBuffer.reverseReal(VIS_HILBERT_LENGTH);
+
         visPlanForward.execute();
         hilbertManip(&visHilbertBuffer);
         visPlanBackward.execute();
+
+        // debug
+        const std::complex<double>* complexPtr = visHilbertBuffer.getReadPointer();
 
         juce::int64 ts;
         ScopedLock phaseBufferLock(visPhaseBufferLock);
@@ -776,7 +786,7 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
         {
             visTsBuffer.pop();
             juce::int64 delay = sdbEndTs - ts;
-            std::complex<double> analyticPt = visHilbertBuffer[delay];
+            std::complex<double> analyticPt = visHilbertBuffer[VIS_HILBERT_LENGTH - delay];
             visPhaseBuffer.push(std::arg(analyticPt));
         }
     }
