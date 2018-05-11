@@ -328,8 +328,11 @@ void PhaseCalculatorEditor::channelChanged(int chan, bool newState)
 {
     // if the channel is an input and outputMode is PH+MAG, update the extra channels
     PhaseCalculator* pc = static_cast<PhaseCalculator*>(getProcessor());
-    if (chan < pc->getNumInputs() && outputModeBox->getSelectedId() == PH_AND_MAG)
+    if (chan < pc->getNumInputs() &&
+        (outputModeBox->getSelectedId() == PH_AND_MAG || canvas != nullptr))
+    {
         CoreServices::updateSignalChain(this);
+    }
 }
 
 void PhaseCalculatorEditor::startAcquisition()

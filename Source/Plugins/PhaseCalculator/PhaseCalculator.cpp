@@ -36,7 +36,7 @@ PhaseCalculator::PhaseCalculator()
     , highCut               (8.0)
     , haveSentWarning       (false)
     , outputMode            (PH)
-    , visEventChannel       (1)
+    , visEventChannel       (-1)
     , visContinuousChannel  (0)
     , visHilbertBuffer      (VIS_HILBERT_LENGTH)
     , visPlanForward        (VIS_HILBERT_LENGTH, &visHilbertBuffer, FFTW_MEASURE)
@@ -113,7 +113,7 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
             visTsBuffer.pop();
 
         // update filter settings
-        visReverseFilter.copyParamsFrom(filters[newVisContChan]);
+        visReverseFilter.setParams(filters[newVisContChan]->getParams());
 
         visContinuousChannel = newVisContChan;
         visEventChannel = tempVisEventChan;

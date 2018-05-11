@@ -28,7 +28,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <VisualizerWindowHeaders.h>
 #include <set> // std::multiset
 
-class RosePlot : public Component
+class RosePlot  
+    : public Component
+    , public Label::Listener
 {
 public:
     RosePlot();
@@ -39,11 +41,8 @@ public:
     // Change number of bins and repaint
     void setNumBins(int newNumBins);
 
-    // Change reference angle and repaint if necessary
+    // Change reference angle and repaint
     void setReference(double newReference);
-
-    // Change whether reference angle is used and repaint if necessary
-    void setUseReference(bool newUseReference);
 
     // Add a new angle (in radians) and repaint
     void addAngle(double newAngle);
@@ -51,7 +50,12 @@ public:
     // Remove all angles from the plot and repaint
     void clear();
 
-    static const int MAX_BINS = 1000;
+    // implements Label::Listener
+    void labelTextChanged(Label* labelThatHasChanged) override;
+
+    static const int MAX_BINS = 120;
+    static const int START_NUM_BINS = 24;
+    static const int START_REFERENCE = 0;
 
 private:
     struct circularBinComparator
@@ -89,7 +93,6 @@ private:
     ScopedPointer<AngleDataMultiset> angleData;
     int numBins;
     double referenceAngle;
-    bool useReference;
 
     // for each rose plot segment:
     // midpoint angle in radians CCW from positive x axis
@@ -107,7 +110,11 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RosePlot);
 };
 
-class PhaseCalculatorCanvas : public Visualizer
+class PhaseCalculatorCanvas 
+    : public Visualizer
+    , public ComboBox::Listener
+    , public Slider::Listener
+    , public Button::Listener
 {
 public:
     PhaseCalculatorCanvas(PhaseCalculator* pc);
@@ -126,13 +133,60 @@ public:
     void addAngle(double newAngle);
     void clearAngles();
 
+    // implements ComboBox::Listener
+    void comboBoxChanged(ComboBox* comboBoxThatHasChanged) override;
+
+    // implements Slider::Listener
+    void sliderValueChanged(Slider* slider) override;
+
+    // implements Button::Listener
+    void buttonClicked(Button* button) override;
+
+    void saveVisualizerParameters(XmlElement* xml) override;
+    void loadVisualizerParameters(XmlElement* xml) override;
+
 private:
+    int getRosePlotDiameter(int height, int* verticalPadding);
+    int getContentWidth(int width, int diameter, int* leftPadding);
+
+    // if false, we're not reading phases.
+    bool eventChannelSelected;
+
     PhaseCalculator* processor;
 
     ScopedPointer<Viewport> viewport;
     ScopedPointer<Component> canvas;
-
+    ScopedPointer<Component> rosePlotOptions;
     ScopedPointer<RosePlot> rosePlot;
+
+    // options panel
+    ScopedPointer<Label>          cChannelLabel;
+    ScopedPointer<ComboBox>       cChannelBox;
+    ScopedPointer<Label>          eChannelLabel;
+    ScopedPointer<ComboBox>       eChannelBox;
+
+    ScopedPointer<Label>    numBinsLabel;
+    ScopedPointer<Slider>   numBinsSlider;
+
+    ScopedPointer<UtilityButton> clearButton;
+
+    ScopedPointer<Label>        referenceLabel;
+    ScopedPointer<Label>        referenceEditable;
+    
+    // for future, maybe?
+    //ScopedPointer<Label>          meanLabel;
+    //ScopedPointer<Label>          meanIndicator;
+    //ScopedPointer<Label>          varLabel;
+    //ScopedPointer<Label>          varIndicator;
+
+    static const int MIN_PADDING = 10;
+    static const int MAX_LEFT_PADDING = 50;
+    static const int MIN_DIAMETER = 250;
+    static const int MAX_DIAMETER = 500;
+    static const int OPTIONS_WIDTH = 300;
+
+    const String C_CHAN_TOOLTIP = "Channel containing data whose high-accuracy phase is calculated for each event";
+    const String REF_TOOLTIP = "Base phase (in degrees) to subtract from each calculated phase";
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseCalculatorCanvas);
 };

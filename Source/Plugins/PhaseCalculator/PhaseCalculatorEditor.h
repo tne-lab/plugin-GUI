@@ -54,6 +54,7 @@ class PhaseCalculatorEditor
     , public ComboBox::Listener
     , public Label::Listener
 {
+    friend class RosePlot;  // to access label updating method
 public:
     PhaseCalculatorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors = false);
     ~PhaseCalculatorEditor();
