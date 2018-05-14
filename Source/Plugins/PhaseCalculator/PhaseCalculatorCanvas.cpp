@@ -31,7 +31,7 @@ PhaseCalculatorCanvas::PhaseCalculatorCanvas(PhaseCalculator* pc)
     , viewport          (new Viewport())
     , canvas            (new Component("canvas"))
     , rosePlotOptions   (new Component("rosePlotOptions"))
-    , rosePlot          (new RosePlot())
+    , rosePlot          (new RosePlot(this))
 {
     refreshRate = 5;
 
@@ -100,6 +100,23 @@ PhaseCalculatorCanvas::PhaseCalculatorCanvas(PhaseCalculator* pc)
     referenceEditable->setColour(Label::textColourId, Colours::white);
     referenceEditable->setTooltip(REF_TOOLTIP);
     rosePlotOptions->addAndMakeVisible(referenceEditable);
+
+    countLabel = new Label("countLabel");
+    countLabel->setBounds(xPos = INDENT, yPos += 45, OPTIONS_WIDTH, TEXT_HT);
+    countLabel->setFont(TEXT_FONT);
+
+    meanLabel = new Label("meanLabel");
+    meanLabel->setBounds(xPos, yPos += TEXT_HT, OPTIONS_WIDTH, TEXT_HT);
+    meanLabel->setFont(TEXT_FONT);
+
+    stdLabel = new Label("stdLabel");
+    stdLabel->setBounds(xPos, yPos += TEXT_HT, OPTIONS_WIDTH, TEXT_HT);
+    stdLabel->setFont(TEXT_FONT);
+
+    updateStatLabels();
+    rosePlotOptions->addAndMakeVisible(countLabel);
+    rosePlotOptions->addAndMakeVisible(meanLabel);
+    rosePlotOptions->addAndMakeVisible(stdLabel);
 
     canvas->addAndMakeVisible(rosePlotOptions);
 
@@ -221,11 +238,13 @@ void PhaseCalculatorCanvas::setParameter(int, int, int, float) {}
 void PhaseCalculatorCanvas::addAngle(double newAngle)
 {
     rosePlot->addAngle(newAngle);
+    updateStatLabels();
 }
 
 void PhaseCalculatorCanvas::clearAngles()
 {
     rosePlot->clear();
+    updateStatLabels();
 }
 
 void PhaseCalculatorCanvas::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
@@ -260,6 +279,17 @@ void PhaseCalculatorCanvas::buttonClicked(Button* button)
     }
 }
 
+void PhaseCalculatorCanvas::updateStatLabels()
+{
+    int numAngles = rosePlot->getNumAngles();
+    double mean = std::round(100 * rosePlot->getCircMean()) / 100;
+    double stddev = std::round(100 * rosePlot->getCircStd()) / 100;
+
+    countLabel->setText(String::formatted(COUNT_FMT, numAngles), dontSendNotification);
+    meanLabel->setText(String::formatted(MEAN_FMT, mean), dontSendNotification);
+    stdLabel->setText(String::formatted(STD_FMT, stddev), dontSendNotification);
+}
+
 void PhaseCalculatorCanvas::saveVisualizerParameters(XmlElement* xml)
 {
     XmlElement* visValues = xml->createNewChildElement("VISUALIZER");
@@ -283,13 +313,15 @@ void PhaseCalculatorCanvas::loadVisualizerParameters(XmlElement* xml)
 
 /**** RosePlot ****/
 
-RosePlot::RosePlot()
-    : referenceAngle(static_cast<double>(START_REFERENCE))
+RosePlot::RosePlot(PhaseCalculatorCanvas* c)
+    : canvas        (c)
+    , referenceAngle(static_cast<double>(START_REFERENCE))
     , numBins       (START_NUM_BINS)
     , faceColor     (Colour(230, 168, 0))
     , edgeColor     (Colours::black)
     , bgColor       (Colours::black)
     , edgeWeight    (1)
+    , rSum          (0)
 {
     updateAngles();
     reorganizeAngleData();
@@ -301,11 +333,42 @@ void RosePlot::paint(Graphics& g)
 {
     // dimensions
     juce::Rectangle<int> bounds = getBounds();
-    int squareSide = jmin(bounds.getHeight(), bounds.getWidth());
+    int squareSide = jmin(bounds.getHeight(), bounds.getWidth() - 2 * TEXT_BOX_SIZE);
     juce::Rectangle<float> plotBounds = bounds.withZeroOrigin().toFloat();
     plotBounds = plotBounds.withSizeKeepingCentre(squareSide, squareSide);
     g.setColour(bgColor);
     g.fillEllipse(plotBounds);
+
+    // draw grid
+    // spokes and degree labels (every 30 degrees)
+    Point<float> center = plotBounds.getCentre();
+    Line<float> spoke(center, center);
+    juce::Rectangle<int> textBox(TEXT_BOX_SIZE, TEXT_BOX_SIZE);
+    g.setFont(Font(TEXT_BOX_SIZE / 2, Font::bold));
+    for (int i = 0; i < 12; ++i)
+    {
+        float juceAngle = i * PI / 6;
+        spoke.setEnd(center.getPointOnCircumference(squareSide / 2, juceAngle));
+        g.setColour(Colours::lightgrey);
+        g.drawLine(spoke);
+        
+        float textRadius = (squareSide + TEXT_BOX_SIZE) / 2;
+        Point<int> textCenter = center.getPointOnCircumference(textRadius, juceAngle).toInt();
+        int degreeAngle = (450 - 30 * i) % 360;
+        g.setColour(Colours::black);
+        g.drawFittedText(String(degreeAngle), textBox.withCentre(textCenter), Justification::centred, 1);
+    }
+
+    // concentric circles
+    int nCircles = 3;
+    juce::Rectangle<float> circleBounds;
+    g.setColour(Colours::lightgrey);
+    for (int i = 1; i < nCircles; ++i)
+    {
+        float diameter = (squareSide * i) / nCircles;
+        circleBounds = plotBounds.withSizeKeepingCentre(diameter, diameter);
+        g.drawEllipse(circleBounds, 1);
+    }
 
     // get count for each rose plot segment
     int nSegs = binMidpoints.size();
@@ -366,14 +429,42 @@ void RosePlot::setReference(double newReference)
 
 void RosePlot::addAngle(double newAngle)
 {
-    angleData->insert(circDist(newAngle, 0));
+    newAngle = circDist(newAngle, 0);
+    angleData->insert(newAngle);
+    rSum += std::exp(std::complex<double>(0, newAngle));
     repaint();
 }
 
 void RosePlot::clear()
 {
     angleData->clear();
+    rSum = 0;
     repaint();
+}
+
+int RosePlot::getNumAngles()
+{
+    return angleData->size();
+}
+
+double RosePlot::getCircMean(bool usingReference)
+{
+    if (angleData->empty())
+        return 0;
+
+    double reference = usingReference ? referenceAngle : 0.0;
+    double meanRad = circDist(std::arg(rSum), reference);
+    return meanRad * 180 / PI;
+}
+
+double RosePlot::getCircStd()
+{
+    if (angleData->empty())
+        return 0;
+
+    double r = std::abs(rSum) / angleData->size();
+    double stdRad = std::sqrt(-2 * std::log(r));
+    return stdRad * 180 / PI;
 }
 
 void RosePlot::labelTextChanged(Label* labelThatHasChanged)
@@ -391,6 +482,7 @@ void RosePlot::labelTextChanged(Label* labelThatHasChanged)
             double newReference = circDist(floatInput * PI / 180.0, 0);
             labelThatHasChanged->setText(String(newReference * 180.0 / PI), dontSendNotification);
             setReference(newReference);
+            canvas->updateStatLabels();
         }
     }
 }

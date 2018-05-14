@@ -28,12 +28,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <VisualizerWindowHeaders.h>
 #include <set> // std::multiset
 
-class RosePlot  
+class PhaseCalculatorCanvas;
+
+class RosePlot
     : public Component
     , public Label::Listener
 {
 public:
-    RosePlot();
+    RosePlot(PhaseCalculatorCanvas* c);
     ~RosePlot();
 
     void paint(Graphics& g) override;
@@ -50,12 +52,19 @@ public:
     // Remove all angles from the plot and repaint
     void clear();
 
+    int getNumAngles();
+
+    // output statistics, in degrees
+    double getCircMean(bool usingReference = true);
+    double getCircStd();
+
     // implements Label::Listener
     void labelTextChanged(Label* labelThatHasChanged) override;
 
     static const int MAX_BINS = 120;
     static const int START_NUM_BINS = 24;
     static const int START_REFERENCE = 0;
+    static const int TEXT_BOX_SIZE = 50;
 
 private:
     struct circularBinComparator
@@ -90,6 +99,8 @@ private:
     // (but keep the same data points)
     void reorganizeAngleData();
 
+    PhaseCalculatorCanvas* canvas;
+
     ScopedPointer<AngleDataMultiset> angleData;
     int numBins;
     double referenceAngle;
@@ -104,6 +115,9 @@ private:
     Colour edgeColor;
     Colour bgColor;
     float edgeWeight;
+
+    // sum of exp(a*j) for each angle a
+    std::complex<double> rSum;
 
     static const double PI;
 
@@ -142,6 +156,9 @@ public:
     // implements Button::Listener
     void buttonClicked(Button* button) override;
 
+    // updates countLabel, meanLabel, and stdLabel
+    void updateStatLabels();
+
     void saveVisualizerParameters(XmlElement* xml) override;
     void loadVisualizerParameters(XmlElement* xml) override;
 
@@ -173,20 +190,21 @@ private:
     ScopedPointer<Label>        referenceLabel;
     ScopedPointer<Label>        referenceEditable;
     
-    // for future, maybe?
-    //ScopedPointer<Label>          meanLabel;
-    //ScopedPointer<Label>          meanIndicator;
-    //ScopedPointer<Label>          varLabel;
-    //ScopedPointer<Label>          varIndicator;
+    ScopedPointer<Label> countLabel;
+    ScopedPointer<Label> meanLabel;
+    ScopedPointer<Label> stdLabel;
 
-    static const int MIN_PADDING = 10;
+    static const int MIN_PADDING = 5;
     static const int MAX_LEFT_PADDING = 50;
-    static const int MIN_DIAMETER = 250;
-    static const int MAX_DIAMETER = 500;
-    static const int OPTIONS_WIDTH = 300;
+    static const int MIN_DIAMETER = 350;
+    static const int MAX_DIAMETER = 550;
+    static const int OPTIONS_WIDTH = 320;
 
     const String C_CHAN_TOOLTIP = "Channel containing data whose high-accuracy phase is calculated for each event";
     const String REF_TOOLTIP = "Base phase (in degrees) to subtract from each calculated phase";
+    const String COUNT_FMT = "Events received: %d";
+    const String MEAN_FMT = "Mean phase (vs. reference): %.2f\u00b0";
+    const String STD_FMT = "Standard deviation phase: %.2f\u00b0";
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseCalculatorCanvas);
 };
