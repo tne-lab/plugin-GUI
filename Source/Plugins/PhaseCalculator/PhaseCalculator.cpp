@@ -341,6 +341,14 @@ bool PhaseCalculator::disable()
     // reset buffer overflow warning
     haveSentWarning = false;
 
+    // clear timestamp and phase queues
+    while (!visTsBuffer.empty())
+        visTsBuffer.pop();
+
+    ScopedLock phaseLock(visPhaseBufferLock);
+    while (!visPhaseBuffer.empty())
+        visPhaseBuffer.pop();
+
     return true;
 }
 
@@ -528,6 +536,7 @@ void PhaseCalculator::handleEvent(const EventChannel* eventInfo,
         {
             // add timestamp to the queue for visualization
             juce::int64 ts = ttl->getTimestamp();
+            jassert(visTsBuffer.empty() || visTsBuffer.back() <= ts);
             visTsBuffer.push(ts);
         }
     }
