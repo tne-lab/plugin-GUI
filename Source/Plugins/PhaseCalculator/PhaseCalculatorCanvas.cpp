@@ -199,7 +199,8 @@ void PhaseCalculatorCanvas::update()
 
     if (cChannelBox->getNumItems() > 0 && cChannelBox->getSelectedId() == 0)
     {
-        cChannelBox->setSelectedId(1, sendNotificationAsync);
+        int firstChannelId = activeChans[0] + 1;
+        cChannelBox->setSelectedId(firstChannelId, sendNotificationAsync);
     }
 }
 

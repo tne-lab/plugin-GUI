@@ -202,9 +202,9 @@ private:
 
     const String C_CHAN_TOOLTIP = "Channel containing data whose high-accuracy phase is calculated for each event";
     const String REF_TOOLTIP = "Base phase (in degrees) to subtract from each calculated phase";
-    const String COUNT_FMT = "Events received: %d";
-    const String MEAN_FMT = "Mean phase (vs. reference): %.2f\u00b0";
-    const String STD_FMT = "Standard deviation phase: %.2f\u00b0";
+    const String COUNT_FMT = CharPointer_UTF8("Events received: %d");
+    const String MEAN_FMT = CharPointer_UTF8("Mean phase (vs. reference): %.2f\u00b0");
+    const String STD_FMT = CharPointer_UTF8("Standard deviation phase: %.2f\u00b0");
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseCalculatorCanvas);
 };
