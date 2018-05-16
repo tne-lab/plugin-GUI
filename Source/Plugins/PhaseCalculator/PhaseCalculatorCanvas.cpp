@@ -455,6 +455,11 @@ double RosePlot::getCircMean(bool usingReference)
 
     double reference = usingReference ? referenceAngle : 0.0;
     double meanRad = circDist(std::arg(rSum), reference);
+    // change range to [-90, 270), for ease of use
+    if (meanRad >= 3 * PI / 2)
+    {
+        meanRad -= 2 * PI;
+    }
     return meanRad * 180 / PI;
 }
 
