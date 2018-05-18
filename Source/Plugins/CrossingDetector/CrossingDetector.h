@@ -25,7 +25,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define CROSSING_DETECTOR_H_INCLUDED
 
 #ifdef _WIN32
-#define NOMINMAX
 #include <Windows.h>
 #endif
 
