@@ -22,6 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "CrossingDetectorEditor.h"
 #include "CrossingDetector.h"
+#include <string>
 
 CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
     : VisualizerEditor(parentNode, 205, useDefaultParameterEditors)
@@ -84,14 +85,33 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     acrossLabel = createLabel("AcrossL", "threshold:", Rectangle(xPos += 70, Y_POS_UPPER - 3, 100, TEXT_HT));
     addAndMakeVisible(acrossLabel);
 
-    //thresholdEditable = createEditable("Threshold", "", "Threshold voltage",
-    //    Rectangle(xPos += 63, yPos, 50, TEXT_HT));
-    thresholdEditable = createEditable("Threshold", "", "Threshold voltage",
-        Rectangle(xPos + 5, Y_POS_LOWER - 3, 80, TEXT_HT));
-    thresholdEditable->setEnabled(!processor->useRandomThresh);
-    // setup 2-way communication b/w processor and editor re: threshold
-    thresholdEditable->getTextValue().referTo(processor->thresholdVal);
-    addAndMakeVisible(thresholdEditable);
+    useChannelBox = new ComboBox("useChannel");
+    useChannelBox->addItem("CONST", 1);
+    useChannelBox->addItem("CHAN", 2);
+    useChannelBox->setSelectedId(processor->useChannel ? 2 : 1, dontSendNotification);
+    useChannelBox->setBounds(xPos, Y_POS_LOWER - 3, 60, TEXT_HT);
+    useChannelBox->addListener(this);
+    addAndMakeVisible(useChannelBox);
+
+    channelSelectionBox = new ComboBox("channelSelection");
+    channelSelectionBox->setBounds(xPos + 70, Y_POS_LOWER - 3, 35, TEXT_HT);
+    channelSelectionBox->addListener(this);
+    channelSelectionBox->setTooltip(CHANNEL_SELECT_TOOLTIP);
+    channelSelectionBox->setVisible(processor->useChannel);
+    addChildComponent(channelSelectionBox);
+
+    constantEditable = new Label("constantE");
+    constantEditable->setEditable(true);
+    constantEditable->setBounds(xPos + 70, Y_POS_LOWER - 3, 35, TEXT_HT);
+    constantEditable->setText(String(processor->constant), dontSendNotification);
+    constantEditable->setColour(Label::backgroundColourId, Colours::grey);
+    constantEditable->setColour(Label::textColourId, Colours::white);
+    constantEditable->addListener(this);
+    constantEditable->setVisible(!channelSelectionBox->isVisible());
+    addChildComponent(constantEditable);
+
+    //how to make sure this doesn't prevent randomThresh from working?
+
 
     /* --------- Bottom row (timeout) ------------- */
     xPos = 30;
@@ -290,10 +310,32 @@ CrossingDetectorEditor::~CrossingDetectorEditor() {}
 
 void CrossingDetectorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
 {
+    CrossingDetector* processor = static_cast<CrossingDetector*>(getProcessor());
     if (comboBoxThatHasChanged == inputBox)
         getProcessor()->setParameter(pInputChan, static_cast<float>(inputBox->getSelectedId() - 1));
     else if (comboBoxThatHasChanged == outputBox)
         getProcessor()->setParameter(pEventChan, static_cast<float>(outputBox->getSelectedId() - 1));
+    else if (comboBoxThatHasChanged == useChannelBox)
+    {
+        bool useChannel = static_cast<bool>(useChannelBox->getSelectedId() - 1);
+        if (useChannel)
+        {
+            constantEditable->setVisible(false);
+            channelSelectionBox->setVisible(true);
+        }
+        else
+        {
+            channelSelectionBox->setVisible(false);
+            constantEditable->setVisible(true);
+        }
+        processor->setParameter(useChannel, static_cast<float>(useChannel));
+    }
+  //not sure how to make this work for parameter selectedChannel
+  /*else if (comboBoxThatHasChanged == channelSelectionBox)
+    {
+        processor->setParameter(selectedChannel, static_cast<float>(channelSelectionBox->getSelectedId() - 1));
+    } */
+
 }
 
 void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
@@ -316,13 +358,16 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         if (success)
             processor->setParameter(pTimeout, static_cast<float>(newVal));
     }
-    else if (labelThatHasChanged == thresholdEditable && thresholdEditable->isEnabled())
+  //  else if (labelThatHasChanged == thresholdEditable && thresholdEditable->isEnabled())
+    else if (labelThatHasChanged == constantEditable && constantEditable->isEnabled())
     {
         float newVal;
         bool success = updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX, processor->threshold, &newVal);
 
         if (success)
             processor->setParameter(pThreshold, newVal);
+        //potentially add something so threshold only updated when !useRandomThreshold
+
     }
     else if (labelThatHasChanged == pastPctEditable)
     {
@@ -396,7 +441,8 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
     else if (button == randomizeButton)
     {
         bool randomizeOn = button->getToggleState();
-        thresholdEditable->setEnabled(!randomizeOn);
+        constantEditable->setEnabled(!randomizeOn);
+        channelSelectionBox->setEnabled(!randomizeOn);
         minThreshEditable->setEnabled(randomizeOn);
         maxThreshEditable->setEnabled(randomizeOn);
         processor->setParameter(pRandThresh, static_cast<float>(randomizeOn));
@@ -514,6 +560,7 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         minThreshEditable->setText(xmlNode->getStringAttribute("minThresh", minThreshEditable->getText()), sendNotificationSync);
         maxThreshEditable->setText(xmlNode->getStringAttribute("maxThresh", maxThreshEditable->getText()), sendNotificationSync);
         randomizeButton->setToggleState(xmlNode->getBoolAttribute("bRandThresh", randomizeButton->getToggleState()), sendNotificationSync);
+        //add here to include threshold constant and channel selections 
 
         // voting
         pastPctEditable->setText(xmlNode->getStringAttribute("pastPctExclusive", pastPctEditable->getText()), sendNotificationSync);

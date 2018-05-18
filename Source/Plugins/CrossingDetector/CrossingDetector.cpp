@@ -31,6 +31,9 @@ CrossingDetector::CrossingDetector()
     , minThresh         (-180)
     , maxThresh         (180)
     , thresholdVal      (0.0)
+    , useChannel        (false)
+    , constant          (0)
+    , selectedChannel   (-1)
     , posOn             (true)
     , negOn             (false)
     , inputChan         (0)
@@ -168,6 +171,34 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         {
             currThresholds.set(i, threshold);
         }
+
+        //threshold using active channels
+        const float* rpThresh;
+        if (useChannel)
+        {
+            rpThresh = continuousBuffer.getReadPointer(selectedChannel);
+        }
+        //look at active channels
+        Array<int> activeChannels = editor->getActiveChannels();
+        bool selectedChannelIsActive = false;
+        for (int chan : activeChannels)
+        {
+            if (useChannel && chan == selectedChannel)
+            {
+                selectedChannelIsActive = true;
+                continue; //processed at end
+            }
+            if (useChannel)
+                currThresh = rpThresh[i]; 
+            else
+                currThresh = constant; 
+        }
+        if (selectedChannelIsActive)
+        {
+            //what to do if the selected channel = input channel
+            jassertfalse; break; //?
+        }
+
         bool currPosOn = posOn;
         bool currNegOn = negOn;
 
@@ -272,6 +303,20 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         threshold = newValue;
         break;
 
+    case pUseChannel: 
+        if (newValue) 
+            validateActiveChannels();
+        useChannel = static_cast<bool>(newValue);
+        break;
+
+    case pConstant:
+        constant = newValue;
+        break;
+
+    case pSelectedChannel:
+        selectedChannel = static_cast<int>(newValue);
+        break;
+
     case pPosOn:
         posOn = static_cast<bool>(newValue);
         break;
@@ -349,6 +394,35 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         jumpLimit = newValue;
         break;
     }
+}
+
+void CrossingDetector::validateActiveChannels()
+{
+    Array<int> activeChannels = editor->getActiveChannels();
+    int numChannels = getNumInputs();
+    bool p, r, a, haveSentMessage = false;
+    const String message = "Deselecting channels that don't match subprocessor of selected reference";
+    for (int chan : activeChannels)
+    {
+        if (chan >= numChannels) // can happen during update if # of channels decreases
+            continue;
+
+        if (chanToFullID(chan) != validSubProcFullID)
+        {
+            if (!haveSentMessage)
+                CoreServices::sendStatusMessage(message);
+            editor->getChannelSelectionState(chan, &p, &r, &a);
+            editor->setChannelSelectionState(chan - 1, false, r, a);
+        }
+    }
+}
+
+juce::uint32 CrossingDetector::chanToFullID(int chanNum) const
+{
+    const DataChannel* chan = getDataChannel(chanNum);
+    uint16 sourceNodeID = chan->getSourceNodeID();
+    uint16 subProcessorIdx = chan->getSubProcessorIdx();
+    return getProcessorFullId(sourceNodeID, subProcessorIdx);
 }
 
 bool CrossingDetector::enable()
