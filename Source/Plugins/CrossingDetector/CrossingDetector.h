@@ -30,7 +30,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #endif
 
 #include <ProcessorHeaders.h>
-#include <algorithm> // max
 #include "CircularArray.h"
 
 /*
@@ -46,30 +45,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * @see GenericProcessor
  */
-
-// parameter indices
-enum
-{
-    pRandThresh,
-    pMinThresh,
-    pMaxThresh,
-    pThreshold,
-    pUseChannel,
-    pConstant,
-    pSelectedChannel,
-    pPosOn,
-    pNegOn,
-    pInputChan,
-    pEventChan,
-    pEventDur,
-    pTimeout,
-    pPastSpan,
-    pPastStrict,
-    pFutureSpan,
-    pFutureStrict,
-    pUseJumpLimit,
-    pJumpLimit,
-};
 
 class CrossingDetector : public GenericProcessor
 {
@@ -92,6 +67,28 @@ public:
     bool disable() override;
 
 private:
+    enum ThresholdType { CONSTANT, RANDOM, CHANNEL };
+
+    enum Parameter
+    {
+        THRESH_TYPE,
+        MIN_RAND_THRESH,
+        MAX_RAND_THRESH,
+        CONST_THRESH,
+        THRESH_CHAN,
+        INPUT_CHAN,
+        EVENT_CHAN,
+        POS_ON,
+        NEG_ON,
+        EVENT_DUR,
+        TIMEOUT,
+        PAST_SPAN,
+        PAST_STRICT,
+        FUTURE_SPAN,
+        FUTURE_STRICT,
+        USE_JUMP_LIMIT,
+        JUMP_LIMIT,
+    };
 
     // -----utility funcs--------
 
@@ -104,9 +101,6 @@ private:
     // Select a new random threshold using minThresh, maxThresh, and rng.
     float nextThresh();
  
-    void validateActiveChannels();
-    juce::uint32 chanToFullID(int chanNum) const;
- 
     /* Add "turning-on" and "turning-off" event for a crossing.
      *  - bufferTs:       Timestamp of start of current buffer
      *  - crossingOffset: Difference betweeen time of actual crossing and bufferTs
@@ -117,28 +111,41 @@ private:
     void triggerEvent(juce::int64 bufferTs, int crossingOffset, int bufferLength,
         float threshold, float crossingLevel);
 
+    // Retrieves the full source subprocessor ID of the given channel.
+    juce::uint32 getSubProcFullID(int chanNum) const;
+
+    /* Returns true if the given chanNum corresponds to an input
+    * and that channel has the same source subprocessor as the
+    * selected 'inputChannel'.
+    */
+    bool isCompatibleWithInput(int chanNum) const;
+
+    // Returns a string to display in the threshold box when using a threshold channel
+    static String toChannelThreshString(int chanNum);
+
     // ------parameters------------
 
-    // if using fixed threshold:
-    float threshold;
+    ThresholdType thresholdType;
     Value thresholdVal; // underlying value of the threshold label
- 
-    bool useChannel;
-    float constant;  //should this be replaced with threshold variable?       
-    int selectedChannel;
-    juce::uint32 validSubProcFullID;
+
+
+    // if using constant threshold:
+    float constantThresh;
 
     // if using random thresholds:
-    bool useRandomThresh;
-    float minThresh;
-    float maxThresh;
+    float minRandomThresh;
+    float maxRandomThresh;
     float currRandomThresh;
     Random rng;
 
+    // if using channel threshold:
+    int thresholdChannel;
+    juce::uint32 validSubProcFullID;
+
+    int inputChannel;
+    int eventChannel;
     bool posOn;
     bool negOn;
-    int inputChan;
-    int eventChan;
 
     int eventDuration; // in milliseconds
     int eventDurationSamp;

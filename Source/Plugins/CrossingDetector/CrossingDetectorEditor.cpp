@@ -474,7 +474,8 @@ void CrossingDetectorEditor::updateSettings()
         else
             inputBox->setSelectedId(currId, dontSendNotification);
     }
-
+    
+    // TODO: update threshold channel combo box
 }
 
 void CrossingDetectorEditor::startAcquisition()
