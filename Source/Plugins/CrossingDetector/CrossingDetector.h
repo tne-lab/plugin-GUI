@@ -115,7 +115,7 @@ private:
 
     /* Returns true if the given chanNum corresponds to an input
     * and that channel has the same source subprocessor as the
-    * selected 'inputChannel'.
+    * selected inputChannel, but is not equal to the inputChannel.
     */
     bool isCompatibleWithInput(int chanNum) const;
 

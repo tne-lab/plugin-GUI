@@ -33,6 +33,7 @@ CrossingDetector::CrossingDetector()
     , maxRandomThresh   (180)
     , thresholdChannel  (-1)
     , inputChannel      (0)
+    , validSubProcFullID(0)
     , eventChannel      (0)
     , posOn             (true)
     , negOn             (false)
@@ -258,9 +259,9 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
     switch (parameterIndex)
     {
     case THRESH_TYPE:
-        auto newThresholdType = static_cast<ThresholdType>(static_cast<int>(newValue));
+        thresholdType = static_cast<ThresholdType>(static_cast<int>(newValue));
 
-        switch (newThresholdType)
+        switch (thresholdType)
         {
         case CONSTANT:
             thresholdVal = constantThresh;
@@ -277,7 +278,6 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
             thresholdVal = toChannelThreshString(thresholdChannel);
         }
 
-        thresholdType = newThresholdType;
         break;
 
     case MIN_RAND_THRESH:
@@ -308,9 +308,8 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         break;
 
     case THRESH_CHAN:
-        int newThresholdChannel = static_cast<int>(newValue);
-        jassert(isCompatibleWithInput(newThresholdChannel));
-        thresholdChannel = newThresholdChannel;
+        jassert(isCompatibleWithInput(static_cast<int>(newValue)));
+        thresholdChannel = static_cast<int>(newValue);
         if (thresholdType == CHANNEL)
         {
             thresholdVal = toChannelThreshString(thresholdChannel);
@@ -318,11 +317,20 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         break;
 
     case INPUT_CHAN:
-        if (getNumInputs() > newValue)
+        if (newValue >= 0 && newValue < getNumInputs())
         {
             inputChannel = static_cast<int>(newValue);
+            juce::uint32 oldSubProcFullId = validSubProcFullID;
             validSubProcFullID = getSubProcFullID(inputChannel);
-            getEditor()->updateSettings(); // update threshold channel ComboBox
+            if (oldSubProcFullId != validSubProcFullID)
+            {
+                auto editor = static_cast<CrossingDetectorEditor*>(getEditor());
+                editor->updateChannelThreshBox();
+            }
+        }
+        else if (newValue < 0)
+        {
+            validSubProcFullID = 0;
         }
         break;
 
@@ -340,14 +348,14 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 
     case EVENT_DUR:
         eventDuration = static_cast<int>(newValue);
-        float sampleRate = getDataChannel(inputChannel)->getSampleRate();
-        eventDurationSamp = static_cast<int>(ceil(eventDuration * sampleRate / 1000.0f));
+        eventDurationSamp = static_cast<int>(ceil(eventDuration / 1000.0f 
+            * getDataChannel(inputChannel)->getSampleRate()));
         break;
 
     case TIMEOUT:
         timeout = static_cast<int>(newValue);
-        float sampleRate = getDataChannel(inputChannel)->getSampleRate();
-        timeoutSamp = static_cast<int>(floor(timeout * sampleRate / 1000.0f));
+        timeoutSamp = static_cast<int>(floor(timeout / 1000.0f 
+            * getDataChannel(inputChannel)->getSampleRate()));
         break;
 
     case PAST_SPAN:
@@ -523,7 +531,7 @@ juce::uint32 CrossingDetector::getSubProcFullID(int chanNum) const
 
 bool CrossingDetector::isCompatibleWithInput(int chanNum) const
 {
-    if (getDataChannel(chanNum) == nullptr)
+    if (chanNum == inputChannel || getDataChannel(chanNum) == nullptr)
     {
         return false;
     }
