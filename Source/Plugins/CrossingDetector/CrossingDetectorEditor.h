@@ -65,8 +65,6 @@ public:
     ~CrossingDetectorEditor();
     void comboBoxChanged(ComboBox* comboBoxThatHasChanged) override;
     void labelTextChanged(Label* labelThatHasChanged) override;
-    // catch invalid channel selections 
-   // void channelChanged(int chan, bool newState) override; //do we need this?
 
     // overrides GenericEditor
     void buttonEvent(Button* button) override;

@@ -315,15 +315,14 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         if (newValue >= 0 && newValue < getNumInputs())
         {
             inputChannel = static_cast<int>(newValue);
-            juce::uint32 oldSubProcFullId = validSubProcFullID;
             validSubProcFullID = getSubProcFullID(inputChannel);
-            // make sure available threshold channels take into account new input channel
-            static_cast<CrossingDetectorEditor*>(getEditor())->updateChannelThreshBox();
         }
-        else if (newValue < 0)
+        else
         {
             validSubProcFullID = 0;
         }
+        // make sure available threshold channels take into account new input channel
+        static_cast<CrossingDetectorEditor*>(getEditor())->updateChannelThreshBox();
         break;
 
     case EVENT_CHAN:

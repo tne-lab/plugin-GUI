@@ -125,8 +125,6 @@ private:
     // ------parameters------------
 
     ThresholdType thresholdType;
-    Value thresholdVal; // underlying value of the threshold label
-
 
     // if using constant threshold:
     float constantThresh;
@@ -135,11 +133,9 @@ private:
     float minRandomThresh;
     float maxRandomThresh;
     float currRandomThresh;
-    Random rng;
 
     // if using channel threshold:
     int thresholdChannel;
-    juce::uint32 validSubProcFullID;
 
     int inputChannel;
     int eventChannel;
@@ -181,10 +177,16 @@ private:
     CircularArray<float> inputHistory;
     CircularArray<float> thresholdHistory;
 
-
     EventChannel* eventChannelPtr;
     MetaDataDescriptorArray eventMetaDataDescriptors;
     TTLEventPtr turnoffEvent; // holds a turnoff event that must be added in a later buffer
+
+    Value thresholdVal; // underlying value of the threshold label
+
+    Random rng; // for random thresholds
+
+    // full subprocessor ID of input channel (or 0 if none selected)
+    juce::uint32 validSubProcFullID;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CrossingDetector);
 };

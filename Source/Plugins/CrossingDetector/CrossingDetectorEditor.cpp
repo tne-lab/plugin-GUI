@@ -530,30 +530,25 @@ void CrossingDetectorEditor::updateSettings()
 {
     CrossingDetector* processor = static_cast<CrossingDetector*>(getProcessor());
 
-    // update input and threshold channel combo boxes
+    // update input combo box
     int numInputs = processor->getNumInputs();
-    int numBoxItems = inputBox->getNumItems();
-    if (numInputs != numBoxItems)
+    int currInputId = inputBox->getSelectedId();
+    inputBox->clear(dontSendNotification);
+
+    for (int chan = 1; chan <= numInputs; ++chan)
     {
-        int currInputId = inputBox->getSelectedId();
-        inputBox->clear(dontSendNotification);
-        for (int chan = 1; chan <= numInputs; ++chan)
+        // using 1-based ids since 0 is reserved for "nothing selected"
+        inputBox->addItem(String(chan), chan);
+        if (currInputId == chan)
         {
-            // using 1-based ids since 0 is reserved for "nothing selected"
-            inputBox->addItem(String(chan), chan);
-            if (currInputId == chan)
-            {
-                inputBox->setSelectedId(chan, dontSendNotification);
-            }
+            inputBox->setSelectedId(chan, sendNotificationAsync);
         }
+    }
 
-        if (inputBox->getSelectedId() == 0)
-        {
-            currInputId = (numInputs == 0) ? 0 : 1;
-            inputBox->setSelectedId(currInputId, sendNotificationAsync);
-        }
-
-        updateChannelThreshBox();
+    if (inputBox->getSelectedId() == 0)
+    {
+        // set id to -1 instead of 0 if empty to force a notification, given that it's been cleared
+        inputBox->setSelectedId((numInputs == 0) ? -1 : 1, sendNotificationAsync);
     }
 }
 
@@ -626,8 +621,9 @@ void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
 {
     VisualizerEditor::saveCustomParameters(xml);
 
-    xml->setAttribute("Type", "CrossingDetectorEditor");
     CrossingDetector* processor = static_cast<CrossingDetector*>(getProcessor());
+
+    xml->setAttribute("Type", "CrossingDetectorEditor");
     XmlElement* paramValues = xml->createNewChildElement("VALUES");
 
     // channels
@@ -639,10 +635,11 @@ void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
     paramValues->setAttribute("bFalling", fallingButton->getToggleState());
 
     // threshold
-    paramValues->setAttribute("bRandThresh", randomizeButton->getToggleState());
+    paramValues->setAttribute("thresholdType", processor->thresholdType);
     paramValues->setAttribute("threshold", processor->constantThresh);
     paramValues->setAttribute("minThresh", minThreshEditable->getText());
     paramValues->setAttribute("maxThresh", maxThreshEditable->getText());
+    paramValues->setAttribute("thresholdChanId", channelThreshBox->getSelectedId());
 
     // voting
     paramValues->setAttribute("pastPctExclusive", pastPctEditable->getText());
@@ -679,8 +676,21 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         thresholdEditable->setText(xmlNode->getStringAttribute("threshold", thresholdEditable->getText()), sendNotificationSync);
         minThreshEditable->setText(xmlNode->getStringAttribute("minThresh", minThreshEditable->getText()), sendNotificationSync);
         maxThreshEditable->setText(xmlNode->getStringAttribute("maxThresh", maxThreshEditable->getText()), sendNotificationSync);
-        randomizeButton->setToggleState(xmlNode->getBoolAttribute("bRandThresh", randomizeButton->getToggleState()), sendNotificationSync);
-        //add here to include threshold constant and channel selections 
+        channelThreshBox->setSelectedId(xmlNode->getIntAttribute("thresholdChanId", channelThreshBox->getSelectedId()), sendNotificationSync);
+        switch (xmlNode->getIntAttribute("thresholdType", processor->thresholdType))
+        {
+        case CrossingDetector::CONSTANT:
+            constantThreshButton->setToggleState(true, sendNotificationSync);
+            break;
+
+        case CrossingDetector::RANDOM:
+            randomizeButton->setToggleState(true, sendNotificationSync);
+            break;
+
+        case CrossingDetector::CHANNEL:
+            channelThreshButton->setToggleState(true, sendNotificationSync);
+            break;
+        }
 
         // voting
         pastPctEditable->setText(xmlNode->getStringAttribute("pastPctExclusive", pastPctEditable->getText()), sendNotificationSync);
