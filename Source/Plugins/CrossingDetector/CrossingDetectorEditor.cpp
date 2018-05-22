@@ -697,7 +697,19 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         minThreshEditable->setText(xmlNode->getStringAttribute("minThresh", minThreshEditable->getText()), sendNotificationSync);
         maxThreshEditable->setText(xmlNode->getStringAttribute("maxThresh", maxThreshEditable->getText()), sendNotificationSync);
         channelThreshBox->setSelectedId(xmlNode->getIntAttribute("thresholdChanId", channelThreshBox->getSelectedId()), sendNotificationSync);
-        switch (xmlNode->getIntAttribute("thresholdType", processor->thresholdType))
+        
+        int thresholdType;
+        if (xmlNode->hasAttribute("bRandThresh"))
+        {
+            // (for backwards compatability)
+            thresholdType = xmlNode->getBoolAttribute("bRandThresh") ? CrossingDetector::RANDOM : CrossingDetector::CONSTANT;
+        }
+        else
+        {
+            thresholdType = xmlNode->getIntAttribute("thresholdType", processor->thresholdType);
+        }
+
+        switch (thresholdType)
         {
         case CrossingDetector::CONSTANT:
             constantThreshButton->setToggleState(true, sendNotificationSync);
