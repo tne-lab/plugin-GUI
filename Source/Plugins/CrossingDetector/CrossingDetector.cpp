@@ -355,9 +355,10 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 
         inputHistory.reset();
         inputHistory.resize(pastSpan + futureSpan + 2);
+        thresholdHistory.reset();
         thresholdHistory.resize(pastSpan + futureSpan + 2);
 
-        // counters must reflect current contents of inputHistory
+        // counters must reflect current contents of inputHistory and thresholdHistory
         pastCounter = 0;
         futureCounter = 0;
         break;
@@ -372,9 +373,10 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 
         inputHistory.reset();
         inputHistory.resize(pastSpan + futureSpan + 2);
+        thresholdHistory.reset();
         thresholdHistory.resize(pastSpan + futureSpan + 2);
 
-        // counters must reflect current contents of inputHistory
+        // counters must reflect current contents of inputHistory and thresholdHistory
         pastCounter = 0;
         futureCounter = 0;
         break;
@@ -416,6 +418,8 @@ bool CrossingDetector::disable()
 bool CrossingDetector::shouldTrigger(bool direction, float preVal, float postVal,
     float preThresh, float postThresh)
 {
+    jassert(pastCounter >= 0 && futureCounter >= 0);
+
     //check jumpLimit
     if (useJumpLimit && abs(postVal - preVal) >= jumpLimit)
         return false;
@@ -424,10 +428,10 @@ bool CrossingDetector::shouldTrigger(bool direction, float preVal, float postVal
     int pastSamplesNeeded = pastSpan ? static_cast<int>(ceil(pastSpan * pastStrict)) : 0;
     int futureSamplesNeeded = futureSpan ? static_cast<int>(ceil(futureSpan * futureStrict)) : 0;
     // if enough values cross threshold
-    if(direction)
+    if (direction)
     {
         int pastZero = pastSpan - pastCounter;
-        if(pastZero >= pastSamplesNeeded && futureCounter >= futureSamplesNeeded &&
+        if (pastZero >= pastSamplesNeeded && futureCounter >= futureSamplesNeeded &&
             preVal <= preThresh && postVal > postThresh)
         {
             return true;
@@ -440,7 +444,7 @@ bool CrossingDetector::shouldTrigger(bool direction, float preVal, float postVal
     else
     {
         int futureZero = futureSpan - futureCounter;
-        if(pastCounter >= pastSamplesNeeded && futureZero >= futureSamplesNeeded &&
+        if (pastCounter >= pastSamplesNeeded && futureZero >= futureSamplesNeeded &&
             preVal > preThresh && postVal <= postThresh)
         {
             return true;
