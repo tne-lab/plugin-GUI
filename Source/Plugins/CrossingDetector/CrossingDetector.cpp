@@ -422,7 +422,9 @@ bool CrossingDetector::shouldTrigger(bool direction, float preVal, float postVal
 
     //check jumpLimit
     if (useJumpLimit && abs(postVal - preVal) >= jumpLimit)
+    {
         return false;
+    }
 
     //number of samples required before and after crossing threshold
     int pastSamplesNeeded = pastSpan ? static_cast<int>(ceil(pastSpan * pastStrict)) : 0;
@@ -508,11 +510,15 @@ void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
     // but overwriting turnoffEvent unconditionally guarantees that this and all previously
     // turned-on events will be turned off by this "turning-off" if they're not already off.
     if (sampleNumOff <= bufferLength)
+    {
         // add event now
         addEvent(eventChannelPtr, eventOff, sampleNumOff);
+    }
     else
+    {
         // save for later
         turnoffEvent = eventOff;
+    }
 }
 
 juce::uint32 CrossingDetector::getSubProcFullID(int chanNum) const

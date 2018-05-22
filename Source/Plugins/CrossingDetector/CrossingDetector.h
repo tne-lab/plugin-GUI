@@ -38,6 +38,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *  - how strictly to filter transient level changes, by adjusting the required number and percent of past and future samples to be above/below the threshold
  *  - the duration of the generated event
  *  - the minimum time to wait between events ("timeout")
+ *  - whether to use a constant threshold, draw one randomly from a range for each event, or read thresholds from an input channel
  *
  * All ontinuous signals pass through unchanged, so multiple CrossingDetectors can be
  * chained together in order to operate on more than one channel.

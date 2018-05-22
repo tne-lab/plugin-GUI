@@ -396,7 +396,9 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool success = updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->eventDuration, &newVal);
 
         if (success)
+        {
             processor->setParameter(CrossingDetector::EVENT_DUR, static_cast<float>(newVal));
+        }
     }
     else if (labelThatHasChanged == timeoutEditable)
     {
@@ -404,7 +406,9 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool success = updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->timeout, &newVal);
 
         if (success)
+        {
             processor->setParameter(CrossingDetector::TIMEOUT, static_cast<float>(newVal));
+        }
     }
     else if (labelThatHasChanged == thresholdEditable && processor->thresholdType == CrossingDetector::CONSTANT)
     {
@@ -412,7 +416,9 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool success = updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX, processor->constantThresh, &newVal);
 
         if (success)
+        {
             processor->setParameter(CrossingDetector::CONST_THRESH, newVal);
+        }
     }
     else if (labelThatHasChanged == pastPctEditable)
     {
@@ -420,7 +426,9 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool success = updateFloatLabel(labelThatHasChanged, 0, 100, 100 * processor->pastStrict, &newVal);
 
         if (success)
+        {
             processor->setParameter(CrossingDetector::PAST_STRICT, newVal / 100);
+        }
     }
     else if (labelThatHasChanged == pastSpanEditable)
     {
@@ -428,7 +436,9 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool success = updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->pastSpan, &newVal);
 
         if (success)
+        {
             processor->setParameter(CrossingDetector::PAST_SPAN, static_cast<float>(newVal));
+        }
     }
     else if (labelThatHasChanged == futurePctEditable)
     {
@@ -436,7 +446,9 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool success = updateFloatLabel(labelThatHasChanged, 0, 100, 100 * processor->futureStrict, &newVal);
 
         if (success)
+        {
             processor->setParameter(CrossingDetector::FUTURE_STRICT, newVal / 100);
+        }
     }
     else if (labelThatHasChanged == futureSpanEditable)
     {
@@ -444,7 +456,9 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool success = updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->futureSpan, &newVal);
 
         if (success)
+        {
             processor->setParameter(CrossingDetector::FUTURE_SPAN, static_cast<float>(newVal));
+        }
     }
     else if (labelThatHasChanged == minThreshEditable)
     {
@@ -453,7 +467,9 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
             -FLT_MAX, processor->maxRandomThresh, processor->minRandomThresh, &newVal);
 
         if (success)
+        {
             processor->setParameter(CrossingDetector::MIN_RAND_THRESH, newVal);
+        }
     }
     else if (labelThatHasChanged == maxThreshEditable)
     {
@@ -462,7 +478,9 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
             processor->minRandomThresh, FLT_MAX, processor->maxRandomThresh, &newVal);
 
         if (success)
+        {
             processor->setParameter(CrossingDetector::MAX_RAND_THRESH, newVal);
+        }
     }
     else if (labelThatHasChanged == limitEditable)
     {
@@ -470,7 +488,9 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool success = updateFloatLabel(labelThatHasChanged, 0, FLT_MAX, processor->jumpLimit, &newVal);
 
         if (success)
+        {
             processor->setParameter(CrossingDetector::JUMP_LIMIT, newVal);
+        }
     }
 }
 
@@ -788,7 +808,9 @@ Label* CrossingDetectorEditor::createEditable(const String& name, const String& 
     editable->setColour(Label::backgroundColourId, Colours::grey);
     editable->setColour(Label::textColourId, Colours::white);
     if (tooltip.length() > 0)
+    {
         editable->setTooltip(tooltip);
+    }
     return editable;
 }
 
@@ -821,11 +843,17 @@ bool CrossingDetectorEditor::updateIntLabel(Label* label, int min, int max, int 
     }
 
     if (parsedInt < min)
+    {
         *out = min;
+    }
     else if (parsedInt > max)
+    {
         *out = max;
+    }
     else
+    {
         *out = parsedInt;
+    }
 
     label->setText(String(*out), dontSendNotification);
     return true;
@@ -847,11 +875,17 @@ bool CrossingDetectorEditor::updateFloatLabel(Label* label, float min, float max
     }
 
     if (parsedFloat < min)
+    {
         *out = min;
+    }
     else if (parsedFloat > max)
+    {
         *out = max;
+    }
     else
+    {
         *out = parsedFloat;
+    }
 
     label->setText(String(*out), dontSendNotification);
     return true;

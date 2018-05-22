@@ -114,7 +114,9 @@ public:
         {
             array.set(circToLinInd(indexToChange), newValue);
             if (newValue != ElementType())
+            {
                 isReset = false;
+            }
         }
     }
 
@@ -143,10 +145,14 @@ public:
         int nSecondSegment = n - nFirstSegment;
 
         for (int i = 0; i < nFirstSegment; ++i)
+        {
             array.set(start + i, newValues[nToSkip + i]);
+        }
 
         for (int i = 0; i < nSecondSegment; ++i)
+        {
             array.set(i, newValues[nToSkip + nFirstSegment + i]);
+        }
 
         start = mod(start + n, length);
         isReset = false;
@@ -166,14 +172,18 @@ public:
             int length = size();
 
             if (indexToInsertAt < 0 || indexToInsertAt >= length)
+            {
                 indexToInsertAt = length;
+            }
 
             int linIndexToInsertAt;
             if (length > 0)
             {
                 if (isReset)
+                {
                     // change 'start' to avoid moving elements
                     start = (length - indexToInsertAt) % length;
+                }
 
                 // get index to insert at in range [1, length]
                 linIndexToInsertAt = circToLinInd(indexToInsertAt - 1) + 1;
@@ -187,14 +197,20 @@ public:
 
             // move start to follow first element if it was moved and we're not inserting at 0
             if (linIndexToInsertAt <= start && indexToInsertAt > 0)
+            {
                 start += numberOfTimesToInsertIt;
+            }
 
             // if inserting at 0 and taking advantage of buffer circularity, point to start of inserted data
             if (indexToInsertAt == 0 && start == 0)
+            {
                 start += length;
+            }
 
             if (newElement != ElementType())
+            {
                 isReset = false;
+            }
         }
     }
 

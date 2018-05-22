@@ -32,12 +32,12 @@ Editor (in signal chain) contains:
 - Input channel selector
 - Ouptput event channel selector
 - Direction ("rising" and "falling") buttons
-- Threshold control (and indicator when threshold randomization is on)
+- Threshold control (and indicator when random or channel threshold is selected)
 - Event timeout control
 
 Canvas/visualizer contains:
-- Threshold randomization toggle, minimum and maximum thresh boxes
-- Slope (jump size across threshold) limiting toggle and max jump box
+- Threshold type selection - constant, random, or channel (with parameters)
+- Jump limiting toggle and max jump box
 - Voting settings (pre/post event span and strictness)
 - Event duration control
 
