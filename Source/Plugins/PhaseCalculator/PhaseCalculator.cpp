@@ -21,8 +21,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
-#include <cstring>       // memset (for Burg method)
-
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
 #include "burg.h"        // Autoregressive modeling
@@ -78,7 +76,9 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
         h.resize(arOrder);
         g.resize(arOrder);
         for (int i = 0; i < getNumInputs(); i++)
+        {
             arParams[i]->resize(arOrder);
+        }
         break;
 
     case LOWCUT:
@@ -110,7 +110,9 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
 
         // clear timestamp queue
         while (!visTsBuffer.empty())
+        {
             visTsBuffer.pop();
+        }
 
         // update filter settings
         visReverseFilter.setParams(filters[newVisContChan]->getParams());
@@ -309,7 +311,9 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
 bool PhaseCalculator::enable()
 {
     if (!isEnabled)
+    {
         return false;
+    }
 
     startThread(AR_PRIORITY);
 
@@ -328,26 +332,36 @@ bool PhaseCalculator::disable()
 
     // reset channel states
     for (int i = 0; i < chanState.size(); i++)
+    {
         chanState.set(i, NOT_FULL);
+    }
 
     // reset bufferFreeSpace
     for (int i = 0; i < bufferFreeSpace.size(); i++)
+    {
         bufferFreeSpace.set(i, bufferLength);
+    }
 
     // reset last sample containers
     for (int i = 0; i < lastSample.size(); i++)
+    {
         lastSample.set(i, 0);
+    }
 
     // reset buffer overflow warning
     haveSentWarning = false;
 
     // clear timestamp and phase queues
     while (!visTsBuffer.empty())
+    {
         visTsBuffer.pop();
+    }
 
     ScopedLock phaseLock(visPhaseBufferLock);
     while (!visPhaseBuffer.empty())
+    {
         visPhaseBuffer.pop();
+    }
 
     return true;
 }
@@ -374,19 +388,25 @@ void PhaseCalculator::run()
     while (true)
     {
         if (threadShouldExit())
+        {
             return;
+        }
 
         for (int chan = 0; chan < chanState.size(); chan++)
         {
             if (chanState[chan] == NOT_FULL)
+            {
                 continue;
+            }
 
             // critical section for sharedDataBuffer
             {
                 const ScopedLock myScopedLock(*sdbLock[chan]);
 
                 for (int i = 0; i < bufferLength; i++)
+                {
                     data.set(i, sharedDataBuffer.getSample(chan, i));
+                }
             }
             // end critical section
 
@@ -407,7 +427,9 @@ void PhaseCalculator::run()
             // write params quasi-atomically
             juce::Array<double>* myParams = arParams[chan];
             for (int i = 0; i < arOrder; i++)
+            {
                 myParams->set(i, paramsTemp[i]);
+            }
 
             chanState.set(chan, FULL_AR);
         }
@@ -423,7 +445,10 @@ void PhaseCalculator::run()
         while (!timer.check())
         {
             if (threadShouldExit())
+            {
                 return;
+            }
+
             if (calcInterval != currInterval)
             {
                 currInterval = calcInterval;
@@ -527,7 +552,9 @@ void PhaseCalculator::handleEvent(const EventChannel* eventInfo,
     const MidiMessage& event, int samplePosition)
 {
     if (visEventChannel < 0)
+    {
         return;
+    }
 
     if (Event::getEventType(event) == EventChannel::TTL)
     {
@@ -542,17 +569,15 @@ void PhaseCalculator::handleEvent(const EventChannel* eventInfo,
     }
 }
 
-void PhaseCalculator::addAngleToCanvas(double newAngle)
-{
-}
-
 void PhaseCalculator::setProcessLength(int newProcessLength, int newNumFuture)
 {
     jassert(newNumFuture <= newProcessLength - arOrder);
 
     processLength = newProcessLength;
     if (newNumFuture != numFuture)
+    {
         setNumFuture(newNumFuture);
+    }
 
     // update fields that depend on processLength
     int nInputs = getNumInputs();
@@ -578,7 +603,9 @@ void PhaseCalculator::setNumFuture(int newNumFuture)
     pef.resize(bufferLength);
 
     for (int i = 0; i < nInputs; i++)
+    {
         bufferFreeSpace.set(i, bufferLength);
+    }
 }
 
 // from FilterNode code
@@ -639,11 +666,15 @@ void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int chan)
 
             // unwrap [startInd, endInd)
             for (int i = startInd; i < endInd; i++)
+            {
                 wp[i] -= 360 * (diff / abs(diff));
+            }
 
             if (endInd > -1)
+            {
                 // skip to the end of this unwrapped section
                 startInd = endInd;
+            }
         }
     }
 }
@@ -677,7 +708,9 @@ void PhaseCalculator::smoothBuffer(float* wp, int nSamples, int chan)
             // interpolate points from buffer start to endIndex
             float slope = (wp[endIndex] - lastSample[chan]) / (endIndex + 1);
             for (int i = 0; i < endIndex; i++)
+            {
                 wp[i] = lastSample[chan] + (i + 1) * slope;
+            }
         }
     }
 }
@@ -719,7 +752,9 @@ void PhaseCalculator::updateSubProcessorMap()
         // assign remaining unmapped ids
         int numUnmappedIds = unmappedFullIds.size();
         for (int i = 0; i < numUnmappedIds; ++i)
+        {
             subProcessorMap.set(unmappedFullIds[i], ++maxUsedIdx);
+        }
     }
 }
 
@@ -766,14 +801,18 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
 
     // discard any timestamps less than minTs
     while (!visTsBuffer.empty() && visTsBuffer.front() < minTs)
+    {
         visTsBuffer.pop();
+    }
 
     if (!visTsBuffer.empty() && visTsBuffer.front() <= maxTs)
     {
         // perform reverse filtering and Hilbert transform
         const double* rpBuffer = sharedDataBuffer.getReadPointer(visContinuousChannel, bufferLength - 1);
         for (int i = 0; i < VIS_HILBERT_LENGTH; ++i)
+        {
             visHilbertBuffer.set(i, rpBuffer[-i]);
+        }
 
         double* realPtr = visHilbertBuffer.getRealPointer();
         visReverseFilter.reset();
@@ -832,8 +871,10 @@ void PhaseCalculator::hilbertManip(FFTWArray* fftData)
     FloatVectorOperations::multiply(reinterpret_cast<double*>(wp + 1), 2.0 / n, numPosNegFreqDoubles);
     
     if (hasNyquist)
+    {
         // normalize but don't double Nyquist frequency
         wp[lastPosFreq + 1] /= n;
+    }
 
     // set negative frequencies to 0
     FloatVectorOperations::clear(reinterpret_cast<double*>(wp + firstNegFreq), numPosNegFreqDoubles);

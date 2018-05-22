@@ -20,9 +20,6 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <cmath>
-#include <climits>
-
 #include "PhaseCalculatorEditor.h"
 #include "PhaseCalculatorCanvas.h"
 
@@ -73,7 +70,9 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool 
     processLengthBox = new ComboBox("Buffer size");
     processLengthBox->setEditableText(true);
     for (int pow = PhaseCalculator::MIN_PLEN_POW; pow <= PhaseCalculator::MAX_PLEN_POW; ++pow)
+    {
         processLengthBox->addItem(String(1 << pow), pow);
+    }
     processLengthBox->setText(String(processor->processLength), dontSendNotification);
     processLengthBox->setTooltip(QUEUE_SIZE_TOOLTIP);
     processLengthBox->setBounds(filterWidth + 10, 45, 80, 20);
@@ -279,7 +278,9 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool valid = updateLabel(labelThatHasChanged, 0, INT_MAX, processor->calcInterval, &intInput);
 
         if (valid)
+        {
             processor->setParameter(RECALC_INTERVAL, static_cast<float>(intInput));
+        }
     }
     else if (labelThatHasChanged == arOrderEditable)
     {
@@ -287,7 +288,9 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool valid = updateLabel<int>(labelThatHasChanged, 1, processor->bufferLength, processor->arOrder, &intInput);
 
         if (valid)
+        {
             processor->setParameter(AR_ORDER, static_cast<float>(intInput));
+        }
 
         // update slider's minimum value
         numFutureSlider->updateFromProcessor(processor);
@@ -298,7 +301,9 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool valid = updateLabel<float>(labelThatHasChanged, 0.01F, 10000.0F, static_cast<float>(processor->lowCut), &floatInput);
 
         if (valid)
+        {
             processor->setParameter(LOWCUT, floatInput);
+        }
     }
     else if (labelThatHasChanged == highCutEditable)
     {
@@ -306,7 +311,9 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
         bool valid = updateLabel<float>(labelThatHasChanged, 0.01F, 10000.0F, static_cast<float>(processor->highCut), &floatInput);
 
         if (valid)
+        {
             processor->setParameter(HIGHCUT, floatInput);
+        }
     }
 }
 
@@ -347,7 +354,9 @@ void PhaseCalculatorEditor::startAcquisition()
     arOrderEditable->setEnabled(false);
     outputModeBox->setEnabled(false);
     if (outputModeBox->getSelectedId() == OutputMode::PH_AND_MAG)
+    {
         channelSelector->inactivateButtons();
+    }
 }
 
 void PhaseCalculatorEditor::stopAcquisition()
@@ -417,9 +426,13 @@ bool PhaseCalculatorEditor::updateLabel(Label* labelThatHasChanged,
     String& input = labelThatHasChanged->getText();
     bool valid = parseInput(input, minValue, maxValue, result);
     if (!valid)
+    {
         labelThatHasChanged->setText(String(defaultValue), dontSendNotification);
+    }
     else
+    {
         labelThatHasChanged->setText(String(*result), dontSendNotification);
+    }
 
     return valid;
 }
@@ -437,11 +450,17 @@ bool PhaseCalculatorEditor::parseInput(String& in, int min, int max, int* out)
     }
 
     if (parsedInt < min)
+    {
         *out = min;
+    }
     else if (parsedInt > max)
+    {
         *out = max;
+    }
     else
+    {
         *out = parsedInt;
+    }
 
     return true;
 }
@@ -459,11 +478,17 @@ bool PhaseCalculatorEditor::parseInput(String& in, float min, float max, float* 
     }
 
     if (parsedFloat < min)
+    {
         *out = min;
+    }
     else if (parsedFloat > max)
+    {
         *out = max;
+    }
     else
+    {
         *out = parsedFloat;
+    }
 
     return true;
 }
@@ -483,10 +508,7 @@ ProcessBufferSlider::~ProcessBufferSlider() {}
 
 double ProcessBufferSlider::snapValue(double attemptedValue, DragMode dragMode)
 {
-    if (attemptedValue < realMinValue)
-        return realMinValue;
-    else
-        return attemptedValue;
+    return jmax(attemptedValue, realMinValue);
 }
 
 void ProcessBufferSlider::updateFromProcessor(PhaseCalculator* parentNode)

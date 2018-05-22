@@ -171,24 +171,24 @@ private:
 
     PhaseCalculator* processor;
 
-    ScopedPointer<Viewport> viewport;
+    ScopedPointer<Viewport>  viewport;
     ScopedPointer<Component> canvas;
     ScopedPointer<Component> rosePlotOptions;
-    ScopedPointer<RosePlot> rosePlot;
+    ScopedPointer<RosePlot>  rosePlot;
 
     // options panel
-    ScopedPointer<Label>          cChannelLabel;
-    ScopedPointer<ComboBox>       cChannelBox;
-    ScopedPointer<Label>          eChannelLabel;
-    ScopedPointer<ComboBox>       eChannelBox;
+    ScopedPointer<Label>     cChannelLabel;
+    ScopedPointer<ComboBox>  cChannelBox;
+    ScopedPointer<Label>     eChannelLabel;
+    ScopedPointer<ComboBox>  eChannelBox;
 
-    ScopedPointer<Label>    numBinsLabel;
-    ScopedPointer<Slider>   numBinsSlider;
+    ScopedPointer<Label>  numBinsLabel;
+    ScopedPointer<Slider> numBinsSlider;
 
     ScopedPointer<UtilityButton> clearButton;
 
-    ScopedPointer<Label>        referenceLabel;
-    ScopedPointer<Label>        referenceEditable;
+    ScopedPointer<Label> referenceLabel;
+    ScopedPointer<Label> referenceEditable;
     
     ScopedPointer<Label> countLabel;
     ScopedPointer<Label> meanLabel;

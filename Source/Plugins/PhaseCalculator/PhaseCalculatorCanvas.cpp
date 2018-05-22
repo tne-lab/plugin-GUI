@@ -23,8 +23,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PhaseCalculatorCanvas.h"
 #include "PhaseCalculatorEditor.h"
-#include <cmath>    // std::atan, std::fmod, std::floor
-#include <iterator> // std::move_iterator
 
 PhaseCalculatorCanvas::PhaseCalculatorCanvas(PhaseCalculator* pc)
     : processor         (pc)
@@ -64,7 +62,9 @@ PhaseCalculatorCanvas::PhaseCalculatorCanvas(PhaseCalculator* pc)
     eChannelBox->setBounds(xPos += 140, yPos, 80, TEXT_HT);
     eChannelBox->addItem("None", 1);
     for (int chan = 1; chan <= 8; ++chan)
+    {
         eChannelBox->addItem(String(chan), chan + 1);
+    }
     eChannelBox->setSelectedId(1);
     eChannelBox->addListener(this);
     rosePlotOptions->addAndMakeVisible(eChannelBox);
@@ -305,7 +305,9 @@ void PhaseCalculatorCanvas::loadVisualizerParameters(XmlElement* xml)
     {
         int eventChannelId = xmlNode->getIntAttribute("eventChannelId", eChannelBox->getSelectedId());
         if (eChannelBox->indexOfItemId(eventChannelId) != -1)
+        {
             eChannelBox->setSelectedId(eventChannelId, sendNotificationSync);
+        }
 
         numBinsSlider->setValue(xmlNode->getDoubleAttribute("numBins", numBinsSlider->getValue()), sendNotificationSync);
         referenceEditable->setText(xmlNode->getStringAttribute("phaseRef", referenceEditable->getText()), sendNotificationSync);
@@ -393,7 +395,9 @@ void RosePlot::paint(Graphics& g)
     for (int seg = 0; seg < nSegs; ++seg)
     {
         if (segmentCounts[seg] == 0)
+        {
             continue;
+        }
 
         float size = squareSide * segmentCounts[seg] / static_cast<float>(maxCount);
         rosePath.addPieSegment(plotBounds.withSizeKeepingCentre(size, size),
@@ -451,7 +455,9 @@ int RosePlot::getNumAngles()
 double RosePlot::getCircMean(bool usingReference)
 {
     if (angleData->empty())
+    {
         return 0;
+    }
 
     double reference = usingReference ? referenceAngle : 0.0;
     double meanRad = circDist(std::arg(rSum), reference);
@@ -466,7 +472,9 @@ double RosePlot::getCircMean(bool usingReference)
 double RosePlot::getCircStd()
 {
     if (angleData->empty())
+    {
         return 0;
+    }
 
     double r = std::abs(rSum) / angleData->size();
     double stdRad = std::sqrt(-2 * std::log(r));

@@ -26,9 +26,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*
 
-The Phase Calculator generates an estimate of the current phase of its input signal in degrees,
-using the Hilbert transform, and outputs this as a continuous stream. Works best when
-given a bandpass-filtered signal.
+The Phase Calculator filters selected input channels to the given passband,
+generates an estimate of the phase of each band-limited signal in degrees
+using the Hilbert transform, and outputs this as a continuous stream.
+There are also options to output the magnitude or imaginary component of the analytic signal.
+
+The visualizer panel serves a complementary role. When given a continuous channel
+(that is enabled for processing, i.e. selected in the param window) and an event
+channel to monitor, it calculates a delayed but precise estimate of the phase of the
+filtered continuous channel at the time of each event onset and adds it to the rose plot.
+If the events represent stimulation times, for example, this allows you to monitor the
+accuracy of phase-locked stimulation in real time.
 
 @see GenericProcessor, PhaseCalculatorEditor
 
@@ -63,10 +71,10 @@ enum Param
     - FULL_AR:      The history fifo is full and AR parameters have been calculated at least once.
                     In this state, the main thread uses the parameters to predict the future signal and output and calculate the phase.
 */
-enum ChannelState {NOT_FULL, FULL_NO_AR, FULL_AR};
+enum ChannelState { NOT_FULL, FULL_NO_AR, FULL_AR };
 
 // Output mode - corresponds to itemIDs on the ComboBox
-enum OutputMode {PH = 1, MAG, PH_AND_MAG, IM};
+enum OutputMode { PH = 1, MAG, PH_AND_MAG, IM };
 
 class PhaseCalculator : public GenericProcessor, public Thread
 {
@@ -113,9 +121,6 @@ private:
     // Allow responding to stim events if a stimEventChannel is selected.
     void handleEvent(const EventChannel* eventInfo, const MidiMessage& event,
         int samplePosition = 0) override;
-
-    // Control canvas
-    void addAngleToCanvas(double newAngle);
 
     // Update processLength and numFuture, reallocating fields that depend on these.
     void setProcessLength(int newProcessLength, int newNumFuture);

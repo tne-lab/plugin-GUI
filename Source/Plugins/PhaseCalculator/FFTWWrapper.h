@@ -84,14 +84,18 @@ public:
     std::complex<double>* getWritePointer(int index = 0)
     {
         if (index < length && index >= 0)
+        {
             return data + index;
+        }
         return nullptr;
     }
 
     double* getRealPointer(int index = 0)
     {
         if (index < length * 2 && index >= 0)
+        {
             return reinterpret_cast<double*>(data)+index;
+        }
         return nullptr;
     }
 
@@ -139,7 +143,9 @@ public:
         int numToCopy = jmin(num, length - startInd);
         std::complex<double>* wp = getWritePointer(startInd);
         for (int i = 0; i < numToCopy; ++i)
+        {
             wp[i] = fromArr[i];
+        }
         
         return numToCopy;
     }
@@ -149,7 +155,9 @@ public:
         int numToCopy = jmin(num, 2 * length - startInd);
         double* wpReal = getRealPointer(startInd);
         for (int i = 0; i < numToCopy; ++i)
+        {
             wpReal[i] = fromArr[i];
+        }
         
         return numToCopy;
     }
