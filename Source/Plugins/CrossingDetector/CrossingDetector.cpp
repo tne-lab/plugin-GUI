@@ -28,7 +28,6 @@ CrossingDetector::CrossingDetector()
     : GenericProcessor  ("Crossing Detector")
     , thresholdType     (CONSTANT)
     , constantThresh    (0.0f)
-    , thresholdVal      (constantThresh)
     , minRandomThresh   (-180)
     , maxRandomThresh   (180)
     , thresholdChannel  (-1)
@@ -53,6 +52,7 @@ CrossingDetector::CrossingDetector()
     , turnoffEvent      (nullptr)
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
+    thresholdVal = constantThresh;
 }
 
 CrossingDetector::~CrossingDetector() {}
@@ -300,11 +300,6 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 
     case CONST_THRESH:
         constantThresh = newValue;
-        // not necessary since this will be reached by editing the label, but for consistency...
-        if (thresholdType == CONSTANT)
-        {
-            thresholdVal = constantThresh;
-        }
         break;
 
     case THRESH_CHAN:
@@ -322,11 +317,8 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
             inputChannel = static_cast<int>(newValue);
             juce::uint32 oldSubProcFullId = validSubProcFullID;
             validSubProcFullID = getSubProcFullID(inputChannel);
-            if (oldSubProcFullId != validSubProcFullID)
-            {
-                auto editor = static_cast<CrossingDetectorEditor*>(getEditor());
-                editor->updateChannelThreshBox();
-            }
+            // make sure available threshold channels take into account new input channel
+            static_cast<CrossingDetectorEditor*>(getEditor())->updateChannelThreshBox();
         }
         else if (newValue < 0)
         {

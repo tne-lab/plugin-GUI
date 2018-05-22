@@ -157,7 +157,7 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
 
     yPos += 35;
 
-    randomizeButton = new ToggleButton("Uniform random distribution");
+    randomizeButton = new ToggleButton("Drawn from uniform distribution");
     randomizeButton->setLookAndFeel(&rbLookAndFeel);
     randomizeButton->setRadioGroupId(threshRadioId, dontSendNotification);
     randomizeButton->setBounds(bounds = { xPos, yPos, 250, C_TEXT_HT });
@@ -198,10 +198,10 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     xPos = LEFT_EDGE + TAB_WIDTH;
     yPos += 35;
 
-    channelThreshButton = new ToggleButton("Input channel #:");
+    channelThreshButton = new ToggleButton("Continuous channel #:");
     channelThreshButton->setLookAndFeel(&rbLookAndFeel);
     channelThreshButton->setRadioGroupId(threshRadioId, dontSendNotification);
-    channelThreshButton->setBounds(bounds = { xPos, yPos, 120, C_TEXT_HT });
+    channelThreshButton->setBounds(bounds = { xPos, yPos, 170, C_TEXT_HT });
     channelThreshButton->setToggleState(processor->thresholdType == CrossingDetector::CHANNEL,
         dontSendNotification);
     channelThreshButton->setEnabled(false); // only enabled when channelThreshBox is populated
@@ -211,10 +211,10 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     opBounds = opBounds.getUnion(bounds);
 
     channelThreshBox = new ComboBox("channelSelection");
-    channelThreshBox->setBounds(bounds = { xPos + 130, yPos, 50, C_TEXT_HT });
+    channelThreshBox->setBounds(bounds = { xPos + 180, yPos, 50, C_TEXT_HT });
     channelThreshBox->addListener(this);
     channelThreshBox->setTooltip(
-        "Only channels from the same source subprocessor as the input (but are not the input itself) "
+        "Only channels from the same source subprocessor as the input (but not the input itself) "
         "can be selected.");
     channelThreshBox->setEnabled(channelThreshButton->getToggleState());
     optionsPanel->addAndMakeVisible(channelThreshBox);
@@ -406,7 +406,7 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         if (success)
             processor->setParameter(CrossingDetector::TIMEOUT, static_cast<float>(newVal));
     }
-    else if (labelThatHasChanged == thresholdEditable && thresholdEditable->isEnabled())
+    else if (labelThatHasChanged == thresholdEditable && processor->thresholdType == CrossingDetector::CONSTANT)
     {
         float newVal;
         bool success = updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX, processor->constantThresh, &newVal);
@@ -564,10 +564,6 @@ void CrossingDetectorEditor::updateChannelThreshBox()
     int numInputs = processor->getNumInputs();
     int currThreshId = channelThreshBox->getSelectedId();
     channelThreshBox->clear(dontSendNotification);
-    if (numInputs == 0)
-    {
-        return;
-    }
 
     for (int chan = 1; chan <= numInputs; ++chan)
     {
@@ -582,21 +578,23 @@ void CrossingDetectorEditor::updateChannelThreshBox()
     }
 
     bool channelThreshBoxEmpty = channelThreshBox->getNumItems() == 0;
-    channelThreshButton->setEnabled(!channelThreshBoxEmpty);
 
     if (channelThreshBox->getSelectedId() == 0)
     {
-        if (channelThreshBoxEmpty)
+        if (channelThreshBoxEmpty && channelThreshButton->getToggleState())
         {
             // default to constant threshold
             constantThreshButton->setToggleState(true, sendNotificationAsync);
         }
-        else
+        else if (!channelThreshBoxEmpty)
         {
             // default to first entry
             channelThreshBox->setSelectedItemIndex(0, sendNotificationAsync);
         }
     }
+
+    // channel threshold should be selectable iff there are any choices
+    channelThreshButton->setEnabled(!channelThreshBoxEmpty);
 }
 
 void CrossingDetectorEditor::startAcquisition()
