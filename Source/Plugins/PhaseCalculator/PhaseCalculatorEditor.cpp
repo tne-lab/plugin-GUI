@@ -202,14 +202,19 @@ void PhaseCalculatorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
         {
             // try to parse input
             String input = processLengthBox->getText();
-            bool stringValid = parseInput(input, 1 << PhaseCalculator::MIN_PLEN_POW,
-                1 << PhaseCalculator::MAX_PLEN_POW, &newProcessLength);
-
-            if (!stringValid)
+            int parsedInt;
+            try
+            {
+                parsedInt = std::stoi(input.toRawUTF8());
+            }
+            catch (const std::logic_error&)
             {
                 processLengthBox->setText(String(processor->processLength), dontSendNotification);
                 return;
             }
+
+            newProcessLength = jmax(1 << PhaseCalculator::MIN_PLEN_POW,
+                jmin(1 << PhaseCalculator::MAX_PLEN_POW, parsedInt));
            
             processLengthBox->setText(String(newProcessLength), dontSendNotification);
         }
@@ -248,7 +253,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     if (labelThatHasChanged == numPastEditable)
     {
         int intInput;
-        bool valid = updateLabel<int>(labelThatHasChanged, sliderMin, sliderMax,
+        bool valid = updateIntLabel(labelThatHasChanged, sliderMin, sliderMax,
             static_cast<int>(numFutureSlider->getValue()), &intInput);
 
         if (valid)
@@ -262,7 +267,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == numFutureEditable)
     {
         int intInput;
-        bool valid = updateLabel<int>(labelThatHasChanged, 0, sliderMax - sliderMin,
+        bool valid = updateIntLabel(labelThatHasChanged, 0, sliderMax - sliderMin,
             sliderMax - static_cast<int>(numFutureSlider->getValue()), &intInput);
         
         if (valid)
@@ -276,7 +281,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == recalcIntervalEditable)
     {
         int intInput;
-        bool valid = updateLabel(labelThatHasChanged, 0, INT_MAX, processor->calcInterval, &intInput);
+        bool valid = updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->calcInterval, &intInput);
 
         if (valid)
         {
@@ -286,7 +291,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == arOrderEditable)
     {
         int intInput;
-        bool valid = updateLabel<int>(labelThatHasChanged, 1, processor->bufferLength, processor->arOrder, &intInput);
+        bool valid = updateIntLabel(labelThatHasChanged, 1, processor->bufferLength, processor->arOrder, &intInput);
 
         if (valid)
         {
@@ -299,7 +304,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == lowCutEditable)
     {
         float floatInput;
-        bool valid = updateLabel<float>(labelThatHasChanged, 0.01F, 10000.0F, static_cast<float>(processor->lowCut), &floatInput);
+        bool valid = updateFloatLabel(labelThatHasChanged, 0.01F, 10000.0F, static_cast<float>(processor->lowCut), &floatInput);
 
         if (valid)
         {
@@ -309,7 +314,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == highCutEditable)
     {
         float floatInput;
-        bool valid = updateLabel<float>(labelThatHasChanged, 0.01F, 10000.0F, static_cast<float>(processor->highCut), &floatInput);
+        bool valid = updateFloatLabel(labelThatHasChanged, 0.01F, 10000.0F, static_cast<float>(processor->highCut), &floatInput);
 
         if (valid)
         {
@@ -420,55 +425,49 @@ void PhaseCalculatorEditor::loadCustomParameters(XmlElement* xml)
 
 // static utilities
 
-template<typename labelType>
-bool PhaseCalculatorEditor::updateLabel(Label* labelThatHasChanged,
-    labelType minValue, labelType maxValue, labelType defaultValue, labelType* result)
+/* Attempts to parse the current text of a label as an int between min and max inclusive.
+*  If successful, sets "*out" and the label text to this value and and returns true.
+*  Otherwise, sets the label text to defaultValue and returns false.
+*/
+bool PhaseCalculatorEditor::updateIntLabel(Label* label, int min, int max, int defaultValue, int* out)
 {
-    const String& input = labelThatHasChanged->getText();
-    bool valid = parseInput(input, minValue, maxValue, result);
-    if (!valid)
-    {
-        labelThatHasChanged->setText(String(defaultValue), dontSendNotification);
-    }
-    else
-    {
-        labelThatHasChanged->setText(String(*result), dontSendNotification);
-    }
-
-    return valid;
-}
-
-bool PhaseCalculatorEditor::parseInput(const String& in, int min, int max, int* out)
-{
+    const String& in = label->getText();
     int parsedInt;
     try
     {
         parsedInt = std::stoi(in.toRawUTF8());
     }
-    catch (...)
+    catch (const std::logic_error&)
     {
+        label->setText(String(defaultValue), dontSendNotification);
         return false;
     }
 
     *out = jmax(min, jmin(max, parsedInt));
 
+    label->setText(String(*out), dontSendNotification);
     return true;
 }
 
-bool PhaseCalculatorEditor::parseInput(const String& in, float min, float max, float* out)
+// Like updateIntLabel, but for floats
+bool PhaseCalculatorEditor::updateFloatLabel(Label* label, float min, float max,
+    float defaultValue, float* out)
 {
+    const String& in = label->getText();
     float parsedFloat;
     try
     {
         parsedFloat = std::stof(in.toRawUTF8());
     }
-    catch (...)
+    catch (const std::logic_error&)
     {
+        label->setText(String(defaultValue), dontSendNotification);
         return false;
     }
 
     *out = jmax(min, jmin(max, parsedFloat));
 
+    label->setText(String(*out), dontSendNotification);
     return true;
 }
 

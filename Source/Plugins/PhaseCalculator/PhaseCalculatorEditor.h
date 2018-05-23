@@ -84,18 +84,16 @@ public:
 
 private:
 
-    // utility for label listening
-    // ouputs whether the label contained a valid input; if so, it is stored in *result.
-    template<typename labelType>
-    static bool updateLabel(Label* labelThatHasChanged,
-        labelType minValue, labelType maxValue, labelType defaultValue, labelType* result);
+    /* Utilities for parsing entered values
+    *  Ouput whether the label contained a valid input; if so, it is stored in *out
+    *  and the label is updated with the parsed input. Otherwise, the label is reset
+    *  to defaultValue.
+    */
 
-    // Attempt to parse an input string into an integer between min and max, inclusive.
-    // Returns false if no integer could be parsed.
-    static bool parseInput(const String& in, int min, int max, int* out);
-
-    // Same as above, but for floats
-    static bool parseInput(const String& in, float min, float max, float* out);
+    static bool updateIntLabel(Label* label, int min, int max,
+        int defaultValue, int* out);
+    static bool updateFloatLabel(Label* label, float min, float max,
+        float defaultValue, float* out);
 
     ScopedPointer<Label>    lowCutLabel;
     ScopedPointer<Label>    lowCutEditable;

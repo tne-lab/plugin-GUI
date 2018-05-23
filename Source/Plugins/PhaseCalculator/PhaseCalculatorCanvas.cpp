@@ -487,7 +487,7 @@ void RosePlot::labelTextChanged(Label* labelThatHasChanged)
     {
         float floatInput;
         float currReferenceDeg = static_cast<float>(referenceAngle * 180.0 / PI);
-        bool valid = PhaseCalculatorEditor::updateLabel(labelThatHasChanged,
+        bool valid = PhaseCalculatorEditor::updateFloatLabel(labelThatHasChanged,
             -FLT_MAX, FLT_MAX, currReferenceDeg, &floatInput);
 
         if (valid)
