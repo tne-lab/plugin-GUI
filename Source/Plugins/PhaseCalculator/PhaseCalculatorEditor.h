@@ -92,10 +92,10 @@ private:
 
     // Attempt to parse an input string into an integer between min and max, inclusive.
     // Returns false if no integer could be parsed.
-    static bool parseInput(String& in, int min, int max, int* out);
+    static bool parseInput(const String& in, int min, int max, int* out);
 
     // Same as above, but for floats
-    static bool parseInput(String& in, float min, float max, float* out);
+    static bool parseInput(const String& in, float min, float max, float* out);
 
     ScopedPointer<Label>    lowCutLabel;
     ScopedPointer<Label>    lowCutEditable;

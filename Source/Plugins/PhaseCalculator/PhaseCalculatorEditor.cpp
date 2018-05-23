@@ -22,6 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PhaseCalculatorEditor.h"
 #include "PhaseCalculatorCanvas.h"
+#include <climits> // INT_MAX
 
 PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
     : VisualizerEditor     (parentNode, 325, useDefaultParameterEditors)
@@ -423,7 +424,7 @@ template<typename labelType>
 bool PhaseCalculatorEditor::updateLabel(Label* labelThatHasChanged,
     labelType minValue, labelType maxValue, labelType defaultValue, labelType* result)
 {
-    String& input = labelThatHasChanged->getText();
+    const String& input = labelThatHasChanged->getText();
     bool valid = parseInput(input, minValue, maxValue, result);
     if (!valid)
     {
@@ -437,7 +438,7 @@ bool PhaseCalculatorEditor::updateLabel(Label* labelThatHasChanged,
     return valid;
 }
 
-bool PhaseCalculatorEditor::parseInput(String& in, int min, int max, int* out)
+bool PhaseCalculatorEditor::parseInput(const String& in, int min, int max, int* out)
 {
     int parsedInt;
     try
@@ -454,7 +455,7 @@ bool PhaseCalculatorEditor::parseInput(String& in, int min, int max, int* out)
     return true;
 }
 
-bool PhaseCalculatorEditor::parseInput(String& in, float min, float max, float* out)
+bool PhaseCalculatorEditor::parseInput(const String& in, float min, float max, float* out)
 {
     float parsedFloat;
     try
