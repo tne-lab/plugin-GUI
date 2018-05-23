@@ -23,6 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "ContinuousStatsEditor.h"
 #include <string> // stof
+#include <cfloat> // FLT_MAX
 
 ContinuousStatsEditor::ContinuousStatsEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
     : GenericEditor(parentNode, useDefaultParameterEditors)
@@ -120,7 +121,7 @@ void ContinuousStatsEditor::loadCustomParameters(XmlElement* xml)
 bool ContinuousStatsEditor::updateFloatLabel(Label* labelThatHasChanged,
     float minValue, float maxValue, float defaultValue, float* result)
 {
-    String& input = labelThatHasChanged->getText();
+    const String& input = labelThatHasChanged->getText();
     bool valid = parseInput(input, minValue, maxValue, result);
     if (!valid)
         labelThatHasChanged->setText(String(defaultValue), dontSendNotification);
@@ -130,7 +131,7 @@ bool ContinuousStatsEditor::updateFloatLabel(Label* labelThatHasChanged,
     return valid;
 }
 
-bool ContinuousStatsEditor::parseInput(String& in, float min, float max, float* out)
+bool ContinuousStatsEditor::parseInput(const String& in, float min, float max, float* out)
 {
     float parsedFloat;
     try

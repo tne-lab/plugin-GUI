@@ -59,7 +59,7 @@ private:
 
     // Attempt to parse an input string into a float between min and max, inclusive.
     // Returns false if no float could be parsed.
-    static bool parseInput(String& in, float min, float max, float* out);
+    static bool parseInput(const String& in, float min, float max, float* out);
 
     // UI elements
     ScopedPointer<ComboBox> operationBox;

@@ -200,7 +200,7 @@ void SampleMathEditor::loadCustomParameters(XmlElement* xml)
 bool SampleMathEditor::updateFloatLabel(Label* labelThatHasChanged,
     float minValue, float maxValue, float defaultValue, float* result)
 {
-    String& input = labelThatHasChanged->getText();
+    const String& input = labelThatHasChanged->getText();
     bool valid = parseInput(input, minValue, maxValue, result);
     if (!valid)
         labelThatHasChanged->setText(String(defaultValue), dontSendNotification);
@@ -210,7 +210,7 @@ bool SampleMathEditor::updateFloatLabel(Label* labelThatHasChanged,
     return valid;
 }
 
-bool SampleMathEditor::parseInput(String& in, float min, float max, float* out)
+bool SampleMathEditor::parseInput(const String& in, float min, float max, float* out)
 {
     float parsedFloat;
     try
