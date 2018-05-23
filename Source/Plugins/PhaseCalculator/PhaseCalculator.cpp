@@ -23,7 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
-#include "burg.h"        // Autoregressive modeling
+#include "ar/burg.h"        // Autoregressive modeling
 
 PhaseCalculator::PhaseCalculator()
     : GenericProcessor      ("Phase Calculator")

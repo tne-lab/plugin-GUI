@@ -29,9 +29,10 @@ transform library
 #ifndef FFTW_WRAPPER_H_INCLUDED
 #define FFTW_WRAPPER_H_INCLUDED
 
-#include "fftw3.h" // Fast Fourier Transform library
+#include <JuceHeader.h> // assertions, etc.
+#include <fftw3.h>      // Fast Fourier Transform library
 #include <complex>
-#include <algorithm> // reverse array
+#include <algorithm>    // reverse array
 
 /*
 FFTW-friendly array that can hold complex or real doubles.
@@ -165,6 +166,8 @@ public:
 private:
     std::complex<double>* data;
     int length;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FFTWArray);
 };
 
 class FFTWPlan
@@ -204,6 +207,8 @@ public:
 
 private:
     fftw_plan plan;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FFTWPlan);
 };
 
 #endif // FFTW_WRAPPER_H_INCLUDED
