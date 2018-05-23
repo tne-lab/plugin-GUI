@@ -71,34 +71,54 @@ void SampleMath::process(AudioSampleBuffer& continuousBuffer)
         {
         case ADD:
             if (useChannel)
+            {
                 FloatVectorOperations::add(wp, rp, numValues);
+            }
             else
+            {
                 FloatVectorOperations::add(wp, constant, numValues);
+            }
             break;
 
         case SUBTRACT:
             if (useChannel)
+            {
                 FloatVectorOperations::subtract(wp, rp, numValues);
+            }
             else
+            {
                 FloatVectorOperations::add(wp, -constant, numValues);
+            }
             break;
 
         case MULTIPLY:
             if (useChannel)
+            {
                 FloatVectorOperations::multiply(wp, rp, numValues);
+            }
             else
+            {
                 FloatVectorOperations::multiply(wp, constant, numValues);
+            }
             break;
 
         case DIVIDE:
             if (useChannel)
+            {
                 for (int i = 0; i < numValues; ++i)
+                {
                     wp[i] /= rp[i];
+                }
+            }
             else
+            {
                 FloatVectorOperations::multiply(wp, 1.0f / constant, numValues);
+            }
             break;
 
-        default: jassertfalse; break;
+        default: 
+            jassertfalse;
+            break;
         }
     }
 
@@ -137,7 +157,9 @@ void SampleMath::setParameter(int parameterIndex, float newValue)
 
     case USE_CHANNEL:
         if (newValue)
+        {
             validateActiveChannels();
+        }
         useChannel = static_cast<bool>(newValue);
         break;
 
@@ -150,13 +172,17 @@ void SampleMath::setParameter(int parameterIndex, float newValue)
         if (newChanNum == -1 || newChanNum >= getTotalDataChannels())
         {
             if (!CoreServices::getAcquisitionStatus())
+            {
                 selectedChannel = -1;
+            }
             break;
         }
 
         validSubProcFullID = chanToFullID(newChanNum);
         if (useChannel)
+        {
             validateActiveChannels();
+        }
         selectedChannel = newChanNum;
         break;
     }
@@ -179,7 +205,9 @@ void SampleMath::updateSettings()
 
     validSubProcFullID = chanToFullID(selectedChannel);
     if (useChannel)
+    {
         validateActiveChannels();
+    }
 }
 
 // private
@@ -193,12 +221,16 @@ void SampleMath::validateActiveChannels()
     for (int chan : activeChannels)
     {
         if (chan >= numChannels) // can happen during update if # of channels decreases
+        {
             continue;
+        }
 
         if (chanToFullID(chan) != validSubProcFullID)
         {
             if (!haveSentMessage)
+            {
                 CoreServices::sendStatusMessage(message);
+            }
             editor->getChannelSelectionState(chan, &p, &r, &a);
             editor->setChannelSelectionState(chan - 1, false, r, a);
         }

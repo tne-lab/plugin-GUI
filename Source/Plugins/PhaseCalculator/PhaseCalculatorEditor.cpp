@@ -449,18 +449,7 @@ bool PhaseCalculatorEditor::parseInput(String& in, int min, int max, int* out)
         return false;
     }
 
-    if (parsedInt < min)
-    {
-        *out = min;
-    }
-    else if (parsedInt > max)
-    {
-        *out = max;
-    }
-    else
-    {
-        *out = parsedInt;
-    }
+    *out = jmax(min, jmin(max, parsedInt));
 
     return true;
 }
@@ -477,18 +466,7 @@ bool PhaseCalculatorEditor::parseInput(String& in, float min, float max, float* 
         return false;
     }
 
-    if (parsedFloat < min)
-    {
-        *out = min;
-    }
-    else if (parsedFloat > max)
-    {
-        *out = max;
-    }
-    else
-    {
-        *out = parsedFloat;
-    }
+    *out = jmax(min, jmin(max, parsedFloat));
 
     return true;
 }

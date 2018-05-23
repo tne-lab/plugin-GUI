@@ -114,7 +114,9 @@ void SampleMathEditor::labelTextChanged(Label* labelThatHasChanged)
             processor->constant, &floatInput);
 
         if (valid)
+        {
             processor->setParameter(CONSTANT, floatInput);
+        }
     }
 }
 
@@ -126,11 +128,15 @@ void SampleMathEditor::updateSettings()
     channelSelectionBox->clear();
     int numChannels = processor->getNumInputs();
     for (int i = 1; i <= numChannels; ++i)
+    {
         channelSelectionBox->addItem(String(i), i);
+    }
     
     // update selected item
     if (processor->selectedChannel >= 0)
+    {
         channelSelectionBox->setSelectedId(processor->selectedChannel + 1, dontSendNotification);
+    }
 }
 
 void SampleMathEditor::channelChanged(int chan, bool newState)
@@ -195,39 +201,25 @@ void SampleMathEditor::loadCustomParameters(XmlElement* xml)
     }
 }
 
-// static utilities
+// static utility
 
-bool SampleMathEditor::updateFloatLabel(Label* labelThatHasChanged,
-    float minValue, float maxValue, float defaultValue, float* result)
+bool SampleMathEditor::updateFloatLabel(Label* label, float min, float max,
+    float defaultValue, float* out)
 {
-    const String& input = labelThatHasChanged->getText();
-    bool valid = parseInput(input, minValue, maxValue, result);
-    if (!valid)
-        labelThatHasChanged->setText(String(defaultValue), dontSendNotification);
-    else
-        labelThatHasChanged->setText(String(*result), dontSendNotification);
-
-    return valid;
-}
-
-bool SampleMathEditor::parseInput(const String& in, float min, float max, float* out)
-{
+    const String& in = label->getText();
     float parsedFloat;
     try
     {
         parsedFloat = std::stof(in.toRawUTF8());
     }
-    catch (...)
+    catch (const std::logic_error&)
     {
+        label->setText(String(defaultValue), dontSendNotification);
         return false;
     }
 
-    if (parsedFloat < min)
-        *out = min;
-    else if (parsedFloat > max)
-        *out = max;
-    else
-        *out = parsedFloat;
+    *out = jmax(min, jmin(max, parsedFloat));
 
+    label->setText(String(*out), dontSendNotification);
     return true;
 }
