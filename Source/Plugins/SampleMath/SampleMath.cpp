@@ -45,32 +45,73 @@ AudioProcessorEditor* SampleMath::createEditor()
 void SampleMath::process(AudioSampleBuffer& continuousBuffer)
 {
     Operation currOp = operation;
+    bool isBinary = opIsBinary(currOp);
     int currSelectedChannel = selectedChannel;
+    bool reallyUseChannel = useChannel && isBinary;
 
     const float* rp;
-    if (useChannel)
+    if (reallyUseChannel)
     {
         rp = continuousBuffer.getReadPointer(currSelectedChannel);
     }
 
     // iterate over active channels
     Array<int> activeChannels = editor->getActiveChannels();
+    int numActiveChannels = activeChannels.size();
     bool selectedChannelIsActive = false;
+
+    int numValues;
+    if (numActiveChannels == 0)
+    {
+        return;
+    }
+    else
+    {
+        numValues = getNumSamples(activeChannels[0]);
+    }
+
+    Array<float> naryResult;
+    if (!isBinary)
+    {
+        // pre-loop through channels to calculate n-ary function result over selected channels
+        naryResult.insertMultiple(0, 0.0f, numValues);
+        float* resultPtr = naryResult.getRawDataPointer();
+
+        for (int chan : activeChannels)
+        {
+            const float* sourcePtr = continuousBuffer.getReadPointer(chan);
+            switch (currOp)
+            {
+            case SUM:
+                FloatVectorOperations::add(resultPtr, sourcePtr, numValues);
+                break;
+
+            case MEAN:
+                FloatVectorOperations::addWithMultiply(resultPtr, sourcePtr,
+                    1.0f / numActiveChannels, numValues);
+                break;
+
+            default:
+                jassertfalse;
+                break;
+            }
+        }
+    }
+
     for (int chan : activeChannels)
     {
-        if (useChannel && chan == currSelectedChannel)
+        if (reallyUseChannel && chan == currSelectedChannel)
         {
             selectedChannelIsActive = true;
             continue; // process separately at end
         }
 
         float* wp = continuousBuffer.getWritePointer(chan);
-        int numValues = getNumSamples(chan);
 
         switch (currOp)
         {
         case ADD:
-            if (useChannel)
+            if (reallyUseChannel)
             {
                 FloatVectorOperations::add(wp, rp, numValues);
             }
@@ -81,7 +122,7 @@ void SampleMath::process(AudioSampleBuffer& continuousBuffer)
             break;
 
         case SUBTRACT:
-            if (useChannel)
+            if (reallyUseChannel)
             {
                 FloatVectorOperations::subtract(wp, rp, numValues);
             }
@@ -92,7 +133,7 @@ void SampleMath::process(AudioSampleBuffer& continuousBuffer)
             break;
 
         case MULTIPLY:
-            if (useChannel)
+            if (reallyUseChannel)
             {
                 FloatVectorOperations::multiply(wp, rp, numValues);
             }
@@ -103,7 +144,7 @@ void SampleMath::process(AudioSampleBuffer& continuousBuffer)
             break;
 
         case DIVIDE:
-            if (useChannel)
+            if (reallyUseChannel)
             {
                 for (int i = 0; i < numValues; ++i)
                 {
@@ -114,6 +155,11 @@ void SampleMath::process(AudioSampleBuffer& continuousBuffer)
             {
                 FloatVectorOperations::multiply(wp, 1.0f / constant, numValues);
             }
+            break;
+
+        case SUM:
+        case MEAN:
+            FloatVectorOperations::copy(wp, naryResult.getRawDataPointer(), numValues);
             break;
 
         default: 
@@ -243,4 +289,9 @@ juce::uint32 SampleMath::chanToFullID(int chanNum) const
     uint16 sourceNodeID = chan->getSourceNodeID();
     uint16 subProcessorIdx = chan->getSubProcessorIdx();
     return getProcessorFullId(sourceNodeID, subProcessorIdx);
+}
+
+bool SampleMath::opIsBinary(Operation op)
+{
+    return !(op == SUM || op == MEAN);
 }

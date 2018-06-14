@@ -62,6 +62,8 @@ private:
 
     // UI elements
     ScopedPointer<ComboBox> operationBox;
+
+    ScopedPointer<Component> operandSection;
     ScopedPointer<ComboBox> useChannelBox;
     ScopedPointer<ComboBox> channelSelectionBox;
     ScopedPointer<Label> constantEditable;

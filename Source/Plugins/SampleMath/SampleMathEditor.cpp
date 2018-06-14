@@ -39,20 +39,31 @@ SampleMathEditor::SampleMathEditor(GenericProcessor* parentNode, bool useDefault
     operationBox->addItem(L"\u2212", SUBTRACT);
     operationBox->addItem(L"\u00d7", MULTIPLY);
     operationBox->addItem(L"\u00f7", DIVIDE);
+    operationBox->addItem("SUM", SUM);
+    operationBox->addItem("MEAN", MEAN);
     operationBox->setSelectedId(processor->operation, dontSendNotification);
-    int width = 40;
+    operationBox->setJustificationType(Justification::centred);
+    int width = 60;
     operationBox->setBounds(xCenter - width / 2, yPos, width, 20);
     operationBox->addListener(this);
     addAndMakeVisible(operationBox);
 
+    yPos += 30;
+    const int EDITOR_HT = 120;
+    operandSection = new Component;
+    operandSection->setBounds(0, yPos, desiredWidth, EDITOR_HT - yPos);
+    operandSection->setVisible(SampleMath::opIsBinary(processor->operation));
+    addChildComponent(operandSection);
+
+    yPos = 0;
     useChannelBox = new ComboBox("useChannel");
     useChannelBox->addItem("CONST", 1);
     useChannelBox->addItem("CHAN", 2);
     useChannelBox->setSelectedId(processor->useChannel ? 2 : 1, dontSendNotification);
     width = 70;
-    useChannelBox->setBounds(xCenter - width / 2, yPos += 30, width, 20);
+    useChannelBox->setBounds(xCenter - width / 2, yPos, width, 20);
     useChannelBox->addListener(this);
-    addAndMakeVisible(useChannelBox);
+    operandSection->addAndMakeVisible(useChannelBox);
 
     channelSelectionBox = new ComboBox("channelSelection");
     width = 50;
@@ -60,7 +71,7 @@ SampleMathEditor::SampleMathEditor(GenericProcessor* parentNode, bool useDefault
     channelSelectionBox->addListener(this);
     channelSelectionBox->setTooltip(CHANNEL_SELECT_TOOLTIP);
     channelSelectionBox->setVisible(processor->useChannel);
-    addChildComponent(channelSelectionBox);
+    operandSection->addChildComponent(channelSelectionBox);
 
     constantEditable = new Label("constantE");
     constantEditable->setEditable(true);
@@ -71,7 +82,7 @@ SampleMathEditor::SampleMathEditor(GenericProcessor* parentNode, bool useDefault
     constantEditable->setColour(Label::textColourId, Colours::white);
     constantEditable->addListener(this);
     constantEditable->setVisible(!channelSelectionBox->isVisible());
-    addChildComponent(constantEditable);
+    operandSection->addChildComponent(constantEditable);
 }
 
 SampleMathEditor::~SampleMathEditor() {}
@@ -81,7 +92,9 @@ void SampleMathEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
     SampleMath* processor = static_cast<SampleMath*>(getProcessor());
     if (comboBoxThatHasChanged == operationBox)
     {
-        processor->setParameter(OPERATION, static_cast<float>(operationBox->getSelectedId()));
+        int selectedOp = operationBox->getSelectedId();
+        processor->setParameter(OPERATION, static_cast<float>(selectedOp));
+        operandSection->setVisible(SampleMath::opIsBinary(static_cast<Operation>(selectedOp)));
     }
     else if (comboBoxThatHasChanged == useChannelBox)
     {
