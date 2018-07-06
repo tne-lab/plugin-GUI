@@ -46,7 +46,9 @@ enum Operation
     ADD = 1,
     SUBTRACT,
     MULTIPLY,
-    DIVIDE
+    DIVIDE,
+    SUM,
+    MEAN
 };
 
 class SampleMath : public GenericProcessor
@@ -76,6 +78,8 @@ private:
 
     // utilities
     juce::uint32 chanToFullID(int chanNum) const;
+
+    static bool opIsBinary(Operation op);
 
     // parameters
     Operation operation;
