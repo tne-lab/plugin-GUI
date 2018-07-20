@@ -26,6 +26,21 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <ProcessorHeaders.h>
 
+/* Estimates the mean spike rate over time and channels. Uses an exponentially
+ * weighted moving average to estimate a temporal mean (with adjustable time
+ * constant), and averages the rate across selected spike channels (electrodes).
+ * Outputs the resulting rate onto a selected continuous channel (overwriting its contents).
+ *
+ * @see GenericProcessor
+ */
+
+// parameter indices
+enum Param
+{
+    OUTPUT_CHAN,
+    TIME_CONST
+};
+
 class MeanSpikeRate : public GenericProcessor
 {
     friend class MeanSpikeRateEditor;
@@ -38,14 +53,25 @@ public:
     AudioProcessorEditor* createEditor() override;
 
     void process(AudioSampleBuffer& continuousBuffer) override;
+    void handleSpike(const SpikeChannel* spikeInfo, const MidiMessage& event, int samplePosition = 0) override;
+
+    void setParameter(int parameterIndex, float newValue) override;
 
 private:
     // functions
     int getNumActiveElectrodes();
+    bool channelIsActive(const SpikeChannel* info, const MidiMessage& event);
+
+    // parameters
+    int outputChan;
+    double timeConstMs;
 
     // internals
-    int numSamplesProcessed; // per-buffer - allows processing samples while handling events
-    float currMean; // saved from one buffer to the next
+    int currSample;          // per-buffer - allows processing samples while handling events
+    double spikeAmp;         // updated once per buffer
+    double decayPerSample;   // updated once per buffer
+    float currMean;
+    float* wpBuffer;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MeanSpikeRate);
 };

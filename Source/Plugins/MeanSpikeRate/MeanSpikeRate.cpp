@@ -26,8 +26,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 MeanSpikeRate::MeanSpikeRate()
     : GenericProcessor          ("Mean Spike Rate")
-    , numSamplesProcessed       (0)
+    , outputChan                (0)
+    , timeConstMs               (1000.0)
+    , currSample                (0)
     , currMean                  (0.0f)
+    , wpBuffer                  (nullptr)
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
 }
@@ -42,12 +45,98 @@ AudioProcessorEditor* MeanSpikeRate::createEditor()
 
 void MeanSpikeRate::process(AudioSampleBuffer& continuousBuffer)
 {
+    int numSamples;
+    if (getNumInputs() == 0 || (numSamples = getNumSamples(outputChan)) == 0)
+    {
+        return;
+    }
 
+    // update algorithm parameters
+    // we assume each spike channel has the same sample rate as the selected channel.
+    // if not, this would get a lot more complicated.
+    int numActiveElectrodes = getNumActiveElectrodes();
+    if (numActiveElectrodes == 0)
+    {
+        return;
+    }
+    double timeConstSec = timeConstMs / 1000.0;
+    double timeConstSamp = timeConstSec * getDataChannel(outputChan)->getSampleRate();
+    decayPerSample = exp(-1 / timeConstSamp);
+    
+    // the initial amplitude of each spike such that if there is a steady rate of
+    // spiking, the average over time of the exponentially weighted mean
+    // (at the limit where the process has been continuing forever)
+    // equals the actual spike rate in Hz. This is just 1 / (time const in sec).
+    spikeAmp = 1 / (timeConstSec * numActiveElectrodes);
+
+    // initialize first sample
+    currSample = 0;
+    wpBuffer = continuousBuffer.getWritePointer(outputChan);
+
+    // handle each spike, calculating the mean spike rate of samples in between.
+    checkForEvents(true);
+
+    // after all spikes are handled, finish writing samples
+    for (int samp = currSample; samp < numSamples; ++samp)
+    {
+        wpBuffer[samp] = currMean;
+        currMean *= decayPerSample;
+    }
+}
+
+void MeanSpikeRate::handleSpike(const SpikeChannel* spikeInfo, const MidiMessage& event, int samplePosition)
+{
+    if (!channelIsActive(spikeInfo, event))
+    {
+        return;
+    }
+
+    jassert(samplePosition >= currSample); // spike sample must not have already been finished
+
+    // write samples up to the spike position
+    for (int samp = currSample; samp < samplePosition; ++samp)
+    {
+        wpBuffer[samp] = currMean;
+        currMean *= decayPerSample;
+    }
+    currSample = samplePosition;
+
+    // add spike contribution
+    currMean += spikeAmp;
+}
+
+void MeanSpikeRate::setParameter(int parameterIndex, float newValue)
+{
+    switch (parameterIndex)
+    {
+    case OUTPUT_CHAN:
+        outputChan = static_cast<int>(newValue);
+        break;
+
+    case TIME_CONST:
+        timeConstMs = newValue;
+        break;
+
+    default:
+        jassertfalse;
+        break;
+    }
 }
 
 // private
+
 int MeanSpikeRate::getNumActiveElectrodes()
 {
     auto editor = static_cast<MeanSpikeRateEditor*>(getEditor());
     return editor->getNumActiveElectrodes();
+}
+
+bool MeanSpikeRate::channelIsActive(const SpikeChannel* info, const MidiMessage& event)
+{
+    SpikeEventPtr deserializedEvent = SpikeEvent::deserializeFromMessage(event, info);
+    int channelIndex = getSpikeChannelIndex(deserializedEvent);
+    
+    jassert(getEditor());
+    auto msrEditor = static_cast<MeanSpikeRateEditor*>(getEditor());
+    return  msrEditor->spikeChannelIsEnabled(channelIndex);
 }

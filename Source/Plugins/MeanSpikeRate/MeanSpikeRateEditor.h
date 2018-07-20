@@ -46,10 +46,20 @@ public:
     // implements Label::Listener
     void labelTextChanged(Label* labelThatHasChanged) override;
 
+    bool spikeChannelIsEnabled(int index);
+
 private:
     // functions
     ElectrodeButton* makeNewChannelButton(SpikeChannel* chan);
     void layoutChannelButtons();
+
+    /*
+    * Ouputs whether the label contained a valid input; if so, it is stored in *out
+    * and the label is updated with the parsed input. Otherwise, the label is reset
+    * to defaultValue.
+    */
+    static bool updateFloatLabel(Label* label, float min, float max,
+        float defaultValue, float* out);
 
     // UI elements
     ScopedPointer<Viewport> spikeChannelViewport;
