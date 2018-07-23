@@ -89,6 +89,9 @@ public:
 
     AudioProcessorEditor* createEditor() override;
 
+    // needed for visualization phase signal events (for adaptive crossing detector threshold)
+    void createEventChannels() override;
+
     void setParameter(int parameterIndex, float newValue) override;
 
     void process(AudioSampleBuffer& buffer) override;

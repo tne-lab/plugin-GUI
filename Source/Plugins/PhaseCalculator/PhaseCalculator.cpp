@@ -58,6 +58,36 @@ AudioProcessorEditor* PhaseCalculator::createEditor()
     return editor;
 }
 
+void PhaseCalculator::createEventChannels()
+{
+    // add vis phase event channel
+    const DataChannel* visChannel = getDataChannel(visContinuousChannel);
+    float sampleRate = visChannel ? visChannel->getSampleRate() : CoreServices::getGlobalSampleRate();
+    juce::uint16 subproc = visChannel ? visChannel->getSubProcessorIdx() : 0;
+    
+    EventChannel* chan = new EventChannel(EventChannel::DOUBLE_ARRAY, 1, 1, sampleRate, this, subproc);
+    chan->setName("Visualized phase level reporter");
+    chan->setDescription("The accurate phase in degrees of each visualized event");
+    chan->setIdentifier("phasecalc.visphase");
+
+    // metadata storing source data channel
+    if (visChannel)
+    {
+        MetaDataDescriptor sourceChanDesc(MetaDataDescriptor::UINT16, 3, "Source Channel",
+            "Index at its source, Source processor ID and Sub Processor index of the channel that triggers this event",
+            "source.channel.identifier.full");
+        MetaDataValue sourceChanVal(sourceChanDesc);
+        uint16 sourceInfo[3];
+        sourceInfo[0] = visChannel->getSourceIndex();
+        sourceInfo[1] = visChannel->getSourceNodeID();
+        sourceInfo[2] = visChannel->getSubProcessorIdx();
+        sourceChanVal.setValue(static_cast<const uint16*>(sourceInfo));
+        chan->addMetaData(sourceChanDesc, sourceChanVal);
+    }
+
+    eventChannelArray.add(chan);
+}
+
 void PhaseCalculator::setParameter(int parameterIndex, float newValue)
 {
     int numInputs = getNumInputs();
@@ -828,7 +858,15 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
             visTsBuffer.pop();
             juce::int64 delay = sdbEndTs - ts;
             std::complex<double> analyticPt = visHilbertBuffer.getAsComplex(VIS_HILBERT_LENGTH - delay);
-            visPhaseBuffer.push(std::arg(analyticPt));
+            double phaseRad = std::arg(analyticPt);
+            visPhaseBuffer.push(phaseRad);
+
+            // add to event channel
+            double eventData = phaseRad * 180.0 / Dsp::doublePi;
+            juce::int64 eventTs = sdbEndTs - getNumSamples(visContinuousChannel);
+            const EventChannel* chan = getEventChannel(0);
+            BinaryEventPtr event = BinaryEvent::createBinaryEvent(chan, eventTs, &eventData, sizeof(double));
+            addEvent(chan, event, 0);
         }
     }
 }
