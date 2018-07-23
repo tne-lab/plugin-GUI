@@ -46,7 +46,11 @@ public:
     // implements Label::Listener
     void labelTextChanged(Label* labelThatHasChanged) override;
 
-    bool spikeChannelIsEnabled(int index);
+    bool getSpikeChannelEnabled(int index);
+    void setSpikeChannelEnabled(int index, bool enabled);
+
+    void saveCustomParameters(XmlElement* xml) override;
+    void loadCustomParameters(XmlElement* xml) override;
 
 private:
     // functions
@@ -54,10 +58,10 @@ private:
     void layoutChannelButtons();
 
     /*
-    * Ouputs whether the label contained a valid input; if so, it is stored in *out
-    * and the label is updated with the parsed input. Otherwise, the label is reset
-    * to defaultValue.
-    */
+     * Ouputs whether the label contained a valid input; if so, it is stored in *out
+     * and the label is updated with the parsed input. Otherwise, the label is reset
+     * to defaultValue.
+     */
     static bool updateFloatLabel(Label* label, float min, float max,
         float defaultValue, float* out);
 

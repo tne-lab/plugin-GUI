@@ -123,6 +123,32 @@ void MeanSpikeRate::setParameter(int parameterIndex, float newValue)
     }
 }
 
+void MeanSpikeRate::saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType)
+{
+    if (channelType == InfoObjectCommon::SPIKE_CHANNEL)
+    {
+        auto msrEditor = static_cast<MeanSpikeRateEditor*>(getEditor());
+        channelElement->setAttribute("enabled", msrEditor->getSpikeChannelEnabled(channelNumber));
+    }
+}
+
+void MeanSpikeRate::loadCustomParametersFromXml()
+{
+    // semi-hack: update signal chain to make sure input spike channels have been created.
+    CoreServices::updateSignalChain(nullptr);
+}
+
+void MeanSpikeRate::loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType)
+{
+    if (channelType == InfoObjectCommon::SPIKE_CHANNEL)
+    {
+        int channelNumber = channelElement->getIntAttribute("number", -1);
+        bool shouldEnable = channelElement->getBoolAttribute("enabled");
+        auto msrEditor = static_cast<MeanSpikeRateEditor*>(getEditor());
+        msrEditor->setSpikeChannelEnabled(channelNumber, shouldEnable);
+    }
+}
+
 // private
 
 int MeanSpikeRate::getNumActiveElectrodes()
@@ -138,5 +164,5 @@ bool MeanSpikeRate::channelIsActive(const SpikeChannel* info, const MidiMessage&
     
     jassert(getEditor());
     auto msrEditor = static_cast<MeanSpikeRateEditor*>(getEditor());
-    return  msrEditor->spikeChannelIsEnabled(channelIndex);
+    return  msrEditor->getSpikeChannelEnabled(channelIndex);
 }

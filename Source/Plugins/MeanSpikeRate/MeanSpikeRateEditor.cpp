@@ -202,10 +202,47 @@ void MeanSpikeRateEditor::labelTextChanged(Label* labelThatHasChanged)
     }
 }
 
-bool MeanSpikeRateEditor::spikeChannelIsEnabled(int index)
+bool MeanSpikeRateEditor::getSpikeChannelEnabled(int index)
 {
-    jassert(index < spikeChannelButtons.size());
+    if (index < 0 || index >= spikeChannelButtons.size())
+    {
+        jassertfalse;
+        return false;
+    }
     return spikeChannelButtons[index]->getToggleState();
+}
+
+void MeanSpikeRateEditor::setSpikeChannelEnabled(int index, bool enabled)
+{
+    if (index < 0 || index >= spikeChannelButtons.size())
+    {
+        jassertfalse;
+        return;
+    }
+    spikeChannelButtons[index]->setToggleState(enabled, sendNotificationSync);
+}
+
+void MeanSpikeRateEditor::saveCustomParameters(XmlElement* xml)
+{
+    xml->setAttribute("Type", "MeanSpikeRateEditor");
+
+    XmlElement* paramValues = xml->createNewChildElement("VALUES");
+    paramValues->setAttribute("outputChan", outputBox.get() ? outputBox->getSelectedId() - 1 : -1);
+    paramValues->setAttribute("timeConstMs", timeConstEditable.get() ? timeConstEditable->getText() : "1000");
+}
+
+void MeanSpikeRateEditor::loadCustomParameters(XmlElement* xml)
+{
+    forEachXmlChildElementWithTagName(*xml, xmlNode, "VALUES")
+    {
+        int newOutputChan = xmlNode->getIntAttribute("outputChan", -1);
+        if (newOutputChan >= 0 && newOutputChan < outputBox->getNumItems())
+        {
+            outputBox->setSelectedId(newOutputChan + 1, sendNotificationSync);
+        }
+
+        timeConstEditable->setText(xmlNode->getStringAttribute("timeConstMs", timeConstEditable->getText()), sendNotificationSync);
+    }
 }
 
 /* -------- private ----------- */

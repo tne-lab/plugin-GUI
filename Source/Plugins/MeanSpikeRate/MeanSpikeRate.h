@@ -57,6 +57,11 @@ public:
 
     void setParameter(int parameterIndex, float newValue) override;
 
+    // save and load spike channel selection state
+    void saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType) override;
+    void loadCustomParametersFromXml() override;
+    void loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType);
+
 private:
     // functions
     int getNumActiveElectrodes();
