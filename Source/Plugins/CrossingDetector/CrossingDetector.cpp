@@ -25,31 +25,33 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "CrossingDetectorEditor.h"
 
 CrossingDetector::CrossingDetector()
-    : GenericProcessor  ("Crossing Detector")
-    , thresholdType     (CONSTANT)
-    , constantThresh    (0.0f)
-    , minRandomThresh   (-180)
-    , maxRandomThresh   (180)
-    , thresholdChannel  (-1)
-    , inputChannel      (0)
-    , validSubProcFullID(0)
-    , eventChannel      (0)
-    , posOn             (true)
-    , negOn             (false)
-    , eventDuration     (5)
-    , timeout           (1000)
-    , pastStrict        (1.0f)
-    , pastSpan          (0)
-    , futureStrict      (1.0f)
-    , futureSpan        (0)
-    , useJumpLimit      (false)
-    , jumpLimit         (5.0f)
-    , sampToReenable    (pastSpan + futureSpan + 1)
-    , pastCounter       (0)
-    , futureCounter     (0)
-    , inputHistory      (pastSpan + futureSpan + 2)
-    , thresholdHistory  (pastSpan + futureSpan + 2)
-    , turnoffEvent      (nullptr)
+    : GenericProcessor      ("Crossing Detector")
+    , thresholdType         (CONSTANT)
+    , constantThresh        (0.0f)
+    , startAdaptiveThresh   (0.0f)
+    , adaptiveThreshPaused  (false)
+    , minRandomThresh       (-180)
+    , maxRandomThresh       (180)
+    , thresholdChannel      (-1)
+    , inputChannel          (0)
+    , validSubProcFullID    (0)
+    , eventChannel          (0)
+    , posOn                 (true)
+    , negOn                 (false)
+    , eventDuration         (5)
+    , timeout               (1000)
+    , pastStrict            (1.0f)
+    , pastSpan              (0)
+    , futureStrict          (1.0f)
+    , futureSpan            (0)
+    , useJumpLimit          (false)
+    , jumpLimit             (5.0f)
+    , sampToReenable        (pastSpan + futureSpan + 1)
+    , pastCounter           (0)
+    , futureCounter         (0)
+    , inputHistory          (pastSpan + futureSpan + 2)
+    , thresholdHistory      (pastSpan + futureSpan + 2)
+    , turnoffEvent          (nullptr)
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
     thresholdVal = constantThresh;
@@ -143,6 +145,12 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         }
     }
 
+    // adapt threshold if necessary
+    if (thresholdType == ADAPTIVE)
+    {
+        checkForEvents();
+    }
+
     // store threshold for each sample of current buffer
     Array<float> currThresholds;
     currThresholds.resize(nSamples);
@@ -169,6 +177,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         switch (thresholdType)
         {
         case CONSTANT:
+        case ADAPTIVE: // adaptive threshold process updates constantThresh
             currThresholds.set(i, constantThresh);
             break;
 
@@ -302,6 +311,14 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         constantThresh = newValue;
         break;
 
+    case START_ADAPT_THRESH:
+        startAdaptiveThresh = newValue;
+        break;
+
+    case ADAPT_THRESH_PAUSED:
+        adaptiveThreshPaused = newValue ? true : false;
+        break;
+
     case THRESH_CHAN:
         jassert(isCompatibleWithInput(static_cast<int>(newValue)));
         thresholdChannel = static_cast<int>(newValue);
@@ -420,6 +437,14 @@ bool CrossingDetector::disable()
 }
 
 // ----- private methods ------
+
+void CrossingDetector::handleEvent(const EventChannel* eventInfo, const MidiMessage& event, int samplePosition)
+{
+    if (thresholdType == ADAPTIVE && eventInfo->getIdentifier() == "phasecalc.visphase")
+    {
+        // TODO actually implement adaptation algorithm
+    }
+}
 
 bool CrossingDetector::shouldTrigger(bool direction, float preVal, float postVal,
     float preThresh, float postThresh)

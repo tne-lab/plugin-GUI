@@ -67,7 +67,7 @@ public:
     bool disable() override;
 
 private:
-    enum ThresholdType { CONSTANT, RANDOM, CHANNEL };
+    enum ThresholdType { CONSTANT, ADAPTIVE, RANDOM, CHANNEL };
 
     enum Parameter
     {
@@ -75,6 +75,8 @@ private:
         MIN_RAND_THRESH,
         MAX_RAND_THRESH,
         CONST_THRESH,
+        START_ADAPT_THRESH,
+        ADAPT_THRESH_PAUSED,
         THRESH_CHAN,
         INPUT_CHAN,
         EVENT_CHAN,
@@ -91,6 +93,12 @@ private:
     };
 
     // -----utility funcs--------
+
+    /* Use events created by the phase calculator to adapt threshold, if the threshold
+     * mode is adaptive.
+     */
+    void handleEvent(const EventChannel* eventInfo, const MidiMessage& event,
+        int samplePosition = 0) override;
 
     /* Whether there should be a trigger in the given direction (true = rising, float = falling),
      * given the current pastCounter and futureCounter and the passed values and thresholds
@@ -129,6 +137,10 @@ private:
 
     // if using constant threshold:
     float constantThresh;
+
+    // if using adaptive threshold:
+    float startAdaptiveThresh;
+    bool adaptiveThreshPaused;
 
     // if using random thresholds:
     float minRandomThresh;
