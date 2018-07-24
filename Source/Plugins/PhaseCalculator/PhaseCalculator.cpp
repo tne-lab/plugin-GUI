@@ -66,7 +66,7 @@ void PhaseCalculator::createEventChannels()
     juce::uint16 subproc = visChannel ? visChannel->getSubProcessorIdx() : 0;
     
     EventChannel* chan = new EventChannel(EventChannel::DOUBLE_ARRAY, 1, 1, sampleRate, this, subproc);
-    chan->setName("Visualized phase level reporter");
+    chan->setName(chan->getName() + ": visualized (stim) phase");
     chan->setDescription("The accurate phase in degrees of each visualized event");
     chan->setIdentifier("phasecalc.visphase");
 

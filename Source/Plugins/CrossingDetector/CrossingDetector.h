@@ -72,11 +72,18 @@ private:
     enum Parameter
     {
         THRESH_TYPE,
-        MIN_RAND_THRESH,
-        MAX_RAND_THRESH,
         CONST_THRESH,
+        ADAPT_EVENT_CHAN,
+        ADAPT_EVENT_TARGET,
+        ADAPT_USE_RANGE,
+        ADAPT_RANGE_MIN,
+        ADAPT_RANGE_MAX,
         START_ADAPT_THRESH,
         ADAPT_THRESH_PAUSED,
+        ADAPT_LEARNING_RATE,
+        ADAPT_DECAY,
+        MIN_RAND_THRESH,
+        MAX_RAND_THRESH,
         THRESH_CHAN,
         INPUT_CHAN,
         EVENT_CHAN,
@@ -92,7 +99,9 @@ private:
         JUMP_LIMIT,
     };
 
-    // -----utility funcs--------
+    // ---------------------------- PRIVATE FUNCTIONS ----------------------
+
+    /*********** adaptive threshold *************/
 
     /* Use events created by the phase calculator to adapt threshold, if the threshold
      * mode is adaptive.
@@ -100,15 +109,50 @@ private:
     void handleEvent(const EventChannel* eventInfo, const MidiMessage& event,
         int samplePosition = 0) override;
 
+    /* Calculates the error of x from the eventTarget, taking the wrapRange into account if enabled.
+     * That is, if useWrapRange is false, just calculates x - eventTarget; if useWrapRange is true,
+     * returns the error either with or without wrapping with the minimum absolute value.
+     */
+    float errorFromEventTarget(float x);
+
+    // Reset the learning rate, denominator and threshold of adaptive threshold
+    void resetAdaptiveThreshold();
+
+    /* Convert the first element of a binary event to a float, regardless of the type
+     * (assumes eventPtr is not null)
+     */
+    static float floatFromBinaryEvent(BinaryEventPtr& eventPtr);
+
+    // Returns whether the given event chan can be used to train an adaptive threshold.
+    static bool isValidAdaptiveThresholdChan(const EventChannel* eventInfo);
+
+    /********** random threshold ***********/
+
+    // Select a new random threshold using minThresh, maxThresh, and rng.
+    float nextRandomThresh();
+ 
+    /********** channel threshold ***********/
+
+    // Retrieves the full source subprocessor ID of the given channel.
+    juce::uint32 getSubProcFullID(int chanNum) const;
+
+    /* Returns true if the given chanNum corresponds to an input
+     * and that channel has the same source subprocessor as the
+     * selected inputChannel, but is not equal to the inputChannel.
+     */
+    bool isCompatibleWithInput(int chanNum) const;
+
+    // Returns a string to display in the threshold box when using a threshold channel
+    static String toChannelThreshString(int chanNum);
+
+    /*********  triggering ************/
+
     /* Whether there should be a trigger in the given direction (true = rising, float = falling),
      * given the current pastCounter and futureCounter and the passed values and thresholds
      * surrounding the point where a crossing may be.
      */
     bool shouldTrigger(bool direction, float preVal, float postVal, float preThresh, float postThresh);
 
-    // Select a new random threshold using minThresh, maxThresh, and rng.
-    float nextThresh();
- 
     /* Add "turning-on" and "turning-off" event for a crossing.
      *  - bufferTs:       Timestamp of start of current buffer
      *  - crossingOffset: Difference betweeen time of actual crossing and bufferTs
@@ -119,19 +163,7 @@ private:
     void triggerEvent(juce::int64 bufferTs, int crossingOffset, int bufferLength,
         float threshold, float crossingLevel);
 
-    // Retrieves the full source subprocessor ID of the given channel.
-    juce::uint32 getSubProcFullID(int chanNum) const;
-
-    /* Returns true if the given chanNum corresponds to an input
-    * and that channel has the same source subprocessor as the
-    * selected inputChannel, but is not equal to the inputChannel.
-    */
-    bool isCompatibleWithInput(int chanNum) const;
-
-    // Returns a string to display in the threshold box when using a threshold channel
-    static String toChannelThreshString(int chanNum);
-
-    // ------parameters------------
+    // ------ PARAMETERS ------------
 
     ThresholdType thresholdType;
 
@@ -139,12 +171,17 @@ private:
     float constantThresh;
 
     // if using adaptive threshold:
-    float startAdaptiveThresh;
-    bool adaptiveThreshPaused;
+    int adaptEventChan; // index of the monitored event channel
+    float adaptEventTarget;
+    bool useAdaptWrapRange;
+    float adaptWrapRange[2];
+    float startAdaptThresh;
+    bool adaptThreshPaused;
+    double adaptStartLR;
+    double adaptDecay;
 
     // if using random thresholds:
-    float minRandomThresh;
-    float maxRandomThresh;
+    float randomThreshRange[2];
     float currRandomThresh;
 
     // if using channel threshold:
@@ -176,7 +213,7 @@ private:
     bool useJumpLimit;
     float jumpLimit;
 
-    // ------internals-----------
+    // ------ INTERNALS -----------
 
     // the next time at which the detector should be reenabled after a timeout period, measured in
     // samples past the start of the current processing buffer. Less than -numNext if there is no scheduled reenable (i.e. the detector is enabled).
@@ -195,6 +232,18 @@ private:
     TTLEventPtr turnoffEvent; // holds a turnoff event that must be added in a later buffer
 
     Value thresholdVal; // underlying value of the threshold label
+
+    /* If using adaptive threshold, learning rate evolves by this formula:
+     * LR_{t} = LR_{0} / denom_{t}
+     * div_{0} = 1
+     * div_{t+1} = div_{t} + decay
+     * denom_{0} = 1
+     * denom_{t+1} = denom_{t} * div_{t+1}
+     */
+    double adaptCurrDenom;  // what the LR was last divided by
+    double adaptCurrDiv;    // what the denominator was last multiplied by
+    
+    String adaptEventChanName; // save so that we can try to find a matching channel when updating
 
     Random rng; // for random thresholds
 

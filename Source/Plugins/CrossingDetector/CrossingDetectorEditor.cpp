@@ -178,7 +178,7 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     optionsPanel->addAndMakeVisible(minThreshLabel);
     opBounds = opBounds.getUnion(bounds);
 
-    minThreshEditable = createEditable("MinThreshE", String(processor->minRandomThresh),
+    minThreshEditable = createEditable("MinThreshE", String(processor->randomThreshRange[0]),
         "Minimum threshold voltage", bounds = { xPos += 80, yPos, 50, C_TEXT_HT });
     minThreshEditable->setEnabled(randomizeButton->getToggleState());
     optionsPanel->addAndMakeVisible(minThreshEditable);
@@ -189,7 +189,7 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     optionsPanel->addAndMakeVisible(maxThreshLabel);
     opBounds = opBounds.getUnion(bounds);
 
-    maxThreshEditable = createEditable("MaxThreshE", String(processor->maxRandomThresh),
+    maxThreshEditable = createEditable("MaxThreshE", String(processor->randomThreshRange[1]),
         "Maximum threshold voltage", bounds = { xPos += 80, yPos, 50, C_TEXT_HT });
     maxThreshEditable->setEnabled(randomizeButton->getToggleState());
     optionsPanel->addAndMakeVisible(maxThreshEditable);
@@ -466,22 +466,32 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
     {
         float newVal;
         bool success = updateFloatLabel(labelThatHasChanged,
-            -FLT_MAX, processor->maxRandomThresh, processor->minRandomThresh, &newVal);
+            -FLT_MAX, FLT_MAX, processor->randomThreshRange[0], &newVal);
 
         if (success)
         {
             processor->setParameter(CrossingDetector::MIN_RAND_THRESH, newVal);
+            if (newVal > processor->randomThreshRange[1])
+            {
+                // push the max thresh up to match
+                maxThreshEditable->setText(String(newVal), sendNotificationAsync);
+            }
         }
     }
     else if (labelThatHasChanged == maxThreshEditable)
     {
         float newVal;
         bool success = updateFloatLabel(labelThatHasChanged,
-            processor->minRandomThresh, FLT_MAX, processor->maxRandomThresh, &newVal);
+            -FLT_MAX, FLT_MAX, processor->randomThreshRange[1], &newVal);
 
         if (success)
         {
             processor->setParameter(CrossingDetector::MAX_RAND_THRESH, newVal);
+            if (newVal < processor->randomThreshRange[0])
+            {
+                // push the min down to match
+                minThreshEditable->setText(String(newVal), sendNotificationAsync);
+            }
         }
     }
     else if (labelThatHasChanged == limitEditable)

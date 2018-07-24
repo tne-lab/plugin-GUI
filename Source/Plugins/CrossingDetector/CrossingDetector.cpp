@@ -28,10 +28,16 @@ CrossingDetector::CrossingDetector()
     : GenericProcessor      ("Crossing Detector")
     , thresholdType         (CONSTANT)
     , constantThresh        (0.0f)
-    , startAdaptiveThresh   (0.0f)
-    , adaptiveThreshPaused  (false)
-    , minRandomThresh       (-180)
-    , maxRandomThresh       (180)
+    , adaptEventChan        (-1)
+    , adaptEventTarget      (0.0f)
+    , useAdaptWrapRange     (true)
+    , startAdaptThresh      (0.0f)
+    , adaptThreshPaused     (false)
+    , adaptStartLR          (0.2)
+    , adaptDecay            (0.001)
+    , adaptCurrDenom        (1.0)
+    , adaptCurrDiv          (1.0)
+    , adaptEventChanName    ("")
     , thresholdChannel      (-1)
     , inputChannel          (0)
     , validSubProcFullID    (0)
@@ -54,6 +60,11 @@ CrossingDetector::CrossingDetector()
     , turnoffEvent          (nullptr)
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
+
+    adaptWrapRange[0] = -180.0f;
+    adaptWrapRange[1] = 180.0f;
+    randomThreshRange[0] = -180.0f;
+    randomThreshRange[1] = 180.0f;
     thresholdVal = constantThresh;
 }
 
@@ -146,7 +157,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
     }
 
     // adapt threshold if necessary
-    if (thresholdType == ADAPTIVE)
+    if (thresholdType == ADAPTIVE && adaptEventChan > -1)
     {
         checkForEvents();
     }
@@ -247,7 +258,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
             // if using random thresholds, set a new threshold
             if (thresholdType == RANDOM)
             {
-                currRandomThresh = nextThresh();
+                currRandomThresh = nextRandomThresh();
                 thresholdVal = currRandomThresh;
             }
         }
@@ -276,22 +287,76 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
             thresholdVal = constantThresh;
             break;
 
+        case ADAPTIVE:
+            constantThresh = startAdaptThresh;
+            thresholdVal = constantThresh;
+            adaptCurrDenom = 1.0;
+            adaptCurrDiv = 1.0;
+            break;
+
         case RANDOM:
             // get new random threshold
-            currRandomThresh = nextThresh();
+            currRandomThresh = nextRandomThresh();
             thresholdVal = currRandomThresh;
             break;
 
         case CHANNEL:
             jassert(isCompatibleWithInput(thresholdChannel));
             thresholdVal = toChannelThreshString(thresholdChannel);
+            break;
         }
 
         break;
 
+    case CONST_THRESH:
+        constantThresh = newValue;
+        break;
+
+    case ADAPT_EVENT_CHAN:
+        if (!isValidAdaptiveThresholdChan(getEventChannel(static_cast<int>(newValue))))
+        {
+            jassertfalse;
+            return;
+        }
+        adaptEventChan = static_cast<int>(newValue);
+        adaptEventChanName = getEventChannel(adaptEventChan)->getName();
+        break;
+
+    case ADAPT_EVENT_TARGET:
+        adaptEventTarget = newValue;
+        break;
+
+    case ADAPT_USE_RANGE:
+        useAdaptWrapRange = newValue ? true : false;
+        break;
+
+    case ADAPT_RANGE_MIN:
+        adaptWrapRange[0] = newValue;
+        break;
+
+    case ADAPT_RANGE_MAX:
+        adaptWrapRange[1] = newValue;
+        break;
+
+    case START_ADAPT_THRESH:
+        startAdaptThresh = newValue;
+        break;
+
+    case ADAPT_THRESH_PAUSED:
+        adaptThreshPaused = newValue ? true : false;
+        break;
+
+    case ADAPT_LEARNING_RATE:
+        adaptStartLR = newValue;
+        break;
+
+    case ADAPT_DECAY:
+        adaptDecay = newValue;
+        break;
+
     case MIN_RAND_THRESH:
-        minRandomThresh = newValue;
-        currRandomThresh = nextThresh();
+        randomThreshRange[0] = newValue;
+        currRandomThresh = nextRandomThresh();
         if (thresholdType == RANDOM)
         {
             thresholdVal = currRandomThresh;
@@ -299,24 +364,12 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         break;
 
     case MAX_RAND_THRESH:
-        maxRandomThresh = newValue;
-        currRandomThresh = nextThresh();
+        randomThreshRange[1] = newValue;
+        currRandomThresh = nextRandomThresh();
         if (thresholdType == RANDOM)
         {
             thresholdVal = currRandomThresh;
         }
-        break;
-
-    case CONST_THRESH:
-        constantThresh = newValue;
-        break;
-
-    case START_ADAPT_THRESH:
-        startAdaptiveThresh = newValue;
-        break;
-
-    case ADAPT_THRESH_PAUSED:
-        adaptiveThreshPaused = newValue ? true : false;
         break;
 
     case THRESH_CHAN:
@@ -424,26 +477,148 @@ bool CrossingDetector::enable()
     float sampleRate = getDataChannel(inputChannel)->getSampleRate();
     eventDurationSamp = static_cast<int>(ceil(eventDuration * sampleRate / 1000.0f));
     timeoutSamp = static_cast<int>(floor(timeout * sampleRate / 1000.0f));
+    resetAdaptiveThreshold();
     return isEnabled;
 }
 
 bool CrossingDetector::disable()
 {
     // set this to pastSpan so that we don't trigger on old data when we start again.
-    sampToReenable = pastSpan + futureSpan + 1;
+    sampToReenable = pastSpan + futureSpan + 1;    
     // cancel any pending turning-off
     turnoffEvent = nullptr;
     return true;
 }
 
-// ----- private methods ------
+// ----- private functions ------
 
 void CrossingDetector::handleEvent(const EventChannel* eventInfo, const MidiMessage& event, int samplePosition)
 {
-    if (thresholdType == ADAPTIVE && eventInfo->getIdentifier() == "phasecalc.visphase")
+    jassert(adaptEventChan > -1);
+    const EventChannel* adaptChanInfo = getEventChannel(adaptEventChan);
+    jassert(isValidAdaptiveThresholdChan(adaptChanInfo));
+    if (eventInfo == adaptChanInfo && thresholdType == ADAPTIVE && !adaptThreshPaused)
     {
-        // TODO actually implement adaptation algorithm
+        // get error of received event
+        BinaryEventPtr binaryEvent = BinaryEvent::deserializeFromMessage(event, eventInfo);
+        if (binaryEvent == nullptr)
+        {
+            return;
+        }
+        float eventValue = floatFromBinaryEvent(binaryEvent);
+        float eventErr = errorFromEventTarget(eventValue);
+
+        // update state
+        adaptCurrDiv += adaptDecay;
+        adaptCurrDenom *= adaptCurrDiv;
+        float currLR = adaptStartLR / adaptCurrDenom;
+
+        // update threshold
+        constantThresh -= currLR * eventErr;
+        thresholdVal = constantThresh;
     }
+}
+
+float CrossingDetector::errorFromEventTarget(float x)
+{
+    if (useAdaptWrapRange)
+    {
+        float rangeSize = adaptWrapRange[1] - adaptWrapRange[0];
+        float linearErr = x - adaptEventTarget;
+        if (std::abs(linearErr) < rangeSize / 2)
+        {
+            return linearErr;
+        }
+        else
+        {
+            return linearErr > 0 ? linearErr - rangeSize : linearErr + rangeSize;
+        }
+    }
+    else
+    {
+        return x - adaptEventTarget;
+    }
+}
+
+void CrossingDetector::resetAdaptiveThreshold()
+{
+    adaptCurrDenom = 1.0;
+    adaptCurrDiv = 1.0;
+    if (thresholdType == ADAPTIVE)
+    {
+        constantThresh = startAdaptThresh;
+        thresholdVal = constantThresh;
+    }
+}
+
+float CrossingDetector::floatFromBinaryEvent(BinaryEventPtr& eventPtr)
+{
+    jassert(eventPtr != nullptr);
+    const void *ptr = eventPtr->getBinaryDataPointer();
+    switch (eventPtr->getBinaryType())
+    {
+    case EventChannel::INT8_ARRAY:
+        return static_cast<float>(*(static_cast<const juce::int8*>(ptr)));
+    case EventChannel::UINT8_ARRAY:
+        return static_cast<float>(*(static_cast<const juce::uint8*>(ptr)));
+    case EventChannel::INT16_ARRAY:
+        return static_cast<float>(*(static_cast<const juce::int16*>(ptr)));
+    case EventChannel::UINT16_ARRAY:
+        return static_cast<float>(*(static_cast<const juce::uint16*>(ptr)));
+    case EventChannel::INT32_ARRAY:
+        return static_cast<float>(*(static_cast<const juce::int32*>(ptr)));
+    case EventChannel::UINT32_ARRAY:
+        return static_cast<float>(*(static_cast<const juce::uint32*>(ptr)));
+    case EventChannel::INT64_ARRAY:
+        return static_cast<float>(*(static_cast<const juce::int64*>(ptr)));
+    case EventChannel::UINT64_ARRAY:
+        return static_cast<float>(*(static_cast<const juce::uint64*>(ptr)));
+    case EventChannel::FLOAT_ARRAY:
+        return *(static_cast<const float*>(ptr));
+    case EventChannel::DOUBLE_ARRAY:
+        return static_cast<float>(*(static_cast<const double*>(ptr)));
+    default:
+        jassertfalse;
+        return 0;
+    }
+}
+
+bool CrossingDetector::isValidAdaptiveThresholdChan(const EventChannel* eventInfo)
+{
+    EventChannel::EventChannelTypes type = eventInfo->getChannelType();
+    bool isBinary = type >= EventChannel::BINARY_BASE_VALUE && type < EventChannel::INVALID;
+    bool isNonempty = eventInfo->getLength() > 0;
+    return isBinary && isNonempty;
+}
+
+float CrossingDetector::nextRandomThresh()
+{
+    float range = randomThreshRange[1] - randomThreshRange[0];
+    return randomThreshRange[0] + range * rng.nextFloat();
+}
+
+juce::uint32 CrossingDetector::getSubProcFullID(int chanNum) const
+{
+    const DataChannel* chan = getDataChannel(chanNum);
+    jassert(chan != nullptr);
+    uint16 sourceNodeID = chan->getSourceNodeID();
+    uint16 subProcessorIdx = chan->getSubProcessorIdx();
+    return getProcessorFullId(sourceNodeID, subProcessorIdx);
+}
+
+bool CrossingDetector::isCompatibleWithInput(int chanNum) const
+{
+    if (chanNum == inputChannel || getDataChannel(chanNum) == nullptr)
+    {
+        return false;
+    }
+
+    return getSubProcFullID(chanNum) == validSubProcFullID;
+}
+
+String CrossingDetector::toChannelThreshString(int chanNum)
+{
+    return "<chan " + String(chanNum + 1) + ">";
 }
 
 bool CrossingDetector::shouldTrigger(bool direction, float preVal, float postVal,
@@ -487,12 +662,6 @@ bool CrossingDetector::shouldTrigger(bool direction, float preVal, float postVal
             return false;
         }
     }
-}
-
-float CrossingDetector::nextThresh()
-{
-    float range = maxRandomThresh - minRandomThresh;
-    return minRandomThresh + range * rng.nextFloat();
 }
 
 void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
@@ -550,28 +719,4 @@ void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
         // save for later
         turnoffEvent = eventOff;
     }
-}
-
-juce::uint32 CrossingDetector::getSubProcFullID(int chanNum) const
-{
-    const DataChannel* chan = getDataChannel(chanNum);
-    jassert(chan != nullptr);
-    uint16 sourceNodeID = chan->getSourceNodeID();
-    uint16 subProcessorIdx = chan->getSubProcessorIdx();
-    return getProcessorFullId(sourceNodeID, subProcessorIdx);
-}
-
-bool CrossingDetector::isCompatibleWithInput(int chanNum) const
-{
-    if (chanNum == inputChannel || getDataChannel(chanNum) == nullptr)
-    {
-        return false;
-    }
-
-    return getSubProcFullID(chanNum) == validSubProcFullID;
-}
-
-String CrossingDetector::toChannelThreshString(int chanNum)
-{
-    return "<chan " + String(chanNum + 1) + ">";
 }
