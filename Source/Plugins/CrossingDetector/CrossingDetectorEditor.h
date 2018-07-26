@@ -53,6 +53,30 @@ class RadioButtonLookAndFeel : public LookAndFeel_V2
         const bool isMouseOverButton, const bool isButtonDown) override;
 };
 
+/* Renders a rounded rectangular component behind and encompassing each group of
+ * components added, with matching widths. Components of each group are not added
+ * as children to the groupset or backgrounds; they are just used to position the backgrounds.
+ * Each component passed in must already have a parent.
+ */
+class VerticalGroupSet : public Component
+{
+public:
+#define DEFAULT_COLOR Colours::silver
+    VerticalGroupSet(Colour backgroundColor = DEFAULT_COLOR);
+    VerticalGroupSet(const String& componentName, Colour backgroundColor = DEFAULT_COLOR);
+#undef DEFAULT_COLOR
+    ~VerticalGroupSet();
+
+    void addGroup(std::initializer_list<Component*> components);
+
+private:
+    Colour bgColor;
+    int leftBound;
+    int rightBound;
+    static const int PADDING = 5;
+    static const int CORNER_SIZE = 8;
+};
+
 class CrossingDetectorCanvas;
 
 class CrossingDetectorEditor 
@@ -127,11 +151,18 @@ private:
 
     ScopedPointer<Label> optionsPanelTitle;
     
-    ScopedPointer<Label> thresholdTitle;
+    /****** threshold section ******/
 
+    ScopedPointer<Label> thresholdTitle;
     const static int threshRadioId = 1;
+    ScopedPointer<VerticalGroupSet> thresholdGroupSet;
 
     ScopedPointer<ToggleButton> constantThreshButton;
+
+    // adaptive threshold
+    //ScopedPointer<ToggleButton> adaptiveThreshButton;
+
+    
 
     // threshold randomization
     ScopedPointer<ToggleButton> randomizeButton;
@@ -144,7 +175,10 @@ private:
     ScopedPointer<ToggleButton> channelThreshButton;
     ScopedPointer<ComboBox> channelThreshBox; 
 
+    /******* criteria section *******/
+
     ScopedPointer<Label> criteriaTitle;
+    ScopedPointer<VerticalGroupSet> criteriaGroupSet;
 
     // jump limiting
     ScopedPointer<ToggleButton> limitButton;
@@ -168,12 +202,15 @@ private:
 
     ScopedPointer<Label> votingFooter;
 
+    /******** output section *******/
+
     ScopedPointer<Label> outputTitle;
+    ScopedPointer<VerticalGroupSet> outputGroupSet;
 
     // event duration
-    ScopedPointer<Label> durLabel;
+    ScopedPointer<Label> durationLabel;
     ScopedPointer<Label> durationEditable;
-    ScopedPointer<Label> durUnitLabel;
+    ScopedPointer<Label> durationUnit;
 };
 
 // Visualizer window containing additional settings

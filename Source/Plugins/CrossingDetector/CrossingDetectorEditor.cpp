@@ -130,6 +130,9 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
 
     /* ~~~~~~~~ Threshold type ~~~~~~~~ */
 
+    thresholdGroupSet = new VerticalGroupSet("Threshold controls");
+    optionsPanel->addAndMakeVisible(thresholdGroupSet, 0);
+
     xPos = LEFT_EDGE;
     yPos += 45;
 
@@ -152,12 +155,14 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
         dontSendNotification);
     constantThreshButton->setTooltip("Use a constant threshold (set on the main editor window)");
     constantThreshButton->addListener(this);
-    optionsPanel->addAndMakeVisible(constantThreshButton);
+    optionsPanel->addAndMakeVisible(constantThreshButton);    
     opBounds = opBounds.getUnion(bounds);
+
+    thresholdGroupSet->addGroup({ constantThreshButton });
 
     /* --------- Random threshold ---------- */
 
-    yPos += 35;
+    yPos += 40;
 
     randomizeButton = new ToggleButton("Drawn from uniform distribution");
     randomizeButton->setLookAndFeel(&rbLookAndFeel);
@@ -194,11 +199,19 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     maxThreshEditable->setEnabled(randomizeButton->getToggleState());
     optionsPanel->addAndMakeVisible(maxThreshEditable);
     opBounds = opBounds.getUnion(bounds);
+
+    thresholdGroupSet->addGroup({
+        randomizeButton,
+        minThreshLabel,
+        minThreshEditable,
+        maxThreshLabel,
+        maxThreshEditable
+    });
     
     /* ------------ Channel threshold ---------- */
 
     xPos = LEFT_EDGE + TAB_WIDTH;
-    yPos += 35;
+    yPos += 40;
 
     channelThreshButton = new ToggleButton("Continuous channel #:");
     channelThreshButton->setLookAndFeel(&rbLookAndFeel);
@@ -222,7 +235,12 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     optionsPanel->addAndMakeVisible(channelThreshBox);
     opBounds = opBounds.getUnion(bounds);
 
+    thresholdGroupSet->addGroup({ channelThreshButton, channelThreshBox });
+
     /* ~~~~~~~~~~ Criteria section  ~~~~~~~~~~~~ */
+
+    criteriaGroupSet = new VerticalGroupSet("Event criteria controls");
+    optionsPanel->addAndMakeVisible(criteriaGroupSet, 0);
 
     xPos = LEFT_EDGE;
     yPos += 40;
@@ -255,6 +273,8 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     limitEditable->setEnabled(processor->useJumpLimit);
     optionsPanel->addAndMakeVisible(limitEditable);
     opBounds = opBounds.getUnion(bounds);
+
+    criteriaGroupSet->addGroup({ limitButton, limitLabel, limitEditable });
 
     /* --------------- Sample voting ------------------ */
     xPos = LEFT_EDGE + TAB_WIDTH;
@@ -331,7 +351,17 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     optionsPanel->addAndMakeVisible(votingFooter);
     opBounds = opBounds.getUnion(bounds);
 
+    criteriaGroupSet->addGroup({
+        votingHeader,
+        pastStrictLabel,   pastPctEditable,   pastPctLabel,   pastSpanEditable,   pastSpanLabel,
+        futureStrictLabel, futurePctEditable, futurePctLabel, futureSpanEditable, futureSpanLabel,
+        votingFooter
+    });
+
     /* ~~~~~~~~~~~~~~~ Output section ~~~~~~~~~~~~ */
+
+    outputGroupSet = new VerticalGroupSet("Output controls");
+    optionsPanel->addAndMakeVisible(outputGroupSet, 0);
 
     xPos = LEFT_EDGE;
     yPos += 40;
@@ -347,9 +377,9 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     xPos += TAB_WIDTH;
     yPos += 45;
 
-    durLabel = new Label("DurL", "Event duration:");
-    durLabel->setBounds(bounds = { xPos, yPos, 105, C_TEXT_HT });
-    optionsPanel->addAndMakeVisible(durLabel);
+    durationLabel = new Label("DurL", "Event duration:");
+    durationLabel->setBounds(bounds = { xPos, yPos, 105, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(durationLabel);
     opBounds = opBounds.getUnion(bounds);
 
     durationEditable = createEditable("DurE", String(processor->eventDuration), "",
@@ -357,12 +387,21 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     optionsPanel->addAndMakeVisible(durationEditable);
     opBounds = opBounds.getUnion(bounds);
 
-    durUnitLabel = new Label("DurUnitL", "ms");
-    durUnitLabel->setBounds(bounds = { xPos += 45, yPos, 30, C_TEXT_HT });
-    optionsPanel->addAndMakeVisible(durUnitLabel);
+    durationUnit = new Label("DurUnitL", "ms");
+    durationUnit->setBounds(bounds = { xPos += 45, yPos, 30, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(durationUnit);
     opBounds = opBounds.getUnion(bounds);
 
+    outputGroupSet->addGroup({ durationLabel, durationEditable, durationUnit });
+
+    // some extra padding
+    opBounds.setBottom(opBounds.getBottom() + 10);
+    opBounds.setRight(opBounds.getRight() + 10);
+
     optionsPanel->setBounds(opBounds);
+    thresholdGroupSet->setBounds(opBounds);
+    criteriaGroupSet->setBounds(opBounds);
+    outputGroupSet->setBounds(opBounds);
 }
 
 CrossingDetectorEditor::~CrossingDetectorEditor() {}
@@ -948,5 +987,79 @@ void RadioButtonLookAndFeel::drawTickBox(Graphics& g, Component& component,
         g.setColour(component.findColour(isEnabled ? ToggleButton::tickColourId
             : ToggleButton::tickDisabledColourId));
         g.fillEllipse(glassSphereBounds.withSizeKeepingCentre(tickSize, tickSize));
+    }
+}
+
+/************ VerticalGroupSet ****************/
+
+VerticalGroupSet::VerticalGroupSet(Colour backgroundColor)
+    : Component ()
+    , bgColor   (backgroundColor)
+    , leftBound (INT_MAX)
+    , rightBound(INT_MIN)
+{}
+
+VerticalGroupSet::VerticalGroupSet(const String& componentName, Colour backgroundColor)
+    : Component (componentName)
+    , bgColor   (backgroundColor)
+    , leftBound (INT_MAX)
+    , rightBound(INT_MIN)
+{}
+
+VerticalGroupSet::~VerticalGroupSet() {}
+
+void VerticalGroupSet::addGroup(std::initializer_list<Component*> components)
+{
+    if (!getParentComponent())
+    {
+        jassertfalse;
+        return;
+    }
+
+    DrawableRectangle* thisBackground;
+    addChildComponent((thisBackground = new DrawableRectangle));
+    const RelativePoint cornerSize(CORNER_SIZE, CORNER_SIZE);
+    thisBackground->setCornerSize(cornerSize);
+    thisBackground->setFill(bgColor);
+
+    int topBound = INT_MAX;
+    int bottomBound = INT_MIN;
+    for (auto component : components)
+    {
+        Component* componentParent = component->getParentComponent();
+        if (!componentParent)
+        {
+            jassertfalse;
+            return;
+        }
+        int width = component->getWidth();
+        int height = component->getHeight();
+        Point<int> positionFromItsParent = component->getPosition();
+        Point<int> localPosition = getLocalPoint(componentParent, positionFromItsParent);
+
+        // update bounds
+        leftBound = jmin(leftBound, localPosition.x - PADDING);
+        rightBound = jmax(rightBound, localPosition.x + width + PADDING);
+        topBound = jmin(topBound, localPosition.y - PADDING);
+        bottomBound = jmax(bottomBound, localPosition.y + height + PADDING);
+    }
+
+    // set new background's bounds
+    auto bounds = juce::Rectangle<float>::leftTopRightBottom(leftBound, topBound, rightBound, bottomBound);
+    thisBackground->setRectangle(bounds);
+    thisBackground->setVisible(true);
+
+    // update all other children
+    int newChildInd = getIndexOfChildComponent(thisBackground);
+    int nChildren = getNumChildComponents();
+    for (int kC = 0; kC < nChildren; ++kC)
+    {
+        if (kC == newChildInd) { continue; }
+
+        auto bg = static_cast<DrawableRectangle*>(getChildComponent(kC));
+        topBound = bg->getPosition().y;
+        bottomBound = topBound + bg->getHeight();
+        bounds = juce::Rectangle<float>::leftTopRightBottom(leftBound, topBound, rightBound, bottomBound);
+        bg->setRectangle(bounds);
     }
 }
