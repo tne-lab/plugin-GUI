@@ -109,14 +109,19 @@ private:
     void handleEvent(const EventChannel* eventInfo, const MidiMessage& event,
         int samplePosition = 0) override;
 
+    // Reset the learning rate, denominator and threshold of adaptive threshold
+    void resetAdaptiveThreshold();
+
     /* Calculates the error of x from the eventTarget, taking the wrapRange into account if enabled.
      * That is, if useWrapRange is false, just calculates x - eventTarget; if useWrapRange is true,
      * returns the error either with or without wrapping with the minimum absolute value.
      */
-    float errorFromEventTarget(float x);
+    float errorFromEventTarget(float x) const;
 
-    // Reset the learning rate, denominator and threshold of adaptive threshold
-    void resetAdaptiveThreshold();
+    /* Calculates the equivalent value of the given float within the current wrapRange
+     * (e.g. if adaptWrapRange[0] == 0, returns the positive float equivalent of x % adaptWrapRange[1])
+     */
+    float valInWrapRange(float x) const;
 
     /* Convert the first element of a binary event to a float, regardless of the type
      * (assumes eventPtr is not null)
@@ -175,7 +180,6 @@ private:
     float adaptEventTarget;
     bool useAdaptWrapRange;
     float adaptWrapRange[2];
-    float startAdaptThresh;
     bool adaptThreshPaused;
     double adaptStartLR;
     double adaptDecay;
@@ -234,14 +238,12 @@ private:
     Value thresholdVal; // underlying value of the threshold label
 
     /* If using adaptive threshold, learning rate evolves by this formula:
-     * LR_{t} = LR_{0} / denom_{t}
-     * div_{0} = 1
-     * div_{t+1} = div_{t} + decay
+     * LR_{t} = LR_{t-1} / denom_{t}
      * denom_{0} = 1
-     * denom_{t+1} = denom_{t} * div_{t+1}
+     * denom_{t+1} = denom_{t} + decay
      */
+    double adaptCurrLR;
     double adaptCurrDenom;  // what the LR was last divided by
-    double adaptCurrDiv;    // what the denominator was last multiplied by
     
     String adaptEventChanName; // save so that we can try to find a matching channel when updating
 

@@ -61,10 +61,8 @@ class RadioButtonLookAndFeel : public LookAndFeel_V2
 class VerticalGroupSet : public Component
 {
 public:
-#define DEFAULT_COLOR Colours::silver
-    VerticalGroupSet(Colour backgroundColor = DEFAULT_COLOR);
-    VerticalGroupSet(const String& componentName, Colour backgroundColor = DEFAULT_COLOR);
-#undef DEFAULT_COLOR
+    VerticalGroupSet(Colour backgroundColor = Colours::silver);
+    VerticalGroupSet(const String& componentName, Colour backgroundColor = Colours::silver);
     ~VerticalGroupSet();
 
     void addGroup(std::initializer_list<Component*> components);
@@ -108,6 +106,28 @@ public:
     void loadCustomParameters(XmlElement* xml) override;
 
 private:
+    // Scope to be able to use "pi" in adaptive target range specification
+    class PiScope : public Expression::Scope
+    {
+        // copied from DSP library
+        const double doublePi = 3.1415926535897932384626433832795028841971;
+    public:
+        Expression getSymbolValue(const String& symbol) const override
+        {
+            if (symbol.equalsIgnoreCase("pi"))
+            {
+                return Expression(doublePi);
+            }
+            // to avoid exceptions, return a NaN instead to indicate a problem.
+            return Expression(NAN);
+        }
+    };
+
+    /* Utility for parsing a string as an expression with PiScope
+     * If unsuccessful, returns a nan.
+     * Else, if not null, simple will contain whether the passed string was a simple constant.
+     */
+    static float evalWithPiScope(const String& text, bool* simple = nullptr);
 
     // Basic UI element creation methods. Always register "this" (the editor) as the listener,
     // but may specify a different Component in which to actually display the element.
@@ -160,9 +180,26 @@ private:
     ScopedPointer<ToggleButton> constantThreshButton;
 
     // adaptive threshold
-    //ScopedPointer<ToggleButton> adaptiveThreshButton;
-
-    
+    // row 1
+    ScopedPointer<ToggleButton> adaptiveThreshButton;
+    ScopedPointer<ComboBox> adaptiveChanBox;
+    // row 2
+    ScopedPointer<Label> targetLabel;
+    ScopedPointer<Label> targetEditable;
+    String lastTargetEditableString;
+    ScopedPointer<ToggleButton> wrapRangeButton;
+    ScopedPointer<ComboBox> wrapRangeMinBox;
+    String lastWrapRangeMinString;
+    ScopedPointer<Label> wrapRangeTo;
+    ScopedPointer<ComboBox> wrapRangeMaxBox;
+    String lastWrapRangeMaxString;
+    // row 3
+    ScopedPointer<Label> learningRateLabel;
+    ScopedPointer<Label> learningRateEditable;
+    ScopedPointer<Label> decayRateLabel;
+    ScopedPointer<Label> decayRateEditable;
+    ScopedPointer<UtilityButton> resetButton;
+    ScopedPointer<UtilityButton> pauseButton;
 
     // threshold randomization
     ScopedPointer<ToggleButton> randomizeButton;
@@ -173,7 +210,7 @@ private:
 
     // threshold from channel
     ScopedPointer<ToggleButton> channelThreshButton;
-    ScopedPointer<ComboBox> channelThreshBox; 
+    ScopedPointer<ComboBox> channelThreshBox;
 
     /******* criteria section *******/
 

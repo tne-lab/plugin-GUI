@@ -31,12 +31,11 @@ CrossingDetector::CrossingDetector()
     , adaptEventChan        (-1)
     , adaptEventTarget      (0.0f)
     , useAdaptWrapRange     (true)
-    , startAdaptThresh      (0.0f)
     , adaptThreshPaused     (false)
     , adaptStartLR          (0.2)
     , adaptDecay            (0.001)
+    , adaptCurrLR           (adaptStartLR)
     , adaptCurrDenom        (1.0)
-    , adaptCurrDiv          (1.0)
     , adaptEventChanName    ("")
     , thresholdChannel      (-1)
     , inputChannel          (0)
@@ -288,10 +287,8 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
             break;
 
         case ADAPTIVE:
-            constantThresh = startAdaptThresh;
             thresholdVal = constantThresh;
-            adaptCurrDenom = 1.0;
-            adaptCurrDiv = 1.0;
+            resetAdaptiveThreshold();
             break;
 
         case RANDOM:
@@ -313,13 +310,21 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         break;
 
     case ADAPT_EVENT_CHAN:
-        if (!isValidAdaptiveThresholdChan(getEventChannel(static_cast<int>(newValue))))
+        if (newValue >= 0 && newValue < getTotalEventChannels())
         {
-            jassertfalse;
-            return;
+            if (!isValidAdaptiveThresholdChan(getEventChannel(static_cast<int>(newValue))))
+            {
+                jassertfalse;
+                return;
+            }
+            adaptEventChan = static_cast<int>(newValue);
+            adaptEventChanName = getEventChannel(adaptEventChan)->getName();
         }
-        adaptEventChan = static_cast<int>(newValue);
-        adaptEventChanName = getEventChannel(adaptEventChan)->getName();
+        else
+        {
+            adaptEventChan = -1;
+            adaptEventChanName = "";
+        }
         break;
 
     case ADAPT_EVENT_TARGET:
@@ -336,10 +341,6 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 
     case ADAPT_RANGE_MAX:
         adaptWrapRange[1] = newValue;
-        break;
-
-    case START_ADAPT_THRESH:
-        startAdaptThresh = newValue;
         break;
 
     case ADAPT_THRESH_PAUSED:
@@ -509,21 +510,27 @@ void CrossingDetector::handleEvent(const EventChannel* eventInfo, const MidiMess
         float eventErr = errorFromEventTarget(eventValue);
 
         // update state
-        adaptCurrDiv += adaptDecay;
-        adaptCurrDenom *= adaptCurrDiv;
-        float currLR = adaptStartLR / adaptCurrDenom;
+        adaptCurrDenom += adaptDecay;
+        adaptCurrLR /= adaptCurrDenom;
 
         // update threshold
-        constantThresh -= currLR * eventErr;
+        constantThresh -= adaptCurrLR * eventErr;
         thresholdVal = constantThresh;
     }
 }
 
-float CrossingDetector::errorFromEventTarget(float x)
+void CrossingDetector::resetAdaptiveThreshold()
+{
+    adaptCurrDenom = 1.0;
+    adaptCurrLR = adaptStartLR;
+}
+
+float CrossingDetector::errorFromEventTarget(float x) const
 {
     if (useAdaptWrapRange)
     {
         float rangeSize = adaptWrapRange[1] - adaptWrapRange[0];
+        jassert(rangeSize >= 0);
         float linearErr = x - adaptEventTarget;
         if (std::abs(linearErr) < rangeSize / 2)
         {
@@ -540,15 +547,18 @@ float CrossingDetector::errorFromEventTarget(float x)
     }
 }
 
-void CrossingDetector::resetAdaptiveThreshold()
+float CrossingDetector::valInWrapRange(float x) const
 {
-    adaptCurrDenom = 1.0;
-    adaptCurrDiv = 1.0;
-    if (thresholdType == ADAPTIVE)
+    float top = adaptWrapRange[1], bottom = adaptWrapRange[0];
+    float rangeSize = top - bottom;
+    jassert(rangeSize >= 0);
+    if (rangeSize == 0)
     {
-        constantThresh = startAdaptThresh;
-        thresholdVal = constantThresh;
+        return bottom;
     }
+
+    float rem = fmod(x - bottom, rangeSize);
+    return rem > 0 ? bottom + rem : bottom + rem + rangeSize;
 }
 
 float CrossingDetector::floatFromBinaryEvent(BinaryEventPtr& eventPtr)
