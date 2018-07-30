@@ -36,7 +36,7 @@ Editor (in signal chain) contains:
 - Event timeout control
 
 Canvas/visualizer contains:
-- Threshold type selection - constant, random, or channel (with parameters)
+- Threshold type selection - constant, adaptive, random, or channel (with parameters)
 - Jump limiting toggle and max jump box
 - Voting settings (pre/post event span and strictness)
 - Event duration control
@@ -130,6 +130,14 @@ private:
      */
     static float evalWithPiScope(const String& text, bool* simple = nullptr);
 
+    /* Update a Component that takes an Expression and sets the corresponding parameter.
+     * Returns the new float value. If the expression was not evaluated successfully,
+     * std::isfinite called on the return value will return false.
+     * @param paramToChange should be a member of the CrossingDetector::Parameter enum.
+     */
+    template<typename T>
+    float updateExpressionComponent(T* component, String& lastText, int paramToChange);
+
     // Basic UI element creation methods. Always register "this" (the editor) as the listener,
     // but may specify a different Component in which to actually display the element.
     Label* createEditable(const String& name, const String& initialValue,
@@ -183,17 +191,17 @@ private:
     // adaptive threshold
     // row 1
     ScopedPointer<ToggleButton> adaptiveThreshButton;
-    ScopedPointer<ComboBox> adaptiveChanBox;
+    ScopedPointer<ComboBox> indicatorChanBox;
     // row 2
     ScopedPointer<Label> targetLabel;
     ScopedPointer<Label> targetEditable;
     String lastTargetEditableString;
-    ScopedPointer<ToggleButton> wrapRangeButton;
-    ScopedPointer<ComboBox> wrapRangeMinBox;
-    String lastWrapRangeMinString;
-    ScopedPointer<Label> wrapRangeTo;
-    ScopedPointer<ComboBox> wrapRangeMaxBox;
-    String lastWrapRangeMaxString;
+    ScopedPointer<ToggleButton> indicatorRangeButton;
+    ScopedPointer<ComboBox> indicatorRangeMinBox;
+    String lastIndicatorRangeMinString;
+    ScopedPointer<Label> indicatorRangeTo;
+    ScopedPointer<ComboBox> indicatorRangeMaxBox;
+    String lastIndicatorRangeMaxString;
     // row 3
     ScopedPointer<Label> learningRateLabel;
     ScopedPointer<Label> learningRateEditable;
@@ -201,6 +209,13 @@ private:
     ScopedPointer<Label> decayRateEditable;
     ScopedPointer<UtilityButton> resetButton;
     ScopedPointer<UtilityButton> pauseButton;
+    // row 4
+    ScopedPointer<ToggleButton> threshRangeButton;
+    ScopedPointer<ComboBox> threshRangeMinBox;
+    String lastThreshRangeMinString;
+    ScopedPointer<Label> threshRangeTo;
+    ScopedPointer<ComboBox> threshRangeMaxBox;
+    String lastThreshRangeMaxString;
 
     // threshold randomization
     ScopedPointer<ToggleButton> randomizeButton;

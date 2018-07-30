@@ -29,13 +29,14 @@ CrossingDetector::CrossingDetector()
     , thresholdType         (CONSTANT)
     , constantThresh        (0.0f)
     , adaptEventChan        (-1)
-    , adaptEventTarget      (0.0f)
-    , useAdaptWrapRange     (true)
+    , indicatorTarget       (0.0f)
+    , useIndicatorRange     (true)
+    , startLearningRate     (0.2)
+    , decayRate             (0.001)
     , adaptThreshPaused     (false)
-    , adaptStartLR          (0.2)
-    , adaptDecay            (0.001)
-    , adaptCurrLR           (adaptStartLR)
-    , adaptCurrDenom        (1.0)
+    , useAdaptThreshRange   (true)
+    , currLearningRate      (startLearningRate)
+    , currLRDivisor         (1.0)
     , adaptEventChanName    ("")
     , thresholdChannel      (-1)
     , inputChannel          (0)
@@ -60,8 +61,10 @@ CrossingDetector::CrossingDetector()
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
 
-    adaptWrapRange[0] = -180.0f;
-    adaptWrapRange[1] = 180.0f;
+    indicatorRange[0] = -180.0f;
+    indicatorRange[1] = 180.0f;
+    adaptThreshRange[0] = -180.0f;
+    adaptThreshRange[1] = 180.0f;
     randomThreshRange[0] = -180.0f;
     randomThreshRange[1] = 180.0f;
     thresholdVal = constantThresh;
@@ -309,10 +312,10 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         constantThresh = newValue;
         break;
 
-    case ADAPT_EVENT_CHAN:
+    case INDICATOR_CHAN:
         if (newValue >= 0 && newValue < getTotalEventChannels())
         {
-            if (!isValidAdaptiveThresholdChan(getEventChannel(static_cast<int>(newValue))))
+            if (!isValidIndicatorChan(getEventChannel(static_cast<int>(newValue))))
             {
                 jassertfalse;
                 return;
@@ -327,32 +330,44 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         }
         break;
 
-    case ADAPT_EVENT_TARGET:
-        adaptEventTarget = newValue;
+    case INDICATOR_TARGET:
+        indicatorTarget = newValue;
         break;
 
-    case ADAPT_USE_RANGE:
-        useAdaptWrapRange = newValue ? true : false;
+    case USE_INDICATOR_RANGE:
+        useIndicatorRange = newValue ? true : false;
         break;
 
-    case ADAPT_RANGE_MIN:
-        adaptWrapRange[0] = newValue;
+    case MIN_INDICATOR:
+        indicatorRange[0] = newValue;
         break;
 
-    case ADAPT_RANGE_MAX:
-        adaptWrapRange[1] = newValue;
+    case MAX_INDICATOR:
+        indicatorRange[1] = newValue;
         break;
 
-    case ADAPT_THRESH_PAUSED:
+    case LEARNING_RATE:
+        startLearningRate = newValue;
+        break;
+
+    case DECAY_RATE:
+        decayRate = newValue;
+        break;
+
+    case ADAPT_PAUSED:
         adaptThreshPaused = newValue ? true : false;
         break;
 
-    case ADAPT_LEARNING_RATE:
-        adaptStartLR = newValue;
+    case USE_THRESH_RANGE:
+        useAdaptThreshRange = newValue ? true : false;
         break;
 
-    case ADAPT_DECAY:
-        adaptDecay = newValue;
+    case MIN_ADAPTED_THRESH:
+        adaptThreshRange[0] = newValue;
+        break;
+
+    case MAX_ADAPTED_THRESH:
+        adaptThreshRange[1] = newValue;
         break;
 
     case MIN_RAND_THRESH:
@@ -497,7 +512,7 @@ void CrossingDetector::handleEvent(const EventChannel* eventInfo, const MidiMess
 {
     jassert(adaptEventChan > -1);
     const EventChannel* adaptChanInfo = getEventChannel(adaptEventChan);
-    jassert(isValidAdaptiveThresholdChan(adaptChanInfo));
+    jassert(isValidIndicatorChan(adaptChanInfo));
     if (eventInfo == adaptChanInfo && thresholdType == ADAPTIVE && !adaptThreshPaused)
     {
         // get error of received event
@@ -507,31 +522,35 @@ void CrossingDetector::handleEvent(const EventChannel* eventInfo, const MidiMess
             return;
         }
         float eventValue = floatFromBinaryEvent(binaryEvent);
-        float eventErr = errorFromEventTarget(eventValue);
+        float eventErr = errorFromTarget(eventValue);
 
         // update state
-        adaptCurrDenom += adaptDecay;
-        adaptCurrLR /= adaptCurrDenom;
+        currLRDivisor += decayRate;
+        currLearningRate /= currLRDivisor;
 
         // update threshold
-        constantThresh -= adaptCurrLR * eventErr;
+        constantThresh -= currLearningRate * eventErr;
+        if (useAdaptThreshRange)
+        {
+            constantThresh = toThresholdInRange(constantThresh);
+        }
         thresholdVal = constantThresh;
     }
 }
 
 void CrossingDetector::resetAdaptiveThreshold()
 {
-    adaptCurrDenom = 1.0;
-    adaptCurrLR = adaptStartLR;
+    currLRDivisor = 1.0;
+    currLearningRate = startLearningRate;
 }
 
-float CrossingDetector::errorFromEventTarget(float x) const
+float CrossingDetector::errorFromTarget(float x) const
 {
-    if (useAdaptWrapRange)
+    if (useIndicatorRange)
     {
-        float rangeSize = adaptWrapRange[1] - adaptWrapRange[0];
+        float rangeSize = indicatorRange[1] - indicatorRange[0];
         jassert(rangeSize >= 0);
-        float linearErr = x - adaptEventTarget;
+        float linearErr = x - indicatorTarget;
         if (std::abs(linearErr) < rangeSize / 2)
         {
             return linearErr;
@@ -543,13 +562,18 @@ float CrossingDetector::errorFromEventTarget(float x) const
     }
     else
     {
-        return x - adaptEventTarget;
+        return x - indicatorTarget;
     }
 }
 
-float CrossingDetector::valInWrapRange(float x) const
+float CrossingDetector::toEquivalentInRange(float x, const float* range)
 {
-    float top = adaptWrapRange[1], bottom = adaptWrapRange[0];
+    if (!range)
+    {
+        jassertfalse;
+        return x;
+    }
+    float top = range[1], bottom = range[0];
     float rangeSize = top - bottom;
     jassert(rangeSize >= 0);
     if (rangeSize == 0)
@@ -559,6 +583,16 @@ float CrossingDetector::valInWrapRange(float x) const
 
     float rem = fmod(x - bottom, rangeSize);
     return rem > 0 ? bottom + rem : bottom + rem + rangeSize;
+}
+
+float CrossingDetector::toIndicatorInRange(float x) const
+{
+    return toEquivalentInRange(x, indicatorRange);
+}
+
+float CrossingDetector::toThresholdInRange(float x) const
+{
+    return toEquivalentInRange(x, adaptThreshRange);
 }
 
 float CrossingDetector::floatFromBinaryEvent(BinaryEventPtr& eventPtr)
@@ -593,7 +627,7 @@ float CrossingDetector::floatFromBinaryEvent(BinaryEventPtr& eventPtr)
     }
 }
 
-bool CrossingDetector::isValidAdaptiveThresholdChan(const EventChannel* eventInfo)
+bool CrossingDetector::isValidIndicatorChan(const EventChannel* eventInfo)
 {
     EventChannel::EventChannelTypes type = eventInfo->getChannelType();
     bool isBinary = type >= EventChannel::BINARY_BASE_VALUE && type < EventChannel::INVALID;

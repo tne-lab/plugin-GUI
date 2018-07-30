@@ -67,21 +67,23 @@ public:
     bool disable() override;
 
 private:
-    enum ThresholdType { CONSTANT, ADAPTIVE, RANDOM, CHANNEL };
+    enum ThresholdType { CONSTANT, RANDOM, CHANNEL, ADAPTIVE };
 
     enum Parameter
     {
         THRESH_TYPE,
         CONST_THRESH,
-        ADAPT_EVENT_CHAN,
-        ADAPT_EVENT_TARGET,
-        ADAPT_USE_RANGE,
-        ADAPT_RANGE_MIN,
-        ADAPT_RANGE_MAX,
-        START_ADAPT_THRESH,
-        ADAPT_THRESH_PAUSED,
-        ADAPT_LEARNING_RATE,
-        ADAPT_DECAY,
+        INDICATOR_CHAN,
+        INDICATOR_TARGET,
+        USE_INDICATOR_RANGE,
+        MIN_INDICATOR,
+        MAX_INDICATOR,
+        LEARNING_RATE,
+        DECAY_RATE,
+        ADAPT_PAUSED,
+        USE_THRESH_RANGE,
+        MIN_ADAPTED_THRESH,
+        MAX_ADAPTED_THRESH,
         MIN_RAND_THRESH,
         MAX_RAND_THRESH,
         THRESH_CHAN,
@@ -109,19 +111,26 @@ private:
     void handleEvent(const EventChannel* eventInfo, const MidiMessage& event,
         int samplePosition = 0) override;
 
-    // Reset the learning rate, denominator and threshold of adaptive threshold
+    // Reset the learning rate and divisor (if decay is nonzero)
     void resetAdaptiveThreshold();
 
-    /* Calculates the error of x from the eventTarget, taking the wrapRange into account if enabled.
-     * That is, if useWrapRange is false, just calculates x - eventTarget; if useWrapRange is true,
-     * returns the error either with or without wrapping with the minimum absolute value.
+    /* Calculates the error of x from the indicatorTarget, taking the indicatorRange
+     * into account if enabled. That is, if useIndicatorRange is false, just calculates
+     * x - indicatorTarget; if useIndicatorRange is true, returns either this difference
+     * or the distance via wrapping around the circle, whichever has smaller absolute value.
      */
-    float errorFromEventTarget(float x) const;
+    float errorFromTarget(float x) const;
 
-    /* Calculates the equivalent value of the given float within the current wrapRange
-     * (e.g. if adaptWrapRange[0] == 0, returns the positive float equivalent of x % adaptWrapRange[1])
+    /* Calculates the equivalent value of the given float within the given circular range (2-element array).
+     * (e.g. if range[0] == 0, returns the positive float equivalent of x % range[1])
      */
-    float valInWrapRange(float x) const;
+    static float toEquivalentInRange(float x, const float* range);
+
+    // toEquivalentInRange with range = indicatorRange
+    float toIndicatorInRange(float x) const;
+
+    // toEquivalentInRange with range = thresholdRange
+    float toThresholdInRange(float x) const;
 
     /* Convert the first element of a binary event to a float, regardless of the type
      * (assumes eventPtr is not null)
@@ -129,7 +138,7 @@ private:
     static float floatFromBinaryEvent(BinaryEventPtr& eventPtr);
 
     // Returns whether the given event chan can be used to train an adaptive threshold.
-    static bool isValidAdaptiveThresholdChan(const EventChannel* eventInfo);
+    static bool isValidIndicatorChan(const EventChannel* eventInfo);
 
     /********** random threshold ***********/
 
@@ -177,12 +186,14 @@ private:
 
     // if using adaptive threshold:
     int adaptEventChan; // index of the monitored event channel
-    float adaptEventTarget;
-    bool useAdaptWrapRange;
-    float adaptWrapRange[2];
+    float indicatorTarget;
+    bool useIndicatorRange;
+    float indicatorRange[2];
+    double startLearningRate;
+    double decayRate;
     bool adaptThreshPaused;
-    double adaptStartLR;
-    double adaptDecay;
+    bool useAdaptThreshRange;
+    float adaptThreshRange[2];
 
     // if using random thresholds:
     float randomThreshRange[2];
@@ -238,12 +249,12 @@ private:
     Value thresholdVal; // underlying value of the threshold label
 
     /* If using adaptive threshold, learning rate evolves by this formula:
-     * LR_{t} = LR_{t-1} / denom_{t}
-     * denom_{0} = 1
-     * denom_{t+1} = denom_{t} + decay
+     * LR_{t} = LR_{t-1} / divisor_{t}
+     * divisor_{0} = 1
+     * divisor_{t+1} = divisor_{t} + decay
      */
-    double adaptCurrLR;
-    double adaptCurrDenom;  // what the LR was last divided by
+    double currLearningRate;
+    double currLRDivisor;  // what the LR was last divided by
     
     String adaptEventChanName; // save so that we can try to find a matching channel when updating
 

@@ -176,13 +176,13 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     adaptiveThreshButton->addListener(this);
     optionsPanel->addAndMakeVisible(adaptiveThreshButton);
     opBounds = opBounds.getUnion(bounds);
-
-    adaptiveChanBox = new ComboBox("adaptiveChanBox");
-    adaptiveChanBox->setBounds(bounds = { xPos + 340, yPos, 300, C_TEXT_HT });
-    adaptiveChanBox->addListener(this);
-    adaptiveChanBox->setTooltip("Binary event channel carrying indicator values");
-    adaptiveChanBox->setEnabled(adaptiveThreshButton->getToggleState());
-    optionsPanel->addAndMakeVisible(adaptiveChanBox);
+    
+    indicatorChanBox = new ComboBox("indicatorChanBox");
+    indicatorChanBox->setBounds(bounds = { xPos + 340, yPos, 300, C_TEXT_HT });
+    indicatorChanBox->addListener(this);
+    indicatorChanBox->setTooltip("Binary event channel carrying indicator values");
+    indicatorChanBox->setEnabled(adaptiveThreshButton->getToggleState());
+    optionsPanel->addAndMakeVisible(indicatorChanBox);
     opBounds = opBounds.getUnion(bounds);
 
     xPos += TAB_WIDTH;
@@ -193,55 +193,55 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     optionsPanel->addAndMakeVisible(targetLabel);
     opBounds = opBounds.getUnion(bounds);
 
-    lastTargetEditableString = String(processor->adaptEventTarget);
-    targetEditable = createEditable("targetE", lastTargetEditableString,
+    lastTargetEditableString = String(processor->indicatorTarget);
+    targetEditable = createEditable("indicator target", lastTargetEditableString,
         "", bounds = { xPos += 150, yPos, 80, C_TEXT_HT });
     targetEditable->setEnabled(adaptiveThreshButton->getToggleState());
     optionsPanel->addAndMakeVisible(targetEditable);
     opBounds = opBounds.getUnion(bounds);
 
-    wrapRangeButton = new ToggleButton("within circular range from");
-    wrapRangeButton->setBounds(bounds = { xPos += 85, yPos, 190, C_TEXT_HT });
-    wrapRangeButton->setEnabled(adaptiveThreshButton->getToggleState());
-    wrapRangeButton->setToggleState(processor->useAdaptWrapRange, dontSendNotification);
-    wrapRangeButton->setTooltip(String("Treat the range of indicator values as circular and minimize the circular ") +
+    indicatorRangeButton = new ToggleButton("within circular range from");
+    indicatorRangeButton->setBounds(bounds = { xPos += 85, yPos, 190, C_TEXT_HT });
+    indicatorRangeButton->setEnabled(adaptiveThreshButton->getToggleState());
+    indicatorRangeButton->setToggleState(processor->useIndicatorRange, dontSendNotification);
+    indicatorRangeButton->setTooltip(String("Treat the range of indicator values as circular and minimize the circular ") +
         "distance from the target, with the minimum and maximum of the range considered equal.");
-    wrapRangeButton->addListener(this);
-    optionsPanel->addAndMakeVisible(wrapRangeButton);
+    indicatorRangeButton->addListener(this);
+    optionsPanel->addAndMakeVisible(indicatorRangeButton);
     opBounds = opBounds.getUnion(bounds);
 
-    bool enableRangeControls = adaptiveThreshButton->getToggleState() && wrapRangeButton->getToggleState();
+    bool enableRangeControls = adaptiveThreshButton->getToggleState() && indicatorRangeButton->getToggleState();
 
-    lastWrapRangeMinString = String(processor->adaptWrapRange[0]);
-    wrapRangeMinBox = new ComboBox("wrapRangeMin");
-    wrapRangeMinBox->setEditableText(true);
-    wrapRangeMinBox->addItem("-180", 1);
-    wrapRangeMinBox->addItem("-pi", 2);
-    wrapRangeMinBox->addItem("0", 3);
-    wrapRangeMinBox->setText(lastWrapRangeMinString, dontSendNotification);
-    wrapRangeMinBox->setBounds(bounds = { xPos += 190, yPos, 100, C_TEXT_HT });
-    wrapRangeMinBox->addListener(this);
-    wrapRangeMinBox->setEnabled(enableRangeControls);
-    optionsPanel->addAndMakeVisible(wrapRangeMinBox);
+    lastIndicatorRangeMinString = String(processor->indicatorRange[0]);
+    indicatorRangeMinBox = new ComboBox("minimum indicator value");
+    indicatorRangeMinBox->setEditableText(true);
+    indicatorRangeMinBox->addItem("-180", 1);
+    indicatorRangeMinBox->addItem("-pi", 2);
+    indicatorRangeMinBox->addItem("0", 3);
+    indicatorRangeMinBox->setText(lastIndicatorRangeMinString, dontSendNotification);
+    indicatorRangeMinBox->setBounds(bounds = { xPos += 190, yPos, 100, C_TEXT_HT });
+    indicatorRangeMinBox->addListener(this);
+    indicatorRangeMinBox->setEnabled(enableRangeControls);
+    optionsPanel->addAndMakeVisible(indicatorRangeMinBox);
     opBounds = opBounds.getUnion(bounds);
 
-    wrapRangeTo = new Label("wrapRangeToL", "to");
-    wrapRangeTo->setBounds(bounds = { xPos += 103, yPos, 25, C_TEXT_HT });
-    optionsPanel->addAndMakeVisible(wrapRangeTo);
+    indicatorRangeTo = new Label("indicatorRangeToL", "to");
+    indicatorRangeTo->setBounds(bounds = { xPos += 103, yPos, 25, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(indicatorRangeTo);
     opBounds = opBounds.getUnion(bounds);
 
-    lastWrapRangeMaxString = String(processor->adaptWrapRange[1]);
-    wrapRangeMaxBox = new ComboBox("wrapRangeMax");
-    wrapRangeMaxBox->setEditableText(true);
-    wrapRangeMaxBox->addItem("180", 1);
-    wrapRangeMaxBox->addItem("pi", 2);
-    wrapRangeMaxBox->addItem("360", 3);
-    wrapRangeMaxBox->addItem("2*pi", 4);
-    wrapRangeMaxBox->setText(lastWrapRangeMaxString, dontSendNotification);
-    wrapRangeMaxBox->setBounds(bounds = { xPos += 28, yPos, 100, C_TEXT_HT });
-    wrapRangeMaxBox->addListener(this);
-    wrapRangeMaxBox->setEnabled(enableRangeControls);
-    optionsPanel->addAndMakeVisible(wrapRangeMaxBox);
+    lastIndicatorRangeMaxString = String(processor->indicatorRange[1]);
+    indicatorRangeMaxBox = new ComboBox("maximum indicator value");
+    indicatorRangeMaxBox->setEditableText(true);
+    indicatorRangeMaxBox->addItem("180", 1);
+    indicatorRangeMaxBox->addItem("pi", 2);
+    indicatorRangeMaxBox->addItem("360", 3);
+    indicatorRangeMaxBox->addItem("2*pi", 4);
+    indicatorRangeMaxBox->setText(lastIndicatorRangeMaxString, dontSendNotification);
+    indicatorRangeMaxBox->setBounds(bounds = { xPos += 28, yPos, 100, C_TEXT_HT });
+    indicatorRangeMaxBox->addListener(this);
+    indicatorRangeMaxBox->setEnabled(enableRangeControls);
+    optionsPanel->addAndMakeVisible(indicatorRangeMaxBox);
     opBounds = opBounds.getUnion(bounds);
 
     xPos = LEFT_EDGE + 2 * TAB_WIDTH;
@@ -252,7 +252,7 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     optionsPanel->addAndMakeVisible(learningRateLabel);
     opBounds = opBounds.getUnion(bounds);
 
-    learningRateEditable = createEditable("learningRateE", String(processor->adaptStartLR),
+    learningRateEditable = createEditable("learningRateE", String(processor->startLearningRate),
         String("Initial amount by which the indicator error is multiplied to obtain a correction factor, which ") +
         "is subtracted from the threshold. Use a negative learning rate if the indicator is negatively correlated " +
         "with the threshold. If the decay rate is 0, the learning rate stays constant.",
@@ -266,7 +266,7 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     optionsPanel->addAndMakeVisible(decayRateLabel);
     opBounds = opBounds.getUnion(bounds);
 
-    decayRateEditable = createEditable("decayRateE", String(processor->adaptDecay),
+    decayRateEditable = createEditable("decayRateE", String(processor->decayRate),
         String("Determines whether the learning rate decreases over time and how quickly. Each time ") +
         "an event is received, the learning rate is divided by (1 + d*t), where d is the decay and t " +
         "is the number of events since the last reset or acquisition start (including this one).",
@@ -292,13 +292,61 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     optionsPanel->addAndMakeVisible(pauseButton);
     opBounds = opBounds.getUnion(bounds);
 
+    xPos = LEFT_EDGE + 2 * TAB_WIDTH;
+    yPos += 30;
+
+    threshRangeButton = new ToggleButton("Keep threshold within circular range from");
+    threshRangeButton->setBounds(bounds = { xPos, yPos, 280, C_TEXT_HT });
+    threshRangeButton->setEnabled(adaptiveThreshButton->getToggleState());
+    threshRangeButton->setToggleState(processor->useAdaptThreshRange, dontSendNotification);
+    threshRangeButton->setTooltip(String("Treat the range of threshold values as circular, such that ") +
+        "a positive adjustment over the range maximum will wrap to the minimum and vice versa.");
+    threshRangeButton->addListener(this);
+    optionsPanel->addAndMakeVisible(threshRangeButton);
+    opBounds = opBounds.getUnion(bounds);
+
+    enableRangeControls = adaptiveThreshButton->getToggleState() && threshRangeButton->getToggleState();
+
+    lastThreshRangeMinString = String(processor->adaptThreshRange[0]);
+    threshRangeMinBox = new ComboBox("minimum threshold");
+    threshRangeMinBox->setEditableText(true);
+    threshRangeMinBox->addItem("-180", 1);
+    threshRangeMinBox->addItem("-pi", 2);
+    threshRangeMinBox->addItem("0", 3);
+    threshRangeMinBox->setText(lastThreshRangeMinString, dontSendNotification);
+    threshRangeMinBox->setBounds(bounds = { xPos += 280, yPos, 100, C_TEXT_HT });
+    threshRangeMinBox->addListener(this);
+    threshRangeMinBox->setEnabled(enableRangeControls);
+    optionsPanel->addAndMakeVisible(threshRangeMinBox);
+    opBounds = opBounds.getUnion(bounds);
+
+    threshRangeTo = new Label("threshRangeToL", "to");
+    threshRangeTo->setBounds(bounds = { xPos += 103, yPos, 25, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(threshRangeTo);
+    opBounds = opBounds.getUnion(bounds);
+
+    lastThreshRangeMaxString = String(processor->adaptThreshRange[1]);
+    threshRangeMaxBox = new ComboBox("maximum threshold");
+    threshRangeMaxBox->setEditableText(true);
+    threshRangeMaxBox->addItem("180", 1);
+    threshRangeMaxBox->addItem("pi", 2);
+    threshRangeMaxBox->addItem("360", 3);
+    threshRangeMaxBox->addItem("2*pi", 4);
+    threshRangeMaxBox->setText(lastThreshRangeMaxString, dontSendNotification);
+    threshRangeMaxBox->setBounds(bounds = { xPos += 28, yPos, 100, C_TEXT_HT });
+    threshRangeMaxBox->addListener(this);
+    threshRangeMaxBox->setEnabled(enableRangeControls);
+    optionsPanel->addAndMakeVisible(threshRangeMaxBox);
+    opBounds = opBounds.getUnion(bounds);
+
     thresholdGroupSet->addGroup({
-        adaptiveThreshButton, adaptiveChanBox,
+        adaptiveThreshButton, indicatorChanBox,
         targetLabel, targetEditable,
-        wrapRangeButton, wrapRangeMinBox, wrapRangeTo, wrapRangeMaxBox,
+        indicatorRangeButton, indicatorRangeMinBox, indicatorRangeTo, indicatorRangeMaxBox,
         learningRateLabel, learningRateEditable,
         decayRateLabel, decayRateEditable,
-        resetButton, pauseButton
+        resetButton, pauseButton,
+        threshRangeButton, threshRangeMinBox, threshRangeTo, threshRangeMaxBox
     });
 
     /* --------- Random threshold ---------- */
@@ -556,88 +604,97 @@ void CrossingDetectorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
         processor->setParameter(CrossingDetector::INPUT_CHAN,
             static_cast<float>(inputBox->getSelectedId() - 1));
     }
+
     else if (comboBoxThatHasChanged == outputBox)
     {
         processor->setParameter(CrossingDetector::EVENT_CHAN,
             static_cast<float>(outputBox->getSelectedId() - 1));
     }
-    else if (comboBoxThatHasChanged == adaptiveChanBox)
+
+    else if (comboBoxThatHasChanged == indicatorChanBox)
     {
-        processor->setParameter(CrossingDetector::ADAPT_EVENT_CHAN,
-            static_cast<float>(adaptiveChanBox->getSelectedId() - 1));
+        processor->setParameter(CrossingDetector::INDICATOR_CHAN,
+            static_cast<float>(indicatorChanBox->getSelectedId() - 1));
     }
-    else if (comboBoxThatHasChanged == wrapRangeMinBox)
+
+    else if (comboBoxThatHasChanged == indicatorRangeMinBox)
     {
-        String newText = wrapRangeMinBox->getText();
-        bool simple;
-        float newVal = evalWithPiScope(newText, &simple);
+        float newVal = updateExpressionComponent(comboBoxThatHasChanged, lastIndicatorRangeMinString,
+            CrossingDetector::MIN_INDICATOR);
         if (std::isfinite(newVal))
         {
-            processor->setParameter(CrossingDetector::ADAPT_RANGE_MIN, newVal);
-            lastWrapRangeMinString = newText;
-
-            if (newVal > processor->adaptWrapRange[1])
+            String newText = comboBoxThatHasChanged->getText();
+            if (newVal > processor->indicatorRange[1])
             {
                 // push max value up to match
-                wrapRangeMaxBox->setText(newText, sendNotificationSync);
+                indicatorRangeMaxBox->setText(newText, sendNotificationSync);
             }
-            if (newVal > processor->adaptEventTarget)
+            if (newVal > processor->indicatorTarget)
             {
                 // push target value up to match
                 targetEditable->setText(newText, sendNotification);
             }
-
-            if (simple)
-            {
-                wrapRangeMinBox->setTooltip("");
-            }
-            else
-            {
-                wrapRangeMinBox->setTooltip("= " + String(newVal));
-            }
-        }
-        else // error evaluating expression
-        {
-            CoreServices::sendStatusMessage("Invalid expression for indicator range lower limit");
-            wrapRangeMinBox->setText(lastWrapRangeMinString, dontSendNotification);
         }
     }
-    else if (comboBoxThatHasChanged == wrapRangeMaxBox)
+
+    else if (comboBoxThatHasChanged == indicatorRangeMaxBox)
     {
-        String newText = wrapRangeMaxBox->getText();
-        bool simple;
-        float newVal = evalWithPiScope(newText, &simple);
+        float newVal = updateExpressionComponent(comboBoxThatHasChanged, lastIndicatorRangeMaxString,
+            CrossingDetector::MAX_INDICATOR);
         if (std::isfinite(newVal))
         {
-            processor->setParameter(CrossingDetector::ADAPT_RANGE_MAX, newVal);
-            lastWrapRangeMaxString = newText;
-
-            if (newVal < processor->adaptWrapRange[0])
+            String newText = comboBoxThatHasChanged->getText();
+            if (newVal < processor->indicatorRange[0])
             {
                 // push min value down to match
-                wrapRangeMinBox->setText(newText, sendNotificationSync);
+                indicatorRangeMinBox->setText(newText, sendNotificationSync);
             }
-            if (newVal < processor->adaptEventTarget)
+            if (newVal < processor->indicatorTarget)
             {
                 // push target down to match
                 targetEditable->setText(newText, sendNotification);
             }
-
-            if (simple)
-            {
-                wrapRangeMaxBox->setTooltip("");
-            }
-            else
-            {
-                wrapRangeMaxBox->setTooltip("= " + String(newVal));
-            }
-        }
-        else // error evaluating expression
-        {
-            CoreServices::sendStatusMessage("Invalid expression for indicator range upper limit");
-            wrapRangeMaxBox->setText(lastWrapRangeMaxString, dontSendNotification);
         }
     }
+
+    else if (comboBoxThatHasChanged == threshRangeMinBox)
+    {
+        float newVal = updateExpressionComponent(comboBoxThatHasChanged, lastThreshRangeMinString,
+            CrossingDetector::MIN_ADAPTED_THRESH);
+        if (std::isfinite(newVal))
+        {
+            if (newVal > processor->adaptThreshRange[1])
+            {
+                // push max value up to match
+                threshRangeMaxBox->setText(comboBoxThatHasChanged->getText(), sendNotificationSync);
+            }
+            if (adaptiveThreshButton->getToggleState() && newVal > processor->constantThresh)
+            {
+                // push threshold up to match
+                thresholdEditable->setText(String(newVal), sendNotification);
+            }
+        }
+    }
+
+    else if (comboBoxThatHasChanged == threshRangeMaxBox)
+    {
+        float newVal = updateExpressionComponent(comboBoxThatHasChanged, lastThreshRangeMaxString,
+            CrossingDetector::MAX_ADAPTED_THRESH);
+        if (std::isfinite(newVal))
+        {
+            if (newVal < processor->adaptThreshRange[0])
+            {
+                // push min value down to match
+                threshRangeMinBox->setText(comboBoxThatHasChanged->getText(), sendNotificationSync);
+            }
+            if (adaptiveThreshButton->getToggleState() && newVal < processor->constantThresh)
+            {
+                // push threshold down to match
+                thresholdEditable->setText(String(newVal), sendNotification);
+            }
+        }
+    }
+
     else if (comboBoxThatHasChanged == channelThreshBox)
     {
         processor->setParameter(CrossingDetector::THRESH_CHAN,
@@ -674,10 +731,21 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         (processor->thresholdType == CrossingDetector::CONSTANT || processor->thresholdType == CrossingDetector::ADAPTIVE))
     {
         float newVal;
-        bool success = updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX, processor->constantThresh, &newVal);
+        bool success = updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX,
+            processor->constantThresh, &newVal);
 
         if (success)
         {
+            if (processor->thresholdType == CrossingDetector::ADAPTIVE && processor->useAdaptThreshRange)
+            {
+                // enforce threshold range
+                float valInRange = processor->toThresholdInRange(newVal);
+                if (valInRange != newVal)
+                {
+                    labelThatHasChanged->setText(String(valInRange), dontSendNotification);
+                    newVal = valInRange;
+                }
+            }
             processor->setParameter(CrossingDetector::CONST_THRESH, newVal);
         }
     }
@@ -765,55 +833,41 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
     }
     else if (labelThatHasChanged == targetEditable)
     {
-        String newText = targetEditable->getText();
-        bool simple;
-        float newVal = evalWithPiScope(newText, &simple);
-        if (std::isfinite(newVal))
+        float newVal = updateExpressionComponent(labelThatHasChanged, lastTargetEditableString,
+            CrossingDetector::INDICATOR_TARGET);
+        if (std::isfinite(newVal) && processor->useIndicatorRange)
         {
-            if (!processor->useAdaptWrapRange ||
-                (newVal >= processor->adaptWrapRange[0] && newVal <= processor->adaptWrapRange[1]))
+            // enforce indicator range
+            float valInRange = processor->toIndicatorInRange(newVal);
+            if (valInRange != newVal)
             {
-                processor->setParameter(CrossingDetector::ADAPT_EVENT_TARGET, newVal);
-                lastTargetEditableString = newText;
-                if (simple)
-                {
-                    targetEditable->setTooltip("");
-                }
-                else
-                {
-                    targetEditable->setTooltip("= " + String(newVal));
-                }
+                lastTargetEditableString = String(valInRange);
+                targetEditable->setText(lastTargetEditableString, dontSendNotification);
+                targetEditable->setTooltip("");
+                processor->setParameter(CrossingDetector::INDICATOR_TARGET, valInRange);
             }
-            else // value out of range
-            {
-                CoreServices::sendStatusMessage("Target out of specified range");
-                labelThatHasChanged->setText(lastTargetEditableString, dontSendNotification);
-            }
-        }
-        else // error evaluating expression
-        {
-            CoreServices::sendStatusMessage("Invalid expression for target");
-            labelThatHasChanged->setText(lastTargetEditableString, dontSendNotification);
         }
     }
     else if (labelThatHasChanged == learningRateEditable)
     {
         float newVal;
-        bool success = updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX, processor->adaptStartLR, &newVal);
+        bool success = updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX,
+            processor->startLearningRate, &newVal);
 
         if (success)
         {
-            processor->setParameter(CrossingDetector::ADAPT_LEARNING_RATE, newVal);
+            processor->setParameter(CrossingDetector::LEARNING_RATE, newVal);
         }
     }
     else if (labelThatHasChanged == decayRateEditable)
     {
         float newVal;
-        bool success = updateFloatLabel(labelThatHasChanged, 0, FLT_MAX, processor->adaptDecay, &newVal);
+        bool success = updateFloatLabel(labelThatHasChanged, 0, FLT_MAX,
+            processor->decayRate, &newVal);
 
         if (success)
         {
-            processor->setParameter(CrossingDetector::ADAPT_DECAY, newVal);
+            processor->setParameter(CrossingDetector::DECAY_RATE, newVal);
         }
     }
 }
@@ -835,14 +889,14 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
         limitEditable->setEnabled(limitOn);
         processor->setParameter(CrossingDetector::USE_JUMP_LIMIT, static_cast<float>(limitOn));
     }
-    else if (button == wrapRangeButton)
+    else if (button == indicatorRangeButton)
     {
         bool wrapOn = button->getToggleState();
         if (wrapOn)
         {
             // enforce range on target
-            float oldTarget = processor->adaptEventTarget;
-            float newTarget = processor->valInWrapRange(oldTarget);
+            float oldTarget = processor->indicatorTarget;
+            float newTarget = processor->toIndicatorInRange(oldTarget);
             if (newTarget != oldTarget)
             {
                 targetEditable->setText(String(newTarget), sendNotification);
@@ -850,10 +904,10 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
         }
         if (adaptiveThreshButton->getToggleState())
         {
-            wrapRangeMinBox->setEnabled(wrapOn);
-            wrapRangeMaxBox->setEnabled(wrapOn);
+            indicatorRangeMinBox->setEnabled(wrapOn);
+            indicatorRangeMaxBox->setEnabled(wrapOn);
         }
-        processor->setParameter(CrossingDetector::ADAPT_USE_RANGE, static_cast<float>(wrapOn));
+        processor->setParameter(CrossingDetector::USE_INDICATOR_RANGE, static_cast<float>(wrapOn));
     }
     else if (button == resetButton)
     {
@@ -861,7 +915,27 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
     }
     else if (button == pauseButton)
     {
-        processor->setParameter(CrossingDetector::ADAPT_THRESH_PAUSED, static_cast<float>(button->getToggleState()));
+        processor->setParameter(CrossingDetector::ADAPT_PAUSED, static_cast<float>(button->getToggleState()));
+    }
+    else if (button == threshRangeButton)
+    {
+        bool wrapOn = button->getToggleState();
+        if (wrapOn && adaptiveThreshButton->getToggleState())
+        {
+            // enforce range on threshold
+            float oldThreshold = processor->constantThresh;
+            float newThreshold = processor->toThresholdInRange(oldThreshold);
+            if (newThreshold != oldThreshold)
+            {
+                thresholdEditable->setText(String(newThreshold), sendNotification);
+            }
+        }
+        if (adaptiveThreshButton->getToggleState())
+        {
+            threshRangeMinBox->setEnabled(wrapOn);
+            threshRangeMaxBox->setEnabled(wrapOn);
+        }
+        processor->setParameter(CrossingDetector::USE_THRESH_RANGE, static_cast<float>(wrapOn));
     }
 
     // threshold radio buttons
@@ -878,18 +952,25 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
     else if (button == adaptiveThreshButton)
     {
         bool on = button->getToggleState();
-        adaptiveChanBox->setEnabled(on);
+        indicatorChanBox->setEnabled(on);
         targetEditable->setEnabled(on);
-        wrapRangeButton->setEnabled(on);
-        if (wrapRangeButton->getToggleState())
+        indicatorRangeButton->setEnabled(on);
+        if (indicatorRangeButton->getToggleState())
         {
-            wrapRangeMinBox->setEnabled(on);
-            wrapRangeMaxBox->setEnabled(on);
+            indicatorRangeMinBox->setEnabled(on);
+            indicatorRangeMaxBox->setEnabled(on);
         }
         learningRateEditable->setEnabled(on);
         decayRateEditable->setEnabled(on);
         resetButton->setEnabled(on);
         pauseButton->setEnabled(on);
+        threshRangeButton->setEnabled(on);
+        if (threshRangeButton->getToggleState())
+        {
+            threshRangeMinBox->setEnabled(on);
+            threshRangeMaxBox->setEnabled(on);
+        }
+
         if (on)
         {
             thresholdEditable->setEnabled(true);
@@ -951,34 +1032,34 @@ void CrossingDetectorEditor::updateSettings()
     int numEventChans = processor->getTotalEventChannels();
     String lastChanName = processor->adaptEventChanName;
     bool wasEmpty = processor->adaptEventChan == -1;
-    adaptiveChanBox->clear(dontSendNotification);
+    indicatorChanBox->clear(dontSendNotification);
 
     for (int chan = 1; chan <= numEventChans; ++chan)
     {
         // again, purposely using 1-based ids
         const EventChannel* chanInfo = processor->getEventChannel(chan - 1);
-        if (!CrossingDetector::isValidAdaptiveThresholdChan(chanInfo))
+        if (!CrossingDetector::isValidIndicatorChan(chanInfo))
         {
             continue;
         }
         const String& chanName = chanInfo->getName();
-        adaptiveChanBox->addItem(chanName, chan);
+        indicatorChanBox->addItem(chanName, chan);
         if (!wasEmpty && chanName == lastChanName)
         {
-            adaptiveChanBox->setSelectedId(chan, sendNotificationSync);
+            indicatorChanBox->setSelectedId(chan, sendNotificationSync);
         }
     }
-    if (adaptiveChanBox->getSelectedId() == 0)
+    if (indicatorChanBox->getSelectedId() == 0)
     {
         if (numEventChans > 0)
         {
             // set to first item by default
-            adaptiveChanBox->setSelectedItemIndex(0, sendNotificationSync);
+            indicatorChanBox->setSelectedItemIndex(0, sendNotificationSync);
         }
         else
         {
             // set id to -1 instead of 0 if empty to force a notification, given that it's been cleared
-            adaptiveChanBox->setSelectedId(-1, sendNotificationSync);
+            indicatorChanBox->setSelectedId(-1, sendNotificationSync);
         }
     }
 }
@@ -1234,6 +1315,36 @@ float CrossingDetectorEditor::evalWithPiScope(const String& text, bool* simple)
         return static_cast<float>(expr.evaluate(PiScope()));
     }
     return NAN;
+}
+
+template<typename T>
+float CrossingDetectorEditor::updateExpressionComponent(T* component, String& lastText, int paramToChange)
+{
+    String newText = component->getText();
+    bool simple;
+    float newVal = evalWithPiScope(newText, &simple);
+    if (std::isfinite(newVal))
+    {
+        getProcessor()->setParameter(paramToChange, newVal);
+        lastText = newText;
+
+        if (simple)
+        {
+            component->setTooltip("");
+        }
+        else
+        {
+            component->setTooltip("= " + String(newVal));
+        }
+    }
+    else
+    {
+        // evaluation error
+        CoreServices::sendStatusMessage("Invalid expression for " + component->getName());
+        component->setText(lastText, dontSendNotification);
+    }
+
+    return newVal;
 }
 
 Label* CrossingDetectorEditor::createEditable(const String& name, const String& initialValue,
