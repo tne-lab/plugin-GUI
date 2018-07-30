@@ -85,7 +85,7 @@ void PhaseCalculator::createEventChannels()
         chan->addMetaData(sourceChanDesc, sourceChanVal);
     }
 
-    eventChannelArray.add(chan);
+    visPhaseChannel = eventChannelArray.add(chan);
 }
 
 void PhaseCalculator::setParameter(int parameterIndex, float newValue)
@@ -864,9 +864,8 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
             // add to event channel
             double eventData = phaseRad * 180.0 / Dsp::doublePi;
             juce::int64 eventTs = sdbEndTs - getNumSamples(visContinuousChannel);
-            const EventChannel* chan = getEventChannel(0);
-            BinaryEventPtr event = BinaryEvent::createBinaryEvent(chan, eventTs, &eventData, sizeof(double));
-            addEvent(chan, event, 0);
+            BinaryEventPtr event = BinaryEvent::createBinaryEvent(visPhaseChannel, eventTs, &eventData, sizeof(double));
+            addEvent(visPhaseChannel, event, 0);
         }
     }
 }

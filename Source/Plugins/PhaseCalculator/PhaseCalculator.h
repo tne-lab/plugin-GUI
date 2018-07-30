@@ -248,6 +248,9 @@ private:
     std::queue<double> visPhaseBuffer;
     CriticalSection visPhaseBufferLock;  // avoid race conditions when updating visualizer
 
+    // event channel to send visualized phases over
+    EventChannel* visPhaseChannel;
+
     // ------ filtering --------
     double highCut;
     double lowCut;
