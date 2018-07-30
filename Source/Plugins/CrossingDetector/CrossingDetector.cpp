@@ -28,7 +28,7 @@ CrossingDetector::CrossingDetector()
     : GenericProcessor      ("Crossing Detector")
     , thresholdType         (CONSTANT)
     , constantThresh        (0.0f)
-    , adaptEventChan        (-1)
+    , indicatorChan         (-1)
     , indicatorTarget       (0.0f)
     , useIndicatorRange     (true)
     , startLearningRate     (0.2)
@@ -37,7 +37,7 @@ CrossingDetector::CrossingDetector()
     , useAdaptThreshRange   (true)
     , currLearningRate      (startLearningRate)
     , currLRDivisor         (1.0)
-    , adaptEventChanName    ("")
+    , indicatorChanName     ("")
     , thresholdChannel      (-1)
     , inputChannel          (0)
     , validSubProcFullID    (0)
@@ -159,7 +159,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
     }
 
     // adapt threshold if necessary
-    if (thresholdType == ADAPTIVE && adaptEventChan > -1)
+    if (thresholdType == ADAPTIVE && indicatorChan > -1)
     {
         checkForEvents();
     }
@@ -320,13 +320,13 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
                 jassertfalse;
                 return;
             }
-            adaptEventChan = static_cast<int>(newValue);
-            adaptEventChanName = getEventChannel(adaptEventChan)->getName();
+            indicatorChan = static_cast<int>(newValue);
+            indicatorChanName = getEventChannel(indicatorChan)->getName();
         }
         else
         {
-            adaptEventChan = -1;
-            adaptEventChanName = "";
+            indicatorChan = -1;
+            indicatorChanName = "";
         }
         break;
 
@@ -510,8 +510,8 @@ bool CrossingDetector::disable()
 
 void CrossingDetector::handleEvent(const EventChannel* eventInfo, const MidiMessage& event, int samplePosition)
 {
-    jassert(adaptEventChan > -1);
-    const EventChannel* adaptChanInfo = getEventChannel(adaptEventChan);
+    jassert(indicatorChan > -1);
+    const EventChannel* adaptChanInfo = getEventChannel(indicatorChan);
     jassert(isValidIndicatorChan(adaptChanInfo));
     if (eventInfo == adaptChanInfo && thresholdType == ADAPTIVE && !adaptThreshPaused)
     {
@@ -574,6 +574,10 @@ float CrossingDetector::toEquivalentInRange(float x, const float* range)
         return x;
     }
     float top = range[1], bottom = range[0];
+    if (x <= top && x >= bottom)
+    {
+        return x;
+    }
     float rangeSize = top - bottom;
     jassert(rangeSize >= 0);
     if (rangeSize == 0)

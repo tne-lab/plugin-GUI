@@ -185,7 +185,7 @@ private:
     float constantThresh;
 
     // if using adaptive threshold:
-    int adaptEventChan; // index of the monitored event channel
+    int indicatorChan; // index of the monitored event channel
     float indicatorTarget;
     bool useIndicatorRange;
     float indicatorRange[2];
@@ -256,7 +256,7 @@ private:
     double currLearningRate;
     double currLRDivisor;  // what the LR was last divided by
     
-    String adaptEventChanName; // save so that we can try to find a matching channel when updating
+    String indicatorChanName; // save so that we can try to find a matching channel when updating
 
     Random rng; // for random thresholds
 

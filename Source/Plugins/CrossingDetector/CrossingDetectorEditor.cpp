@@ -296,7 +296,7 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     yPos += 30;
 
     threshRangeButton = new ToggleButton("Keep threshold within circular range from");
-    threshRangeButton->setBounds(bounds = { xPos, yPos, 280, C_TEXT_HT });
+    threshRangeButton->setBounds(bounds = { xPos, yPos, 290, C_TEXT_HT });
     threshRangeButton->setEnabled(adaptiveThreshButton->getToggleState());
     threshRangeButton->setToggleState(processor->useAdaptThreshRange, dontSendNotification);
     threshRangeButton->setTooltip(String("Treat the range of threshold values as circular, such that ") +
@@ -314,7 +314,7 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     threshRangeMinBox->addItem("-pi", 2);
     threshRangeMinBox->addItem("0", 3);
     threshRangeMinBox->setText(lastThreshRangeMinString, dontSendNotification);
-    threshRangeMinBox->setBounds(bounds = { xPos += 280, yPos, 100, C_TEXT_HT });
+    threshRangeMinBox->setBounds(bounds = { xPos += 290, yPos, 100, C_TEXT_HT });
     threshRangeMinBox->addListener(this);
     threshRangeMinBox->setEnabled(enableRangeControls);
     optionsPanel->addAndMakeVisible(threshRangeMinBox);
@@ -967,8 +967,9 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
         threshRangeButton->setEnabled(on);
         if (threshRangeButton->getToggleState())
         {
-            threshRangeMinBox->setEnabled(on);
-            threshRangeMaxBox->setEnabled(on);
+            // explicitly turn the button on in order to trigger side effects
+            threshRangeButton->setToggleState(false, dontSendNotification);
+            threshRangeButton->setToggleState(true, sendNotification);
         }
 
         if (on)
@@ -1030,8 +1031,8 @@ void CrossingDetectorEditor::updateSettings()
 
     // update adaptive event channel combo box
     int numEventChans = processor->getTotalEventChannels();
-    String lastChanName = processor->adaptEventChanName;
-    bool wasEmpty = processor->adaptEventChan == -1;
+    String lastChanName = processor->indicatorChanName;
+    bool wasEmpty = processor->indicatorChan == -1;
     indicatorChanBox->clear(dontSendNotification);
 
     for (int chan = 1; chan <= numEventChans; ++chan)
@@ -1149,6 +1150,16 @@ void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
     // threshold
     paramValues->setAttribute("thresholdType", processor->thresholdType);
     paramValues->setAttribute("threshold", processor->constantThresh);
+    paramValues->setAttribute("indicatorChanName", processor->indicatorChanName);
+    paramValues->setAttribute("indicatorTarget", targetEditable->getText());
+    paramValues->setAttribute("useIndicatorRange", indicatorRangeButton->getToggleState());
+    paramValues->setAttribute("indicatorRangeMin", indicatorRangeMinBox->getText());
+    paramValues->setAttribute("indicatorRangeMax", indicatorRangeMaxBox->getText());
+    paramValues->setAttribute("learningRate", learningRateEditable->getText());
+    paramValues->setAttribute("decayRate", decayRateEditable->getText());
+    paramValues->setAttribute("useAdaptThreshRange", threshRangeButton->getToggleState());
+    paramValues->setAttribute("adaptThreshRangeMin", threshRangeMinBox->getText());
+    paramValues->setAttribute("adaptThreshRangeMax", threshRangeMaxBox->getText());
     paramValues->setAttribute("minThresh", minThreshEditable->getText());
     paramValues->setAttribute("maxThresh", maxThreshEditable->getText());
     paramValues->setAttribute("thresholdChanId", channelThreshBox->getSelectedId());
@@ -1185,6 +1196,17 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         fallingButton->setToggleState(xmlNode->getBoolAttribute("bFalling", fallingButton->getToggleState()), sendNotificationSync);
 
         // threshold (order is important here!)
+        // set indicator chan name directly so that the right one gets selected in future updates
+        processor->indicatorChanName = xmlNode->getStringAttribute("indicatorChanName", processor->indicatorChanName);
+        indicatorRangeButton->setToggleState(xmlNode->getBoolAttribute("useIndicatorRange", indicatorRangeButton->getToggleState()), sendNotificationSync);
+        indicatorRangeMinBox->setText(xmlNode->getStringAttribute("indicatorRangeMin", indicatorRangeMinBox->getText()), sendNotificationSync);
+        indicatorRangeMaxBox->setText(xmlNode->getStringAttribute("indicatorRangeMax", indicatorRangeMaxBox->getText()), sendNotificationSync);
+        targetEditable->setText(xmlNode->getStringAttribute("indicatorTarget", targetEditable->getText()), sendNotificationSync);
+        learningRateEditable->setText(xmlNode->getStringAttribute("learningRate", learningRateEditable->getText()), sendNotificationSync);
+        decayRateEditable->setText(xmlNode->getStringAttribute("decayRate", decayRateEditable->getText()), sendNotificationSync);
+        threshRangeButton->setToggleState(xmlNode->getBoolAttribute("useAdaptThreshRange", threshRangeButton->getToggleState()), sendNotificationSync);
+        threshRangeMinBox->setText(xmlNode->getStringAttribute("adaptThreshRangeMin", threshRangeMinBox->getText()), sendNotificationSync);
+        threshRangeMaxBox->setText(xmlNode->getStringAttribute("adaptThreshRangeMax", threshRangeMaxBox->getText()), sendNotificationSync);
         thresholdEditable->setText(xmlNode->getStringAttribute("threshold", thresholdEditable->getText()), sendNotificationSync);
         minThreshEditable->setText(xmlNode->getStringAttribute("minThresh", minThreshEditable->getText()), sendNotificationSync);
         maxThreshEditable->setText(xmlNode->getStringAttribute("maxThresh", maxThreshEditable->getText()), sendNotificationSync);
@@ -1205,6 +1227,10 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         {
         case CrossingDetector::CONSTANT:
             constantThreshButton->setToggleState(true, sendNotificationSync);
+            break;
+
+        case CrossingDetector::ADAPTIVE:
+            adaptiveThreshButton->setToggleState(true, sendNotificationSync);
             break;
 
         case CrossingDetector::RANDOM:
