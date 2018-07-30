@@ -71,6 +71,7 @@ private:
     Colour bgColor;
     int leftBound;
     int rightBound;
+    OwnedArray<DrawableRectangle> groups;
     static const int PADDING = 5;
     static const int CORNER_SIZE = 8;
 };

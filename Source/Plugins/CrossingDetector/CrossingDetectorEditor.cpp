@@ -1391,11 +1391,12 @@ void VerticalGroupSet::addGroup(std::initializer_list<Component*> components)
         return;
     }
 
-    DrawableRectangle* thisBackground;
-    addChildComponent((thisBackground = new DrawableRectangle));
+    DrawableRectangle* thisGroup;
+    groups.add(thisGroup = new DrawableRectangle);
+    addChildComponent(thisGroup);
     const RelativePoint cornerSize(CORNER_SIZE, CORNER_SIZE);
-    thisBackground->setCornerSize(cornerSize);
-    thisBackground->setFill(bgColor);
+    thisGroup->setCornerSize(cornerSize);
+    thisGroup->setFill(bgColor);
 
     int topBound = INT_MAX;
     int bottomBound = INT_MIN;
@@ -1421,20 +1422,17 @@ void VerticalGroupSet::addGroup(std::initializer_list<Component*> components)
 
     // set new background's bounds
     auto bounds = juce::Rectangle<float>::leftTopRightBottom(leftBound, topBound, rightBound, bottomBound);
-    thisBackground->setRectangle(bounds);
-    thisBackground->setVisible(true);
+    thisGroup->setRectangle(bounds);
+    thisGroup->setVisible(true);
 
     // update all other children
-    int newChildInd = getIndexOfChildComponent(thisBackground);
-    int nChildren = getNumChildComponents();
-    for (int kC = 0; kC < nChildren; ++kC)
+    for (DrawableRectangle* group : groups)
     {
-        if (kC == newChildInd) { continue; }
+        if (group == thisGroup) { continue; }
 
-        auto bg = static_cast<DrawableRectangle*>(getChildComponent(kC));
-        topBound = bg->getPosition().y;
-        bottomBound = topBound + bg->getHeight();
+        topBound = group->getPosition().y;
+        bottomBound = topBound + group->getHeight();
         bounds = juce::Rectangle<float>::leftTopRightBottom(leftBound, topBound, rightBound, bottomBound);
-        bg->setRectangle(bounds);
+        group->setRectangle(bounds);
     }
 }
