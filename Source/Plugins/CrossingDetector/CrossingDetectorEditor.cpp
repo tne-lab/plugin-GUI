@@ -153,7 +153,7 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     constantThreshButton->setBounds(bounds = { xPos, yPos, 150, C_TEXT_HT });
     constantThreshButton->setToggleState(processor->thresholdType == CrossingDetector::CONSTANT,
         dontSendNotification);
-    constantThreshButton->setTooltip("Use a constant threshold (set on the main editor window)");
+    constantThreshButton->setTooltip("Use a constant threshold (set on the main editor panel in the signal chain)");
     constantThreshButton->addListener(this);
     optionsPanel->addAndMakeVisible(constantThreshButton);
     opBounds = opBounds.getUnion(bounds);
@@ -171,8 +171,8 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     adaptiveThreshButton->setToggleState(processor->thresholdType == CrossingDetector::ADAPTIVE,
         dontSendNotification);
     adaptiveThreshButton->setTooltip(String("Continually adjust the threshold to minimize the error between indicator values sent ") +
-        "over the selected channel and the selected target. Assumes that the threshold and the indicator values are correlated, " +
-        "and uses the direction and magnitude of error to calculate adjustments to make to the threshold.");
+        "over the selected channel and the selected target. Assumes that the threshold and the indicator values are correlated " +
+        "(but not necessarily linearly), and uses the direction and magnitude of error to calculate adjustments to the threshold.");
     adaptiveThreshButton->addListener(this);
     optionsPanel->addAndMakeVisible(adaptiveThreshButton);
     opBounds = opBounds.getUnion(bounds);
@@ -354,10 +354,10 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     xPos = LEFT_EDGE + TAB_WIDTH;
     yPos += 40;
 
-    randomizeButton = new ToggleButton("Draw from uniform distribution");
+    randomizeButton = new ToggleButton("Draw randomly from uniform distribution");
     randomizeButton->setLookAndFeel(&rbLookAndFeel);
     randomizeButton->setRadioGroupId(threshRadioId, dontSendNotification);
-    randomizeButton->setBounds(bounds = { xPos, yPos, 250, C_TEXT_HT });
+    randomizeButton->setBounds(bounds = { xPos, yPos, 300, C_TEXT_HT });
     randomizeButton->setToggleState(processor->thresholdType == CrossingDetector::RANDOM,
         dontSendNotification);
     randomizeButton->setTooltip("After each event, choose a new threshold sampled uniformly at random from the given range");
