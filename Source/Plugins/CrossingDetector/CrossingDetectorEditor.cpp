@@ -247,8 +247,8 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     xPos = LEFT_EDGE + 2 * TAB_WIDTH;
     yPos += 30;
 
-    learningRateLabel = new Label("learningRateL", "Start learning rate:");
-    learningRateLabel->setBounds(bounds = { xPos, yPos, 125, C_TEXT_HT });
+    learningRateLabel = new Label("learningRateL", "Start learning rate at");
+    learningRateLabel->setBounds(bounds = { xPos, yPos, 145, C_TEXT_HT });
     optionsPanel->addAndMakeVisible(learningRateLabel);
     opBounds = opBounds.getUnion(bounds);
 
@@ -256,37 +256,51 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
         String("Initial amount by which the indicator error is multiplied to obtain a correction factor, which ") +
         "is subtracted from the threshold. Use a negative learning rate if the indicator is negatively correlated " +
         "with the threshold. If the decay rate is 0, the learning rate stays constant.",
-        bounds = { xPos += 125, yPos, 60, C_TEXT_HT });
+        bounds = { xPos += 145, yPos, 60, C_TEXT_HT });
     learningRateEditable->setEnabled(adaptiveThreshButton->getToggleState());
     optionsPanel->addAndMakeVisible(learningRateEditable);
     opBounds = opBounds.getUnion(bounds);
 
-    decayRateLabel = new Label("decayRateL", "Decay rate:");
-    decayRateLabel->setBounds(bounds = { xPos += 60, yPos, 80, C_TEXT_HT });
+    minLearningRateLabel = new Label("minLearningRateL", "and approach");
+    minLearningRateLabel->setBounds(bounds = { xPos += 60, yPos, 95, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(minLearningRateLabel);
+    opBounds = opBounds.getUnion(bounds);
+
+    minLearningRateEditable = createEditable("minLearningRateE", String(processor->minLearningRate),
+        String("Learning rate to approach in the limit if decay rate is nonzero (updated on restart)"),
+        bounds = { xPos += 95, yPos, 60, C_TEXT_HT });
+    minLearningRateEditable->setEnabled(adaptiveThreshButton->getToggleState());
+    optionsPanel->addAndMakeVisible(minLearningRateEditable);
+    opBounds = opBounds.getUnion(bounds);
+
+    decayRateLabel = new Label("decayRateL", "with decay rate");
+    decayRateLabel->setBounds(bounds = { xPos += 60, yPos, 100, C_TEXT_HT });
     optionsPanel->addAndMakeVisible(decayRateLabel);
     opBounds = opBounds.getUnion(bounds);
 
     decayRateEditable = createEditable("decayRateE", String(processor->decayRate),
         String("Determines whether the learning rate decreases over time and how quickly. Each time ") +
         "an event is received, the learning rate is divided by (1 + d*t), where d is the decay and t " +
-        "is the number of events since the last reset or acquisition start (including this one).",
-        bounds = { xPos += 80, yPos, 60, C_TEXT_HT });
+        "is the number of events since the last reset or acquisition start.",
+        bounds = { xPos += 100, yPos, 60, C_TEXT_HT });
     decayRateEditable->setEnabled(adaptiveThreshButton->getToggleState());
     optionsPanel->addAndMakeVisible(decayRateEditable);
     opBounds = opBounds.getUnion(bounds);
 
-    resetButton = new UtilityButton("RESET", Font(20));
-    resetButton->addListener(this);
-    resetButton->setBounds(bounds = { xPos += 65, yPos, 50, C_TEXT_HT });
-    resetButton->setEnabled(adaptiveThreshButton->getToggleState());
-    resetButton->setTooltip("Reset the learning rate to the start value");
-    optionsPanel->addAndMakeVisible(resetButton);
+    restartButton = new UtilityButton("RESTART", Font(20));
+    restartButton->addListener(this);
+    restartButton->setBounds(bounds = { xPos += 65, yPos, 55, C_TEXT_HT });
+    restartButton->setEnabled(adaptiveThreshButton->getToggleState());
+    restartButton->setTooltip(String("Set the learning rate to the start value and resetart decaying toward the minimum ") +
+        "value (if decay rate is nonzero). A restart also happens when acquisition stops and restarts.");
+    optionsPanel->addAndMakeVisible(restartButton);
     opBounds = opBounds.getUnion(bounds);
 
     pauseButton = new UtilityButton("PAUSE", Font(20));
     pauseButton->addListener(this);
-    pauseButton->setBounds(bounds = { xPos += 55, yPos, 50, C_TEXT_HT });
+    pauseButton->setBounds(bounds = { xPos += 60, yPos, 50, C_TEXT_HT });
     pauseButton->setEnabled(adaptiveThreshButton->getToggleState());
+    pauseButton->setTooltip(String("While active, indicator events are ignored."));
     pauseButton->setClickingTogglesState(true);
     pauseButton->setToggleState(processor->adaptThreshPaused, dontSendNotification);
     optionsPanel->addAndMakeVisible(pauseButton);
@@ -345,7 +359,7 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
         indicatorRangeButton, indicatorRangeMinBox, indicatorRangeTo, indicatorRangeMaxBox,
         learningRateLabel, learningRateEditable,
         decayRateLabel, decayRateEditable,
-        resetButton, pauseButton,
+        restartButton, pauseButton,
         threshRangeButton, threshRangeMinBox, threshRangeTo, threshRangeMaxBox
     });
 
@@ -856,7 +870,18 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
 
         if (success)
         {
-            processor->setParameter(CrossingDetector::LEARNING_RATE, newVal);
+            processor->setParameter(CrossingDetector::START_LEARNING_RATE, newVal);
+        }
+    }
+    else if (labelThatHasChanged == minLearningRateEditable)
+    {
+        float newVal;
+        bool success = updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX,
+            processor->minLearningRate, &newVal);
+
+        if (success)
+        {
+            processor->setParameter(CrossingDetector::MIN_LEARNING_RATE, newVal);
         }
     }
     else if (labelThatHasChanged == decayRateEditable)
@@ -909,9 +934,9 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
         }
         processor->setParameter(CrossingDetector::USE_INDICATOR_RANGE, static_cast<float>(wrapOn));
     }
-    else if (button == resetButton)
+    else if (button == restartButton)
     {
-        processor->resetAdaptiveThreshold();
+        processor->restartAdaptiveThreshold();
     }
     else if (button == pauseButton)
     {
@@ -961,8 +986,9 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
             indicatorRangeMaxBox->setEnabled(on);
         }
         learningRateEditable->setEnabled(on);
+        minLearningRateEditable->setEnabled(on);
         decayRateEditable->setEnabled(on);
-        resetButton->setEnabled(on);
+        restartButton->setEnabled(on);
         pauseButton->setEnabled(on);
         threshRangeButton->setEnabled(on);
         if (threshRangeButton->getToggleState())
@@ -1156,6 +1182,7 @@ void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
     paramValues->setAttribute("indicatorRangeMin", indicatorRangeMinBox->getText());
     paramValues->setAttribute("indicatorRangeMax", indicatorRangeMaxBox->getText());
     paramValues->setAttribute("learningRate", learningRateEditable->getText());
+    paramValues->setAttribute("minLearningRate", minLearningRateEditable->getText());
     paramValues->setAttribute("decayRate", decayRateEditable->getText());
     paramValues->setAttribute("useAdaptThreshRange", threshRangeButton->getToggleState());
     paramValues->setAttribute("adaptThreshRangeMin", threshRangeMinBox->getText());
@@ -1203,6 +1230,7 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         indicatorRangeMaxBox->setText(xmlNode->getStringAttribute("indicatorRangeMax", indicatorRangeMaxBox->getText()), sendNotificationSync);
         targetEditable->setText(xmlNode->getStringAttribute("indicatorTarget", targetEditable->getText()), sendNotificationSync);
         learningRateEditable->setText(xmlNode->getStringAttribute("learningRate", learningRateEditable->getText()), sendNotificationSync);
+        minLearningRateEditable->setText(xmlNode->getStringAttribute("minLearningRate", minLearningRateEditable->getText()), sendNotificationSync);
         decayRateEditable->setText(xmlNode->getStringAttribute("decayRate", decayRateEditable->getText()), sendNotificationSync);
         threshRangeButton->setToggleState(xmlNode->getBoolAttribute("useAdaptThreshRange", threshRangeButton->getToggleState()), sendNotificationSync);
         threshRangeMinBox->setText(xmlNode->getStringAttribute("adaptThreshRangeMin", threshRangeMinBox->getText()), sendNotificationSync);

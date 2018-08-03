@@ -205,9 +205,11 @@ private:
     // row 3
     ScopedPointer<Label> learningRateLabel;
     ScopedPointer<Label> learningRateEditable;
+    ScopedPointer<Label> minLearningRateLabel;
+    ScopedPointer<Label> minLearningRateEditable;
     ScopedPointer<Label> decayRateLabel;
     ScopedPointer<Label> decayRateEditable;
-    ScopedPointer<UtilityButton> resetButton;
+    ScopedPointer<UtilityButton> restartButton;
     ScopedPointer<UtilityButton> pauseButton;
     // row 4
     ScopedPointer<ToggleButton> threshRangeButton;

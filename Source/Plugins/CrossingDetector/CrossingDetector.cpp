@@ -32,6 +32,7 @@ CrossingDetector::CrossingDetector()
     , indicatorTarget       (180.0f)
     , useIndicatorRange     (true)
     , startLearningRate     (0.02)
+    , minLearningRate       (0.005)
     , decayRate             (0.00003)
     , adaptThreshPaused     (false)
     , useAdaptThreshRange   (true)
@@ -291,7 +292,7 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 
         case ADAPTIVE:
             thresholdVal = constantThresh;
-            resetAdaptiveThreshold();
+            restartAdaptiveThreshold();
             break;
 
         case RANDOM:
@@ -346,8 +347,12 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         indicatorRange[1] = newValue;
         break;
 
-    case LEARNING_RATE:
+    case START_LEARNING_RATE:
         startLearningRate = newValue;
+        break;
+
+    case MIN_LEARNING_RATE:
+        minLearningRate = newValue;
         break;
 
     case DECAY_RATE:
@@ -493,7 +498,7 @@ bool CrossingDetector::enable()
     float sampleRate = getDataChannel(inputChannel)->getSampleRate();
     eventDurationSamp = static_cast<int>(ceil(eventDuration * sampleRate / 1000.0f));
     timeoutSamp = static_cast<int>(floor(timeout * sampleRate / 1000.0f));
-    resetAdaptiveThreshold();
+    restartAdaptiveThreshold();
     return isEnabled;
 }
 
@@ -526,7 +531,8 @@ void CrossingDetector::handleEvent(const EventChannel* eventInfo, const MidiMess
 
         // update state
         currLRDivisor += decayRate;
-        currLearningRate /= currLRDivisor;
+        double currDecayingLR = currLearningRate - currMinLearningRate;
+        currLearningRate = currDecayingLR / currLRDivisor + currMinLearningRate;
 
         // update threshold
         constantThresh -= currLearningRate * eventErr;
@@ -538,10 +544,11 @@ void CrossingDetector::handleEvent(const EventChannel* eventInfo, const MidiMess
     }
 }
 
-void CrossingDetector::resetAdaptiveThreshold()
+void CrossingDetector::restartAdaptiveThreshold()
 {
     currLRDivisor = 1.0;
     currLearningRate = startLearningRate;
+    currMinLearningRate = minLearningRate;
 }
 
 float CrossingDetector::errorFromTarget(float x) const

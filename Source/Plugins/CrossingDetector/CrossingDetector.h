@@ -78,7 +78,8 @@ private:
         USE_INDICATOR_RANGE,
         MIN_INDICATOR,
         MAX_INDICATOR,
-        LEARNING_RATE,
+        START_LEARNING_RATE,
+        MIN_LEARNING_RATE,
         DECAY_RATE,
         ADAPT_PAUSED,
         USE_THRESH_RANGE,
@@ -111,8 +112,8 @@ private:
     void handleEvent(const EventChannel* eventInfo, const MidiMessage& event,
         int samplePosition = 0) override;
 
-    // Reset the learning rate and divisor (if decay is nonzero)
-    void resetAdaptiveThreshold();
+    // Restart the learning rate decaying process (updating start and min learning rates to match UI)
+    void restartAdaptiveThreshold();
 
     /* Calculates the error of x from the indicatorTarget, taking the indicatorRange
      * into account if enabled. That is, if useIndicatorRange is false, just calculates
@@ -190,6 +191,7 @@ private:
     bool useIndicatorRange;
     float indicatorRange[2];
     double startLearningRate;
+    double minLearningRate;
     double decayRate;
     bool adaptThreshPaused;
     bool useAdaptThreshRange;
@@ -248,12 +250,13 @@ private:
 
     Value thresholdVal; // underlying value of the threshold label
 
-    /* If using adaptive threshold, learning rate evolves by this formula:
-     * LR_{t} = LR_{t-1} / divisor_{t}
+    /* If using adaptive threshold, learning rate evolves by this formula (LR = learning rate, MLR = min learning rate):
+     * LR_{t} = (LR_{t-1} - MLR) / divisor_{t} + MLR
      * divisor_{0} = 1
      * divisor_{t+1} = divisor_{t} + decay
      */
     double currLearningRate;
+    double currMinLearningRate;
     double currLRDivisor;  // what the LR was last divided by
     
     String indicatorChanName; // save so that we can try to find a matching channel when updating
