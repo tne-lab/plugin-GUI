@@ -23,17 +23,18 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
-#include "ar/burg.h"        // Autoregressive modeling
 
 PhaseCalculator::PhaseCalculator()
     : GenericProcessor      ("Phase Calculator")
     , Thread                ("AR Modeler")
     , calcInterval          (50)
     , arOrder               (20)
+    , historyLength         (VIS_HILBERT_LENGTH)
     , lowCut                (4.0)
     , highCut               (8.0)
     , haveSentWarning       (false)
     , outputMode            (PH)
+    , arModeler             (arOrder, historyLength)
     , visEventChannel       (-1)
     , visContinuousChannel  (0)
     , visHilbertBuffer      (VIS_HILBERT_LENGTH)
@@ -41,7 +42,7 @@ PhaseCalculator::PhaseCalculator()
     , visBackwardPlan       (VIS_HILBERT_LENGTH, &visHilbertBuffer, FFTW_BACKWARD, FFTW_MEASURE)
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
-    setHilbertLength(1 << 13, 1 << 12);
+    setHilbertAndPredLength(1 << 13, 1 << 12);
 }
 
 PhaseCalculator::~PhaseCalculator() {}
@@ -64,7 +65,8 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
 
     switch (parameterIndex) {
     case PRED_LENGTH:
-        setPredictionLength(static_cast<int>(newValue));
+        predictionLength = static_cast<int>(newValue);
+        updateHistoryLength();
         break;
 
     case RECALC_INTERVAL:
@@ -72,14 +74,29 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
         break;
 
     case AR_ORDER:
+    {
+        int oldOrder = arOrder;
         arOrder = static_cast<int>(newValue);
-        h.resize(arOrder);
-        g.resize(arOrder);
+        
+        if (arOrder < oldOrder)
+        {
+            // update arOrder, then inputLength if necessary
+            if (!arModeler.setOrder(arOrder)) { jassertfalse; }
+            updateHistoryLength();
+        }
+        else
+        {
+            // update inputLength if necessary, then arOrder
+            updateHistoryLength();
+            if (!arModeler.setOrder(arOrder)) { jassertfalse; }
+        }
+        // update size of params for each channel
         for (int i = 0; i < getNumInputs(); i++)
         {
             arParams[i]->resize(arOrder);
         }
         break;
+    }
 
     case LOWCUT:
         lowCut = newValue;
@@ -389,7 +406,7 @@ void PhaseCalculator::run()
                 continue;
             }
 
-            // critical section for sharedDataBuffer
+            // critical section for historyBuffer
             {
                 const ScopedLock myHistoryLock(*historyLock[chan]);
 
@@ -400,19 +417,8 @@ void PhaseCalculator::run()
             }
             // end critical section
 
-            double* inputseries = data.getRawDataPointer();
-            double* paramsOut = paramsTemp.getRawDataPointer();
-            double* perRaw = per.getRawDataPointer();
-            double* pefRaw = pef.getRawDataPointer();
-            double* hRaw = h.getRawDataPointer();
-            double* gRaw = g.getRawDataPointer();
-
-            // reset per and pef
-            memset(perRaw, 0, historyLength * sizeof(double));
-            memset(pefRaw, 0, historyLength * sizeof(double));
-
             // calculate parameters
-            ARMaxEntropy(inputseries, historyLength, arOrder, paramsOut, perRaw, pefRaw, hRaw, gRaw);
+            arModeler.fitModel(data, paramsTemp);
 
             // write params safely
             {
@@ -565,17 +571,15 @@ void PhaseCalculator::handleEvent(const EventChannel* eventInfo,
     }
 }
 
-void PhaseCalculator::setHilbertLength(int newHilbertLength, int newPredictionLength)
+void PhaseCalculator::setHilbertAndPredLength(int newHilbertLength, int newPredictionLength)
 {
     jassert(newPredictionLength <= newHilbertLength - arOrder);
 
     hilbertLength = newHilbertLength;
-    if (newPredictionLength != predictionLength)
-    {
-        setPredictionLength(newPredictionLength);
-    }
+    predictionLength = newPredictionLength;
+    updateHistoryLength();
 
-    // update fields that depend on processLength
+    // update fields that depend on hilbertLength
     int nInputs = getNumInputs();
     for (int i = 0; i < nInputs; i++)
     {
@@ -588,19 +592,26 @@ void PhaseCalculator::setHilbertLength(int newHilbertLength, int newPredictionLe
     }
 }
 
-void PhaseCalculator::setPredictionLength(int newPredictionLength)
+void PhaseCalculator::updateHistoryLength()
 {
-    predictionLength = newPredictionLength;
-    historyLength = jmax(VIS_HILBERT_LENGTH, hilbertLength - newPredictionLength);
-    int numInputs = getNumInputs();
-    historyBuffer.setSize(numInputs, historyLength);
-
-    per.resize(historyLength);
-    pef.resize(historyLength);
-
-    for (int i = 0; i < numInputs; ++i)
+    int newHistoryLength = juce::jmax(
+        VIS_HILBERT_LENGTH,                     // must have enough samples to do a Hilbert transform on past values for visualization
+        hilbertLength - predictionLength,       // must have enough past samples for the current-buffer Hilbert transform
+        arOrder + 1);                           // must be longer than arOrder to train the AR model
+    if (newHistoryLength != historyLength)
     {
-        bufferFreeSpace.set(i, historyLength);
+        historyLength = newHistoryLength;
+
+        // update fields that depend on historyLength
+        int numInputs = getNumInputs();
+        historyBuffer.setSize(numInputs, historyLength);
+        bool success = arModeler.setInputLength(historyLength);
+        jassert(success);
+
+        for (int i = 0; i < numInputs; ++i)
+        {
+            bufferFreeSpace.set(i, historyLength);
+        }
     }
 }
 
