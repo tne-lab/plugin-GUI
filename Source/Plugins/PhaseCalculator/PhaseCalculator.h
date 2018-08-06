@@ -46,6 +46,7 @@ accuracy of phase-locked stimulation in real time.
 #include <DspLib/Dsp.h>  // Filtering
 #include <queue>
 #include "FFTWWrapper.h" // Fourier transform
+#include "ARModeler.h"   // Autoregressive modeling
 
 // parameter indices
 enum Param
@@ -123,11 +124,12 @@ private:
     void handleEvent(const EventChannel* eventInfo, const MidiMessage& event,
         int samplePosition = 0) override;
 
-    // Update predictionLength and numFuture, reallocating fields that depend on these.
-    void setHilbertLength(int newHilbertLength, int newPredictionLength);
+    // Set hilbertLength and predictionLength, reallocating fields that depend on these.
+    void setHilbertAndPredLength(int newHilbertLength, int newPredictionLength);
 
-    // Update predictionLength without reallocating processing arrays
-    void setPredictionLength(int newPredictionLength);
+    // Update historyLength to be the minimum possible size (depending on
+    // VIS_HILBERT_LENGTH, hilbertLength, predictionLength, and arOrder).
+    void updateHistoryLength();
 
     // Update the filters. From FilterNode code.
     void setFilterParameters();
@@ -217,8 +219,8 @@ private:
     // since the side thread only READS sharedDataBuffer, only needs to be locked in the main thread when it's WRITTEN to.
     OwnedArray<CriticalSection> historyLock;
 
-    // temporary storage for AR parameter calculation (see ar/burg.cpp)
-    Array<double> per, pef, h, g;
+    // for autoregressive parameter calculation
+    ARModeler arModeler;
 
     // keeps track of each channel's last output sample, to be used for smoothing.
     Array<float> lastSample;

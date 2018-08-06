@@ -229,10 +229,10 @@ void PhaseCalculatorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
         // calculate predLength
         float currRatio = processor->getPredictionRatio();
         float newPredLength;
-        newPredLength = fminf(roundf(currRatio * newHilbertLength), newHilbertLength - processor->arOrder);
+        newPredLength = jmin(static_cast<int>(roundf(currRatio * newHilbertLength)), newHilbertLength - processor->arOrder);
 
         // change both at once
-        processor->setHilbertLength(newHilbertLength, newPredLength);
+        processor->setHilbertAndPredLength(newHilbertLength, newPredLength);
 
         // update slider
         predLengthSlider->updateFromProcessor(processor);
@@ -291,15 +291,14 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == arOrderEditable)
     {
         int intInput;
-        bool valid = updateIntLabel(labelThatHasChanged, 1, processor->historyLength, processor->arOrder, &intInput);
+        bool valid = updateIntLabel(labelThatHasChanged, 1, processor->hilbertLength, processor->arOrder, &intInput);
 
         if (valid)
         {
             processor->setParameter(AR_ORDER, static_cast<float>(intInput));
+            // update slider's minimum value, and predictionLength and historyLength if necessary
+            predLengthSlider->updateFromProcessor(processor);
         }
-
-        // update slider's minimum value
-        predLengthSlider->updateFromProcessor(processor);
     }
     else if (labelThatHasChanged == lowCutEditable)
     {
@@ -499,6 +498,8 @@ void ProcessBufferSlider::updateFromProcessor(PhaseCalculator* parentNode)
     realMinValue = parentNode->arOrder;
 
     setRange(0, hilbertLength, 1);
+
+    // enforce min value via snapValue and slider listener
     setValue(0); // hack to ensure the listener gets called even if only the range is changed
     setValue(hilbertLength - predLength);
 }
