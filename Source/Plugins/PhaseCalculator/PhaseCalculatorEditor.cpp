@@ -338,12 +338,23 @@ void PhaseCalculatorEditor::sliderEvent(Slider* slider)
 
 void PhaseCalculatorEditor::channelChanged(int chan, bool newState)
 {
-    // if the channel is an input and outputMode is PH+MAG, update the extra channels
-    PhaseCalculator* pc = static_cast<PhaseCalculator*>(getProcessor());
-    if (chan < pc->getNumInputs() &&
-        (outputModeBox->getSelectedId() == PH_AND_MAG || canvas != nullptr))
+    auto pc = static_cast<PhaseCalculator*>(getProcessor());
+    if (chan < pc->getNumInputs())
     {
-        CoreServices::updateSignalChain(this);
+        if (newState)  // if activating, check whether sample rate is compatible
+        {
+            if (!pc->validateSampleRate(chan)) { return; }
+        }
+        else // if deactivating, reset channel state
+        {            
+            pc->resetInputChannel(chan);
+        }
+
+        // if the channel is an input and outputMode is PH+MAG, update the extra channels
+        if (outputModeBox->getSelectedId() == PH_AND_MAG || canvas != nullptr)
+        {
+            CoreServices::updateSignalChain(this);
+        }
     }
 }
 

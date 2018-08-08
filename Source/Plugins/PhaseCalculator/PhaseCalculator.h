@@ -51,7 +51,6 @@ accuracy of phase-locked stimulation in real time.
 // parameter indices
 enum Param
 {
-    PRED_LENGTH,
     RECALC_INTERVAL,
     AR_ORDER,
     LOWCUT,
@@ -100,10 +99,6 @@ public:
     bool enable() override;
     bool disable() override;
 
-    // calculate the fraction of the processing length is AR-predicted data points
-    // (i.e. predictionLength / hilbertLength, as a float)
-    float getPredictionRatio();
-
     // thread code - recalculates AR parameters.
     void run() override;
 
@@ -127,15 +122,21 @@ private:
     void handleEvent(const EventChannel* eventInfo, const MidiMessage& event,
         int samplePosition = 0) override;
 
-    // Set hilbertLength and predictionLength, reallocating fields that depend on these.
-    void setHilbertAndPredLength(int newHilbertLength, int newPredictionLength);
-
     // Update historyLength to be the minimum possible size (depending on
     // VIS_HILBERT_LENGTH, hilbertLength, predictionLength, and arOrder).
     void updateHistoryLength();
 
-    // Update the filters. From FilterNode code.
+    // Update the filter parameters. Modified from FilterNode code.
     void setFilterParameters();
+    
+    // If given input channel has an incompatible sample rate, deselect it (and send a warning).
+    // Otherwise, save the downsampling multiplier and initialize downsampling phase.
+    // Returns the new selection state of the channel.
+    bool validateSampleRate(int chan);
+
+    // Reset all the state associated with an active input channel (called when it is inactivated
+    // or acquisition stops). Assumes the channel has been active.
+    void resetInputChannel(int chan);
 
     // Do glitch unwrapping
     void unwrapBuffer(float* wp, int nSamples, int chan);
@@ -158,14 +159,14 @@ private:
 
     // ---- static utility methods ----
 
-    /*
-     * arPredict: use autoregressive model of order to predict future data.
-     * Input params is an array of coefficients of an AR model of length 'order'.
-     * Writes writeNum future data values starting at location writeStart.
-     * *** assumes there are at least 'order' existing data points *before* writeStart
-     * to use to calculate future data points.
-     */
-    static void arPredict(double* writeStart, int writeNum, const double* params, int order);
+    ///*
+    // * arPredict: use autoregressive model of order to predict future data.
+    // * Input params is an array of coefficients of an AR model of length 'order'.
+    // * Writes writeNum future data values starting at location writeStart.
+    // * *** assumes there are at least 'order' existing data points *before* writeStart
+    // * to use to calculate future data points.
+    // */
+    //static void arPredict(double* writeStart, int writeNum, const double* params, int order);
 
     /*
      * hilbertManip: Hilbert transforms data in the frequency domain (including normalization by length of data).
@@ -173,15 +174,13 @@ private:
      */
     static void hilbertManip(FFTWArray* fftData);
 
+    // Get the htScaleFactor for the given filter band (with sample rate HT_FS). Currently uses
+    // a mean over three points to approximate the magnitude response over the band.
+    static double getScaleFactor(double lowCut, double highCut);
+
     // ---- customizable parameters ------
-    
-    // number of samples to pass through the Hilbert transform in the main calculation
-    int hilbertLength;
 
-    // number of future values to predict (0 <= predictionLength <= hilbertLength - AR_ORDER)
-    int predictionLength;
-
-    // size of historyBuffer ( = max(VIS_HILBERT_LENGTH, hilbertLength - predictionLength))
+    // size of historyBuffer ( >= VIS_HILBERT_LENGTH and long enough to train AR model effectively)
     int historyLength;
 
     // time to wait between AR model recalculations in ms
@@ -200,9 +199,8 @@ private:
 
     // ---- internals -------
 
-    // Storage area for filtered data to be read by the main thread to fill hilbertBuffer,
-    // by the side thread to calculate AR model parameters, and by the visualization event
-    // handler to calculate acccurate phases at past event times.
+    // Storage area for filtered data to be used by the side thread to calculate AR model parameters
+    // and by the visualization event handler to calculate acccurate phases at past event times.
     AudioBuffer<double> historyBuffer;
 
     // Keep track of how much of the historyBuffer is empty (per channel)
@@ -211,29 +209,30 @@ private:
     // Keeps track of each channel's state (see enum definition above)
     Array<ChannelState> chanState;
 
-    // Buffers for FFTW processing
-    OwnedArray<FFTWArray> hilbertBuffer;
-    
-    // Plans for the FFTW Fourier Transform library
-    OwnedArray<FFTWPlan> forwardPlan;  // FFT
-    OwnedArray<FFTWPlan> backwardPlan; // IFFT
-
     // mutexes for sharedDataBuffer arrays, which are used in the side thread to calculate AR parameters.
     // since the side thread only READS sharedDataBuffer, only needs to be locked in the main thread when it's WRITTEN to.
     OwnedArray<CriticalSection> historyLock;
 
     // for autoregressive parameter calculation
-    ARModeler arModeler;
+    OwnedArray<ARModeler> arModelers;
 
-    // keeps track of each channel's last output sample, to be used for smoothing.
+    // for active input channels, equals the sample rate divided by HT_FS
+    Array<int> sampleRateMultiple;
+
+    // keep track of each active channel's last non-interpolated ("computed") output sample
+    // and the offset of next computed sample from start of next buffer.
+    Array<float> lastComputedSample;
+    Array<int> dsOffset;
+
+    // keep track of sample output, for glitch correction
     Array<float> lastSample;
 
     // AR model parameters
     OwnedArray<Array<double>> arParams;
     OwnedArray<CriticalSection> arParamLock;
 
-    // so that the warning message only gets sent once per run
-    bool haveSentWarning;
+    // approximate multiplier for the imaginary component output of the HT (depends on filter band)
+    double htScaleFactor;
 
     // maps full source subprocessor IDs of incoming streams to indices of
     // corresponding subprocessors created here.
@@ -274,7 +273,7 @@ private:
     OwnedArray<BandpassFilter> filters;
     BandpassFilter visReverseFilter;
 
-    // -------static------------
+    // ------- constants ------------
 
     // priority of the AR model calculating thread (0 = lowest, 10 = highest)
     static const int AR_PRIORITY = 3;
@@ -282,15 +281,19 @@ private:
     // "glitch limit" (how long of a segment is allowed to be unwrapped or smoothed, in samples)
     static const int GLITCH_LIMIT = 200;
 
-    // process length limits (powers of 2)
-    static const int MIN_PLEN_POW = 9;
-    static const int MAX_PLEN_POW = 16;
-
     // process length for real-time visualization ground truth hilbert transform
     // based on evaluation of phase error compared to offline processing
     static const int VIS_HILBERT_LENGTH = 65536;
     static const int VIS_TS_MIN_DELAY = 40000;
     static const int VIS_TS_MAX_DELAY = 48000;
+
+    // hilbert transformer parameters
+    static const int HT_FS = 500;              // sample rate
+    static const int HT_ORDER = 18;            // filter order, must be even
+    static const int HT_DELAY = HT_ORDER / 2;  // samples of group delay
+
+    // hilbert transformer
+    static const double HT_COEF[HT_ORDER + 1];
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseCalculator);
 };

@@ -25,15 +25,21 @@
 class ARModeler {
 public:
     ARModeler() = delete;
-    ARModeler(int order, int length, bool* success = nullptr) : arOrder(order), inputLength(length)
+    ARModeler(int order, int length, int strideIn = 1, bool* success = nullptr) 
+        : arOrder       (order)
+        , stride        (strideIn)
+        , inputLength   (length)
+        , stridedLength (calcStridedLength(length, strideIn))
     {
-        if (order < 1 || order >= length)
+        if (order < 1 || stridedLength < order + 1)
         {
-            // invalid length/order combination
+            // invalid length/order/stride combination
             jassertfalse;
             if (success != nullptr) { *success = false; }
             arOrder = 1;
             inputLength = 2;
+            stridedLength = 2;
+            stride = 1;
         }
         else if (success != nullptr) { *success = true; }
         reallocateStorage();
@@ -41,10 +47,10 @@ public:
 
     ~ARModeler() { }
 
-    // returns true if successful.
+    // Set order; returns true if successful.
     bool setOrder(int order)
     {
-        if (order < 1 || order >= inputLength)
+        if (order < 1 || stridedLength < order + 1)
         {
             jassertfalse;
             return false;
@@ -54,15 +60,32 @@ public:
         return true;
     }
 
-    // returns true if successful.
+    // Set length; returns true if successful.
     bool setInputLength(int length)
     {
-        if (length <= arOrder)
+        int newStridedLength = calcStridedLength(length, stride);
+        if (newStridedLength < arOrder + 1)
         {
             jassertfalse;
             return false;
         }
         inputLength = length;
+        stridedLength = newStridedLength;
+        reallocateStorage();
+        return true;
+    }
+
+    // Set stride; returns true if successful.
+    bool setStride(int newStride)
+    {
+        int newStridedLength = calcStridedLength(inputLength, newStride);
+        if (newStridedLength < arOrder + 1)
+        {
+            jassertfalse;
+            return false;
+        }
+        stride = newStride;
+        stridedLength = newStridedLength;
         reallocateStorage();
         return true;
     }
@@ -82,12 +105,12 @@ public:
             double sn = 0.0;
             double sd = 0.0;
             int j;
-            int jj = inputLength - n;
+            int jj = stridedLength - n;
 
             for (j = 0; j < jj; j++)
             {
-                t1 = inputseries[j + n] + pef[j];
-                t2 = inputseries[j] + per[j];
+                t1 = inputseries[stride * (j + n)] + pef[j];
+                t2 = inputseries[stride * j] + per[j];
                 sn -= 2.0 * t1 * t2;
                 sd += (t1 * t1) + (t2 * t2);
             }
@@ -105,8 +128,8 @@ public:
 
             for (j = 0; j < jj; j++)
             {
-                per.setUnchecked(j, per[j] + t1 * pef[j] + t1 * inputseries[j + n]);
-                pef.setUnchecked(j, pef[j + 1] + t1 * per[j + 1] + t1 * inputseries[j + 1]);
+                per.setUnchecked(j, per[j] + t1 * pef[j] + t1 * inputseries[stride * (j + n)]);
+                pef.setUnchecked(j, pef[j + 1] + t1 * per[j + 1] + t1 * inputseries[stride * (j + 1)]);
             }
         }
     }
@@ -122,13 +145,21 @@ private:
     void resetPredictionError()
     {
         per.clearQuick();
-        per.insertMultiple(0, 0, inputLength);
+        per.insertMultiple(0, 0, stridedLength);
         pef.clearQuick();
-        pef.insertMultiple(0, 0, inputLength);
+        pef.insertMultiple(0, 0, stridedLength);
+    }
+
+    static int calcStridedLength(int inputLength, int stride) inline
+    {
+        jassert(stride > 0);
+        return (inputLength + (stride - 1)) / stride;
     }
 
     int arOrder;
     int inputLength;
+    int stridedLength;
+    int stride;
     Array<double> per;
     Array<double> pef;
     Array<double> h;
