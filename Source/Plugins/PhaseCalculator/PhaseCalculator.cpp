@@ -24,18 +24,19 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
 
+const float PhaseCalculator::PASSBAND_EPS = 0.01F;
+
 PhaseCalculator::PhaseCalculator()
     : GenericProcessor      ("Phase Calculator")
     , Thread                ("AR Modeler")
     , calcInterval          (50)
-    , arOrder               (20)
-    , historyLength         (VIS_HILBERT_LENGTH)
     , lowCut                (4.0)
     , highCut               (8.0)
     , minNyquist            (FLT_MAX)
+    , hilbertLength         (1 << 14)
+    , predictionLength      (1 << 13)
     , haveSentWarning       (false)
     , outputMode            (PH)
-    , arModeler             (arOrder, historyLength)
     , visEventChannel       (-1)
     , visContinuousChannel  (-1)
     , visHilbertBuffer      (VIS_HILBERT_LENGTH)
@@ -43,7 +44,7 @@ PhaseCalculator::PhaseCalculator()
     , visBackwardPlan       (VIS_HILBERT_LENGTH, &visHilbertBuffer, FFTW_BACKWARD, FFTW_MEASURE)
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
-    setHilbertAndPredLength(1 << 13, 1 << 12);
+    setAROrder(20);
 }
 
 PhaseCalculator::~PhaseCalculator() {}
@@ -65,9 +66,16 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
     int numInputs = getNumInputs();
 
     switch (parameterIndex) {
+    case HILBERT_LENGTH:
+        setHilbertLength(static_cast<int>(newValue));
+        break;
+
+    case PAST_LENGTH:
+        setPredLength(hilbertLength - static_cast<int>(newValue));
+        break;
+
     case PRED_LENGTH:
-        predictionLength = static_cast<int>(newValue);
-        updateHistoryLength();
+        setPredLength(static_cast<int>(newValue));
         break;
 
     case RECALC_INTERVAL:
@@ -75,38 +83,15 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
         break;
 
     case AR_ORDER:
-    {
-        int oldOrder = arOrder;
-        arOrder = static_cast<int>(newValue);
-        
-        if (arOrder < oldOrder)
-        {
-            // update arOrder, then inputLength if necessary
-            if (!arModeler.setOrder(arOrder)) { jassertfalse; }
-            updateHistoryLength();
-        }
-        else
-        {
-            // update inputLength if necessary, then arOrder
-            updateHistoryLength();
-            if (!arModeler.setOrder(arOrder)) { jassertfalse; }
-        }
-        // update size of params for each channel
-        for (int i = 0; i < getNumInputs(); i++)
-        {
-            arParams[i]->resize(arOrder);
-        }
+        setAROrder(static_cast<int>(newValue));
         break;
-    }
 
     case LOWCUT:
-        lowCut = newValue;
-        setFilterParameters();
+        setLowCut(newValue);
         break;
 
     case HIGHCUT:
-        highCut = newValue;
-        setFilterParameters();
+        setHighCut(newValue);
         break;
 
     case OUTPUT_MODE:
@@ -120,28 +105,8 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
         break;
 
     case VIS_C_CHAN:
-    {
-        int newVisContChan = static_cast<int>(newValue);
-        jassert(newVisContChan < filters.size());
-
-        if (newVisContChan >= 0)
-        {
-            int tempVisEventChan = visEventChannel;
-            visEventChannel = -1; // disable temporarily
-
-            // clear timestamp queue
-            while (!visTsBuffer.empty())
-            {
-                visTsBuffer.pop();
-            }
-
-            // update filter settings
-            visReverseFilter.setParams(filters[newVisContChan]->getParams());
-            visEventChannel = tempVisEventChan;
-        }
-        visContinuousChannel = newVisContChan;
+        setVisContChan(static_cast<int>(newValue));
         break;
-    }        
     }
 }
 
@@ -206,13 +171,13 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             }
         }
 
-        // shift old data and copy new data into sharedDataBuffer
+        // shift old data and copy new data into historyBuffer
         int nOldSamples = historyLength - nSamplesToEnqueue;
 
         const double* rpBuffer = historyBuffer.getReadPointer(chan, nSamplesToEnqueue);
         double* wpBuffer = historyBuffer.getWritePointer(chan);
 
-        // critical section for this channel's sharedDataBuffer
+        // critical section for this channel's historyBuffer
         // note that the floats are coerced to doubles here - this is important to avoid over/underflow when calculating the phase.
         {
             const ScopedLock myHistoryLock(*historyLock[chan]);
@@ -251,6 +216,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             hilbertBuffer[chan]->copyFrom(rpBuffer, hilbertPastLength);
 
             // use AR(20) model to predict upcoming data and append to dataToProcess
+            rpBuffer = historyBuffer.getReadPointer(chan, historyLength);
             double* wpHilbert = hilbertBuffer[chan]->getRealPointer(hilbertPastLength);
 
             // read current AR parameters safely
@@ -265,7 +231,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             }
             
             double* rpParam = currParams.getRawDataPointer();
-            arPredict(wpHilbert, predictionLength, rpParam, arOrder);
+            arPredict(rpBuffer, wpHilbert, predictionLength, rpParam, arOrder);
 
             // Hilbert-transform dataToProcess
             forwardPlan[chan]->execute();      // reads from dataToProcess, writes to fftData
@@ -353,13 +319,15 @@ bool PhaseCalculator::disable()
 
     haveSentWarning = false;
 
-    // reset states of inputs
+    // reset states of active inputs
     int numInputs = getNumInputs();
-    for (int i = 0; i < numInputs; ++i)
+    Array<int> activeChannels = editor->getActiveChannels();
+    for (int chan : activeChannels)
     {
-        chanState.set(i, NOT_FULL);
-        bufferFreeSpace.set(i, historyLength);
-        lastSample.set(i, 0);
+        if (chan < numInputs)
+        {
+            resetInputChannel(chan);
+        }
     }
 
     // clear timestamp and phase queues
@@ -375,12 +343,6 @@ bool PhaseCalculator::disable()
     }
 
     return true;
-}
-
-
-float PhaseCalculator::getPredictionRatio()
-{
-    return static_cast<float>(predictionLength) / hilbertLength;
 }
 
 // thread routine
@@ -567,9 +529,9 @@ void PhaseCalculator::loadCustomChannelParametersFromXml(XmlElement* channelElem
 {
     if (channelElement->hasAttribute("visualize"))
     {
-        // Set the visualization channel through the canvas. Should be added to the dropdown at this point.
-        int chan = channelElement->getIntAttribute("number");
-        static_cast<PhaseCalculatorEditor*>(getEditor())->setVisContinuousChan(chan);
+        // The saved channel should be added to the dropdown at this point.
+        setVisContChan(channelElement->getIntAttribute("number"));   
+        static_cast<PhaseCalculatorEditor*>(getEditor())->refreshVisContinuousChan();
     }
 }
 
@@ -596,15 +558,20 @@ void PhaseCalculator::handleEvent(const EventChannel* eventInfo,
     }
 }
 
-void PhaseCalculator::setHilbertAndPredLength(int newHilbertLength, int newPredictionLength)
+void PhaseCalculator::setHilbertLength(int newHilbertLength)
 {
-    jassert(newPredictionLength <= newHilbertLength - arOrder);
+    if (newHilbertLength == hilbertLength) { return; }
 
+    float predLengthRatio = static_cast<float>(predictionLength) / hilbertLength;
     hilbertLength = newHilbertLength;
-    predictionLength = newPredictionLength;
-    updateHistoryLength();
 
-    // update fields that depend on hilbertLength
+    static_cast<PhaseCalculatorEditor*>(getEditor())->refreshHilbertLength();
+
+    // update dependent variables    
+    int newPredLength = static_cast<int>(roundf(predLengthRatio * hilbertLength));
+    setPredLength(newPredLength);
+
+    // update dependent per-channel objects
     int nInputs = getNumInputs();
     for (int i = 0; i < nInputs; i++)
     {
@@ -617,27 +584,103 @@ void PhaseCalculator::setHilbertAndPredLength(int newHilbertLength, int newPredi
     }
 }
 
+void PhaseCalculator::setPredLength(int newPredLength)
+{
+    if (newPredLength == predictionLength) { return; }
+
+    predictionLength = newPredLength;
+    static_cast<PhaseCalculatorEditor*>(getEditor())->refreshPredLength();
+}
+
+void PhaseCalculator::setAROrder(int newOrder)
+{
+    if (newOrder == arOrder) { return; }
+    
+    arOrder = newOrder;
+    updateHistoryLength();
+    bool s = arModeler.setParams(arOrder, historyLength);
+    jassert(s);
+
+    // update dependent per-channel objects
+    int nInputs = getNumInputs();
+    for (int i = 0; i < nInputs; i++)
+    {
+        arParams[i]->resize(arOrder);
+    }
+}
+
+void PhaseCalculator::setLowCut(float newLowCut)
+{
+    if (newLowCut == lowCut) { return; }
+
+    lowCut = newLowCut;
+    if (lowCut >= highCut)
+    {
+        // push highCut up
+        highCut = lowCut + PASSBAND_EPS;
+        static_cast<PhaseCalculatorEditor*>(getEditor())->refreshHighCut();
+    }
+    setFilterParameters();
+}
+
+void PhaseCalculator::setHighCut(float newHighCut)
+{
+    if (newHighCut == highCut) { return; }
+
+    highCut = newHighCut;
+    if (highCut <= lowCut)
+    {
+        // push lowCut down
+        lowCut = highCut - PASSBAND_EPS;
+        static_cast<PhaseCalculatorEditor*>(getEditor())->refreshLowCut();
+    }
+    setFilterParameters();
+}
+
+void PhaseCalculator::setVisContChan(int newChan)
+{
+    jassert(newChan < filters.size());
+
+    if (newChan >= 0)
+    {
+        int tempVisEventChan = visEventChannel;
+        visEventChannel = -1; // disable temporarily
+
+        // clear timestamp queue
+        while (!visTsBuffer.empty())
+        {
+            visTsBuffer.pop();
+        }
+
+        // update filter settings
+        visReverseFilter.setParams(filters[newChan]->getParams());
+        visEventChannel = tempVisEventChan;
+    }
+    visContinuousChannel = newChan;
+}
+
 void PhaseCalculator::updateHistoryLength()
 {
+    jassert(VIS_HILBERT_LENGTH >= (1 << MAX_HILB_LEN_POW));
     int newHistoryLength = juce::jmax(
-        VIS_HILBERT_LENGTH,                     // must have enough samples to do a Hilbert transform on past values for visualization
-        hilbertLength - predictionLength,       // must have enough past samples for the current-buffer Hilbert transform
-        arOrder + 1);                           // must be longer than arOrder to train the AR model
-    if (newHistoryLength != historyLength)
+        VIS_HILBERT_LENGTH,   // must have enough samples for current and delayed Hilbert transforms
+        arOrder + 1);         // must be longer than arOrder to train the AR model
+
+    if (newHistoryLength == historyLength) { return; }
+    
+    historyLength = newHistoryLength;
+
+    // update things that depend on historyLength
+    int numInputs = getNumInputs();
+    historyBuffer.setSize(numInputs, historyLength);
+
+    for (int i = 0; i < numInputs; ++i)
     {
-        historyLength = newHistoryLength;
-
-        // update fields that depend on historyLength
-        int numInputs = getNumInputs();
-        historyBuffer.setSize(numInputs, historyLength);
-        bool success = arModeler.setInputLength(historyLength);
-        jassert(success);
-
-        for (int i = 0; i < numInputs; ++i)
-        {
-            bufferFreeSpace.set(i, historyLength);
-        }
+        bufferFreeSpace.set(i, historyLength);
     }
+
+    bool s = arModeler.setParams(arOrder, historyLength);
+    jassert(s);
 }
 
 void PhaseCalculator::updateMinNyquist()
@@ -662,7 +705,8 @@ void PhaseCalculator::updateMinNyquist()
         // push down highCut to make it valid
         CoreServices::sendStatusMessage("Lowering Phase Calculator upper passband limit to the Nyquist frequency (" +
             String(minNyquist) + " Hz)");
-        ed->setHighCut(minNyquist);
+        setHighCut(minNyquist);
+        ed->refreshHighCut();
     }
 }
 
@@ -691,6 +735,15 @@ void PhaseCalculator::setFilterParameters()
     {
         visReverseFilter.setParams(filters[visContinuousChannel]->getParams());
     }
+}
+
+void PhaseCalculator::resetInputChannel(int chan)
+{
+    jassert(chan >= 0 && chan < getNumInputs());
+    bufferFreeSpace.set(chan, historyLength);
+    chanState.set(chan, NOT_FULL);
+    lastSample.set(chan, 0);
+    filters[chan]->reset();
 }
 
 void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int chan)
@@ -898,14 +951,16 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
     }
 }
 
-void PhaseCalculator::arPredict(double* writeStart, int writeNum, const double* params, int order)
+void PhaseCalculator::arPredict(const double* readEnd, double* writeStart, int writeNum, const double* params, int order)
 {
     for (int s = 0; s < writeNum; ++s)
     {
+        // s = index to write output
         writeStart[s] = 0;
-        for (int p = 0; p < order; ++p)
+        for (int ind = s - 1; ind > s - 1 - order; --ind)
         {
-            writeStart[s] -= params[p] * writeStart[s - 1 - p];
+            // ind = index of previous output to read
+            writeStart[s] -= params[s - 1 - ind] * (ind < 0 ? readEnd[ind] : writeStart[ind]);
         }
     }
 }

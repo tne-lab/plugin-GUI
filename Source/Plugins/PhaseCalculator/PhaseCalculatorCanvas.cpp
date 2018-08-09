@@ -328,15 +328,15 @@ void PhaseCalculatorCanvas::loadVisualizerParameters(XmlElement* xml)
     }
 }
 
-void PhaseCalculatorCanvas::setContinuousChannel(int chan)
+void PhaseCalculatorCanvas::displayContinuousChan(int chan)
 {
-    if (cChannelBox->indexOfItemId(chan) == -1)
+    if (cChannelBox->indexOfItemId(chan + 1) == -1)
     {
         jassertfalse;
         return;
     }
     // remember to switch to 1-based
-    cChannelBox->setSelectedId(chan + 1, sendNotificationSync);
+    cChannelBox->setSelectedId(chan + 1, dontSendNotification);
 }
 
 /**** RosePlot ****/
@@ -512,7 +512,7 @@ void RosePlot::labelTextChanged(Label* labelThatHasChanged)
     {
         float floatInput;
         float currReferenceDeg = static_cast<float>(referenceAngle * 180.0 / PI);
-        bool valid = PhaseCalculatorEditor::updateFloatLabel(labelThatHasChanged,
+        bool valid = PhaseCalculatorEditor::updateFloatControl(labelThatHasChanged,
             -FLT_MAX, FLT_MAX, currReferenceDeg, &floatInput);
 
         if (valid)
