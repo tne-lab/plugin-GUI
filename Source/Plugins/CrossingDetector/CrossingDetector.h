@@ -253,7 +253,7 @@ private:
     /* If using adaptive threshold, learning rate evolves by this formula (LR = learning rate, MLR = min learning rate):
      * LR_{t} = (LR_{t-1} - MLR) / divisor_{t} + MLR
      * divisor_{0} = 1
-     * divisor_{t+1} = divisor_{t} + decay
+     * divisor_{t} = divisor_{t-1} + decay
      */
     double currLearningRate;
     double currMinLearningRate;

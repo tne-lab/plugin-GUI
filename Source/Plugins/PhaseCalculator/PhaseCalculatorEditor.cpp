@@ -24,6 +24,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "PhaseCalculatorCanvas.h"
 #include <climits> // INT_MAX
 
+const float PhaseCalculatorEditor::PASSBAND_EPS = 0.01F;
+
 PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
     : VisualizerEditor     (parentNode, 325, useDefaultParameterEditors)
 {
@@ -195,7 +197,7 @@ void PhaseCalculatorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
         int newId = hilbertLengthBox->getSelectedId();
         int newHilbertLength;
         if (newId) // one of the items in the list is selected
-        {            
+        {
             newHilbertLength = (1 << newId);
         }
         else
@@ -215,7 +217,7 @@ void PhaseCalculatorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
 
             newHilbertLength = jmax(1 << PhaseCalculator::MIN_PLEN_POW,
                 jmin(1 << PhaseCalculator::MAX_PLEN_POW, parsedInt));
-           
+
             hilbertLengthBox->setText(String(newHilbertLength), dontSendNotification);
         }
 
@@ -262,14 +264,14 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
             predLengthSlider->setValue(intInput, dontSendNotification);
             predLengthEditable->setText(String(newPredLength), dontSendNotification);
             processor->setParameter(PRED_LENGTH, static_cast<float>(newPredLength));
-        }        
+        }
     }
     else if (labelThatHasChanged == predLengthEditable)
     {
         int intInput;
         bool valid = updateIntLabel(labelThatHasChanged, 0, sliderMax - sliderMin,
             sliderMax - static_cast<int>(predLengthSlider->getValue()), &intInput);
-        
+
         if (valid)
         {
             int newPastLength = sliderMax - intInput;
@@ -303,22 +305,32 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == lowCutEditable)
     {
         float floatInput;
-        bool valid = updateFloatLabel(labelThatHasChanged, 0.01F, 10000.0F, static_cast<float>(processor->lowCut), &floatInput);
+        bool valid = updateFloatLabel(labelThatHasChanged, PASSBAND_EPS,
+            processor->HT_FS / 2 - PASSBAND_EPS, processor->lowCut, &floatInput);
 
-        if (valid)
+        if (!valid) { return; }
+
+        if (floatInput > processor->highCut)
         {
-            processor->setParameter(LOWCUT, floatInput);
+            // push highCut up
+            highCutEditable->setText(String(floatInput + PASSBAND_EPS), sendNotificationSync);
         }
+        processor->setParameter(LOWCUT, floatInput);
     }
     else if (labelThatHasChanged == highCutEditable)
     {
         float floatInput;
-        bool valid = updateFloatLabel(labelThatHasChanged, 0.01F, 10000.0F, static_cast<float>(processor->highCut), &floatInput);
+        bool valid = updateFloatLabel(labelThatHasChanged, 2 * PASSBAND_EPS,
+            processor->HT_FS / 2, processor->highCut, &floatInput);
 
-        if (valid)
+        if (!valid) { return; }
+
+        if (floatInput < processor->lowCut)
         {
-            processor->setParameter(HIGHCUT, floatInput);
+            // push lowCut down
+            lowCutEditable->setText(String(floatInput - PASSBAND_EPS), sendNotificationSync);
         }
+        processor->setParameter(HIGHCUT, floatInput);
     }
 }
 
@@ -331,7 +343,7 @@ void PhaseCalculatorEditor::sliderEvent(Slider* slider)
         int maxVal = static_cast<int>(slider->getMaximum());
         pastLengthEditable->setText(String(newVal), dontSendNotification);
         predLengthEditable->setText(String(maxVal - newVal), dontSendNotification);
-        
+
         getProcessor()->setParameter(PRED_LENGTH, static_cast<float>(maxVal - newVal));
     }
 }
@@ -346,15 +358,14 @@ void PhaseCalculatorEditor::channelChanged(int chan, bool newState)
             if (!pc->validateSampleRate(chan)) { return; }
         }
         else // if deactivating, reset channel state
-        {            
+        {
             pc->resetInputChannel(chan);
         }
 
-        // if the channel is an input and outputMode is PH+MAG, update the extra channels
-        if (outputModeBox->getSelectedId() == PH_AND_MAG || canvas != nullptr)
-        {
-            CoreServices::updateSignalChain(this);
-        }
+        // If not an output channel, update signal chain. This should take care of:
+        //     - adding/removing output channels if necessary
+        //     - updating the available continuous channels for visualizer
+        CoreServices::updateSignalChain(this);
     }
 }
 
@@ -369,10 +380,7 @@ void PhaseCalculatorEditor::startAcquisition()
     highCutEditable->setEnabled(false);
     arOrderEditable->setEnabled(false);
     outputModeBox->setEnabled(false);
-    if (outputModeBox->getSelectedId() == OutputMode::PH_AND_MAG)
-    {
-        channelSelector->inactivateButtons();
-    }
+    channelSelector->inactivateButtons();
 }
 
 void PhaseCalculatorEditor::stopAcquisition()
@@ -406,7 +414,7 @@ void PhaseCalculatorEditor::saveCustomParameters(XmlElement* xml)
 
     xml->setAttribute("Type", "PhaseCalculatorEditor");
     PhaseCalculator* processor = (PhaseCalculator*)(getProcessor());
-    
+
     XmlElement* paramValues = xml->createNewChildElement("VALUES");
     paramValues->setAttribute("hilbertLength", processor->hilbertLength);
     paramValues->setAttribute("predLength", processor->predictionLength);
@@ -424,7 +432,7 @@ void PhaseCalculatorEditor::loadCustomParameters(XmlElement* xml)
     forEachXmlChildElementWithTagName(*xml, xmlNode, "VALUES")
     {
         // some parameters have two fallbacks for backwards compatability
-        hilbertLengthBox->setText(xmlNode->getStringAttribute("hilbertLength", 
+        hilbertLengthBox->setText(xmlNode->getStringAttribute("hilbertLength",
             xmlNode->getStringAttribute("processLength", hilbertLengthBox->getText())), sendNotificationSync);
         predLengthEditable->setText(xmlNode->getStringAttribute("predLength",
             xmlNode->getStringAttribute("numFuture", predLengthEditable->getText())), sendNotificationSync);
@@ -433,6 +441,14 @@ void PhaseCalculatorEditor::loadCustomParameters(XmlElement* xml)
         lowCutEditable->setText(xmlNode->getStringAttribute("lowCut", lowCutEditable->getText()), sendNotificationSync);
         highCutEditable->setText(xmlNode->getStringAttribute("highCut", highCutEditable->getText()), sendNotificationSync);
         outputModeBox->setSelectedId(xmlNode->getIntAttribute("outputMode", outputModeBox->getSelectedId()), sendNotificationSync);
+    }
+}
+
+void PhaseCalculatorEditor::setVisContinuousChan(int chan)
+{
+    if (canvas != nullptr)
+    {
+        static_cast<PhaseCalculatorCanvas*>(canvas.get())->setContinuousChannel(chan);
     }
 }
 

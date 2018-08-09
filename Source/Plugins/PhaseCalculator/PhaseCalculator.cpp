@@ -35,7 +35,7 @@ PhaseCalculator::PhaseCalculator()
     , htScaleFactor         (getScaleFactor(lowCut, highCut))
     , outputMode            (PH)
     , visEventChannel       (-1)
-    , visContinuousChannel  (0)
+    , visContinuousChannel  (-1)
     , visHilbertBuffer      (VIS_HILBERT_LENGTH)
     , visForwardPlan        (VIS_HILBERT_LENGTH, &visHilbertBuffer, FFTW_MEASURE)
     , visBackwardPlan       (VIS_HILBERT_LENGTH, &visHilbertBuffer, FFTW_BACKWARD, FFTW_MEASURE)
@@ -64,7 +64,7 @@ void PhaseCalculator::createEventChannels()
     const DataChannel* visChannel = getDataChannel(visContinuousChannel);
     float sampleRate = visChannel ? visChannel->getSampleRate() : CoreServices::getGlobalSampleRate();
     juce::uint16 subproc = visChannel ? visChannel->getSubProcessorIdx() : 0;
-    
+
     EventChannel* chan = new EventChannel(EventChannel::DOUBLE_ARRAY, 1, 1, sampleRate, this, subproc);
     chan->setName(chan->getName() + ": PC visualized phase (deg.)");
     chan->setDescription("The accurate phase in degrees of each visualized event");
@@ -102,7 +102,7 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
         int oldOrder = arOrder;
         arOrder = static_cast<int>(newValue);
         if (arOrder == oldOrder) { return; }
-        
+
         // if order is increasing, update inputLength of modelers first:
         if (arOrder > oldOrder) { updateHistoryLength(); }
         for (auto chan : getEditor()->getActiveChannels())
@@ -149,23 +149,26 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
     case VIS_C_CHAN:
     {
         int newVisContChan = static_cast<int>(newValue);
-        jassert(newVisContChan >= 0 && newVisContChan < filters.size());
-        int tempVisEventChan = visEventChannel;
-        visEventChannel = -1; // disable temporarily
+        jassert(newVisContChan < filters.size());
 
-        // clear timestamp queue
-        while (!visTsBuffer.empty())
+        if (newVisContChan >= 0)
         {
-            visTsBuffer.pop();
+            int tempVisEventChan = visEventChannel;
+            visEventChannel = -1; // disable temporarily
+
+            // clear timestamp queue
+            while (!visTsBuffer.empty())
+            {
+                visTsBuffer.pop();
+            }
+
+            // update filter settings
+            visReverseFilter.setParams(filters[newVisContChan]->getParams());
+            visEventChannel = tempVisEventChan;
         }
-
-        // update filter settings
-        visReverseFilter.setParams(filters[newVisContChan]->getParams());
-
         visContinuousChannel = newVisContChan;
-        visEventChannel = tempVisEventChan;
         break;
-    }        
+    }
     }
 }
 
@@ -213,9 +216,9 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         int hilbertPastLength = hilbertLength - predictionLength;
         int historyStartIndex = jmax(nSamples - historyLength, 0);
         int outputStartIndex = jmax(nSamples - hilbertPastLength, 0);
-        
+
         jassert(outputStartIndex >= historyStartIndex); // since historyLength >= hilbertPastLength
-        
+
         int nSamplesToEnqueue = nSamples - historyStartIndex;
         int nSamplesToProcess = nSamples - outputStartIndex;
 
@@ -287,7 +290,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                     currParams.set(i, (*arParams[chan])[i]);
                 }
             }
-            
+
             double* rpParam = currParams.getRawDataPointer();
             arPredict(wpHilbert, predictionLength, rpParam, arOrder);
 
@@ -311,7 +314,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                 case MAG:
                     wpOut[i + outputStartIndex] = static_cast<float>(std::abs(rpHilbert[i]));
                     break;
-                
+
                 case PH_AND_MAG:
                     wpOut2[i + outputStartIndex] = static_cast<float>(std::abs(rpHilbert[i]));
                     // fall through
@@ -319,7 +322,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                     // output in degrees
                     wpOut[i + outputStartIndex] = static_cast<float>(std::arg(rpHilbert[i]) * (180.0 / Dsp::doublePi));
                     break;
-                    
+
                 case IM:
                     wpOut[i + outputStartIndex] = static_cast<float>(std::imag(rpHilbert[i]));
                     break;
@@ -541,7 +544,7 @@ void PhaseCalculator::updateSettings()
     for (int chan : activeChannels)
     {
         if (chan < numInputs)
-        { 
+        {
             validateSampleRate(chan);
         }
     }
@@ -579,6 +582,26 @@ std::queue<double>& PhaseCalculator::getVisPhaseBuffer(ScopedPointer<ScopedLock>
 {
     lock = new ScopedLock(visPhaseBufferLock);
     return visPhaseBuffer;
+}
+
+void PhaseCalculator::saveCustomChannelParametersToXml(XmlElement* channelElement,
+    int channelNumber, InfoObjectCommon::InfoObjectType channelType)
+{
+    if (channelType == InfoObjectCommon::DATA_CHANNEL && channelNumber == visContinuousChannel)
+    {
+        channelElement->setAttribute("visualize", 1);
+    }
+}
+
+void PhaseCalculator::loadCustomChannelParametersFromXml(XmlElement* channelElement,
+    InfoObjectCommon::InfoObjectType channelType)
+{
+    if (channelElement->hasAttribute("visualize"))
+    {
+        // Set the visualization channel through the canvas. Should be added to the dropdown at this point.
+        int chan = channelElement->getIntAttribute("number");
+        static_cast<PhaseCalculatorEditor*>(getEditor())->setVisContinuousChan(chan);
+    }
 }
 
 // ------------ PRIVATE METHODS ---------------
@@ -626,8 +649,8 @@ void PhaseCalculator::updateHistoryLength()
 
         // update fields that depend on historyLength
         historyBuffer.setSize(numInputs, historyLength);
-        for (int chan : activeChannels) 
-        { 
+        for (int chan : activeChannels)
+        {
             if (chan < numInputs)
             {
                 bool success = arModelers[chan]->setInputLength(historyLength);
@@ -644,10 +667,14 @@ void PhaseCalculator::updateHistoryLength()
 
 void PhaseCalculator::setFilterParameters()
 {
-    int numInputs = getNumInputs();
-    for (int chan = 0; chan < numInputs; ++chan)
+    int nInputs = getNumInputs();
+    Array<int> activeChannels = getEditor()->getActiveChannels();
+    for (int chan : activeChannels)
     {
+        if (chan >= nInputs) { continue; }
+
         jassert(chan < filters.size());
+        jassert(lowCut >= 0 && lowCut < highCut);
 
         Dsp::Params params;
         params[0] = getDataChannel(chan)->getSampleRate();  // sample rate
@@ -659,7 +686,7 @@ void PhaseCalculator::setFilterParameters()
     }
 
     // copy filter parameters for corresponding channel to visReverseFilter
-    if (visContinuousChannel >= 0 && visContinuousChannel < getNumInputs())
+    if (visContinuousChannel >= 0 && visContinuousChannel < nInputs)
     {
         visReverseFilter.setParams(filters[visContinuousChannel]->getParams());
     }
@@ -850,7 +877,7 @@ void PhaseCalculator::updateExtraChannels()
             uint16 sourceNodeId = baseChan->getSourceNodeID();
             uint16 subProcessorIdx = baseChan->getSubProcessorIdx();
             uint32 baseFullId = getProcessorFullId(sourceNodeId, subProcessorIdx);
-                        
+
             DataChannel* newChan = new DataChannel(
                 baseChan->getChannelType(),
                 baseChan->getSampleRate(),
@@ -943,7 +970,7 @@ void PhaseCalculator::hilbertManip(FFTWArray* fftData)
 
     // normalize and double positive frequencies
     FloatVectorOperations::multiply(reinterpret_cast<double*>(wp + 1), 2.0 / n, numPosNegFreqDoubles);
-    
+
     if (hasNyquist)
     {
         // normalize but don't double Nyquist frequency

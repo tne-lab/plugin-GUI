@@ -114,6 +114,10 @@ public:
     // for the visualizer
     std::queue<double>& getVisPhaseBuffer(ScopedPointer<ScopedLock>& lock);
 
+    // for visualizer continuous channel
+    void saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType) override;
+    void loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType) override;
+
 private:
 
     // ---- methods ----
@@ -126,9 +130,9 @@ private:
     // VIS_HILBERT_LENGTH, hilbertLength, predictionLength, and arOrder).
     void updateHistoryLength();
 
-    // Update the filter parameters. Modified from FilterNode code.
+    // Update the filters of active channels. From FilterNode code.
     void setFilterParameters();
-    
+
     // If given input channel has an incompatible sample rate, deselect it (and send a warning).
     // Otherwise, save the downsampling multiplier and initialize downsampling phase.
     // Returns the new selection state of the channel.
@@ -150,7 +154,7 @@ private:
     // Create an extra output channel for each processed input channel if PH_AND_MAG is selected
     void updateExtraChannels();
 
-    /* 
+    /*
      * Check the visualization timestamp queue, clear any that are expired
      * (too late to calculate phase), and calculate phase of any that are ready.
      * sdbEndTs = timestamp 1 past end of current buffer
@@ -190,6 +194,10 @@ private:
     int arOrder;
 
     OutputMode outputMode;
+
+    // filter passband
+    double highCut;
+    double lowCut;
 
     // event channel to watch for phases to plot on the canvas (-1 = none)
     int visEventChannel;
@@ -251,10 +259,6 @@ private:
 
     // event channel to send visualized phases over
     EventChannel* visPhaseChannel;
-
-    // ------ filtering --------
-    double highCut;
-    double lowCut;
 
     // filter design copied from FilterNode
     typedef Dsp::SmoothedFilterDesign

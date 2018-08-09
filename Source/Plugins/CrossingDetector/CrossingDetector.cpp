@@ -126,6 +126,11 @@ void CrossingDetector::createEventChannels()
     chan->addEventMetaData(directionDesc);
     eventMetaDataDescriptors.add(directionDesc);
 
+    MetaDataDescriptor* learningRateDesc = new MetaDataDescriptor(MetaDataDescriptor::DOUBLE, 1, "Learning rate",
+        "If using adaptive threshold, current threshold learning rate", "crossing.threshold.learningrate");
+    chan->addEventMetaData(learningRateDesc);
+    eventMetaDataDescriptors.add(learningRateDesc);
+
     eventChannelPtr = eventChannelArray.add(chan);
 }
 
@@ -742,6 +747,10 @@ void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
     MetaDataValue* directionVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
     directionVal->setValue(static_cast<juce::uint8>(crossingLevel > threshold));
     mdArray.add(directionVal);
+
+    MetaDataValue* learningRateVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
+    learningRateVal->setValue(thresholdType == ADAPTIVE ? currLearningRate : 0);
+    mdArray.add(learningRateVal);
 
     // Create events
     int currEventChan = eventChannel;
