@@ -306,16 +306,27 @@ void PhaseCalculatorEditor::channelChanged(int chan, bool newState)
     auto pc = static_cast<PhaseCalculator*>(getProcessor());    
     if (chan < pc->getNumInputs())
     {
-        if (!newState) // if deactivating, reset channel state
+        if (newState)
         {
-            pc->resetInputChannel(chan);
+            int numActiveChans = pc->getActiveInputs().size();
+            if (numActiveChans > pc->numActiveChansAllocated)
+            {
+                pc->addActiveChannel();
+            }
         }
 
-        // If not an output channel, update signal chain. This should take care of:
-        //     - adding/removing output channels if necessary
-        //     - updating the minimum Nyquist frequency of active channels (and highCut if necessary)
-        //     - updating the available continuous channels for visualizer
-        CoreServices::updateSignalChain(this);
+        if (pc->outputMode == PH_AND_MAG)
+        {
+            // Update signal chain to add/remove output channels if necessary
+            CoreServices::updateSignalChain(this);
+        }
+        else
+        {
+            // Can just do a partial update
+            pc->updateMinNyquist();     // minNyquist may have changed depending on active chans
+            pc->setFilterParameters();  // need to update in case the passband has changed
+            updateVisualizer();         // update the available continuous channels for visualizer
+        }
     }
 }
 
@@ -351,11 +362,6 @@ Visualizer* PhaseCalculatorEditor::createNewCanvas()
 {
     canvas = new PhaseCalculatorCanvas(static_cast<PhaseCalculator*>(getProcessor()));
     return canvas;
-}
-
-void PhaseCalculatorEditor::updateSettings()
-{
-    updateVisualizer();
 }
 
 void PhaseCalculatorEditor::saveCustomParameters(XmlElement* xml)

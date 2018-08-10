@@ -179,29 +179,26 @@ void PhaseCalculatorCanvas::refreshState() {}
 void PhaseCalculatorCanvas::update() 
 {
     // update continuous channel ComboBox to include only active inputs
-    Array<int> activeChans = processor->getEditor()->getActiveChannels();
-    int numInputs = processor->getNumInputs();
-    int numActive = activeChans.size();
+    Array<int> activeInputs = processor->getActiveInputs();
+    int numActiveInputs = activeInputs.size();
     int numItems = cChannelBox->getNumItems();
-    int currSelectedId = cChannelBox->getSelectedId();
 
     // check whether box needs to be cleared - iterate through existing items and check for correctness
     int startInd = numItems;
     for (int i = 0; i < numItems; ++i)
     {
-        if (i >= numActive ||                              // more items than active channels
-            activeChans[i] != cChannelBox->getItemId(i) || // this item doesn't match what it should be
-            activeChans[i] >= numInputs)                   // this item is not an input
+        if (i >= numActiveInputs ||                           // more items than active inputs
+            cChannelBox->getItemId(i) - 1 != activeInputs[i]) // this item doesn't match what it should be
         {
             startInd = 0;
             cChannelBox->clear(sendNotificationSync);
         }
     }
  
-    for (int activeChan = startInd; activeChan < numActive; ++activeChan)
+    int currSelectedId = cChannelBox->getSelectedId();
+    for (int activeChan = startInd; activeChan < numActiveInputs; ++activeChan)
     {
-        int chan = activeChans[activeChan];
-        if (chan >= numInputs) { break; }
+        int chan = activeInputs[activeChan];
 
         int id = chan + 1;
         cChannelBox->addItem(String(id), id);
@@ -213,7 +210,7 @@ void PhaseCalculatorCanvas::update()
 
     if (cChannelBox->getNumItems() > 0 && cChannelBox->getSelectedId() == 0)
     {
-        int firstChannelId = activeChans[0] + 1;
+        int firstChannelId = activeInputs[0] + 1;
         cChannelBox->setSelectedId(firstChannelId, sendNotificationSync);
     }
 }

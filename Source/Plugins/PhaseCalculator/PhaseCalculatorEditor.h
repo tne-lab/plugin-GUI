@@ -56,8 +56,6 @@ public:
 
     Visualizer* createNewCanvas() override;
 
-    void updateSettings() override;
-
     void saveCustomParameters(XmlElement* xml) override;
     void loadCustomParameters(XmlElement* xml) override;
 

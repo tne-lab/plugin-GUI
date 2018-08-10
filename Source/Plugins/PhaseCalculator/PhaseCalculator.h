@@ -104,6 +104,9 @@ public:
     // handle changing number of channels
     void updateSettings() override;
 
+    // Returns array of active channels that only includes inputs (not extra outputs)
+    Array<int> getActiveInputs();
+
     // ----- to create new channels for multiple outputs -------
     bool isGeneratesTimestamps() const override;
     int getNumSubProcessors() const override;
@@ -153,9 +156,8 @@ private:
     // Update the filters of active channels. From FilterNode code.
     void setFilterParameters();
 
-    // Reset all the state associated with an active input channel (called when it is inactivated
-    // or acquisition stops). Assumes the channel has been active.
-    void resetInputChannel(int chan);
+    // Allocate memory for a new active input channel
+    void addActiveChannel();
 
     // Do glitch unwrapping
     void unwrapBuffer(float* wp, int nSamples, int chan);
@@ -224,6 +226,8 @@ private:
     int visContinuousChannel;
 
     // ---- internals -------
+
+    int numActiveChansAllocated = 0;
 
     // Storage area for filtered data to be read by the main thread to fill hilbertBuffer,
     // by the side thread to calculate AR model parameters, and by the visualization event
