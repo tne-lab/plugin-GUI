@@ -182,6 +182,7 @@ void PhaseCalculatorCanvas::update()
     Array<int> activeInputs = processor->getActiveInputs();
     int numActiveInputs = activeInputs.size();
     int numItems = cChannelBox->getNumItems();
+    int currSelectedId = cChannelBox->getSelectedId();
 
     // check whether box needs to be cleared - iterate through existing items and check for correctness
     int startInd = numItems;
@@ -191,11 +192,10 @@ void PhaseCalculatorCanvas::update()
             cChannelBox->getItemId(i) - 1 != activeInputs[i]) // this item doesn't match what it should be
         {
             startInd = 0;
-            cChannelBox->clear(sendNotificationSync);
+            cChannelBox->clear(dontSendNotification);
         }
     }
  
-    int currSelectedId = cChannelBox->getSelectedId();
     for (int activeChan = startInd; activeChan < numActiveInputs; ++activeChan)
     {
         int chan = activeInputs[activeChan];
@@ -204,15 +204,20 @@ void PhaseCalculatorCanvas::update()
         cChannelBox->addItem(String(id), id);
         if (id == currSelectedId)
         {
-            cChannelBox->setSelectedId(id, sendNotificationSync);
+            cChannelBox->setSelectedId(id, dontSendNotification);
         }
     }
 
     if (cChannelBox->getNumItems() > 0 && cChannelBox->getSelectedId() == 0)
     {
         int firstChannelId = activeInputs[0] + 1;
-        cChannelBox->setSelectedId(firstChannelId, sendNotificationSync);
+        cChannelBox->setSelectedId(firstChannelId, dontSendNotification);
     }
+
+    // now notify processor of update
+    // subtract 1 to change from 1-based to 0-based
+    float newValue = static_cast<float>(cChannelBox->getSelectedId() - 1);
+    processor->setParameter(VIS_C_CHAN, newValue);
 }
 
 void PhaseCalculatorCanvas::refresh() 

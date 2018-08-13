@@ -215,26 +215,33 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         if (chanState[activeChan] == FULL_AR) {
 
             // copy data to dataToProcess
-            rpBuffer = historyBuffer.getReadPointer(activeChan, historyLength - hilbertPastLength);
-            hilbertBuffer[activeChan]->copyFrom(rpBuffer, hilbertPastLength);
-
-            // use AR(20) model to predict upcoming data and append to dataToProcess
-            rpBuffer = historyBuffer.getReadPointer(activeChan, historyLength);
-            double* wpHilbert = hilbertBuffer[activeChan]->getRealPointer(hilbertPastLength);
+            if (hilbertPastLength > 0)
+            {
+                rpBuffer = historyBuffer.getReadPointer(activeChan, historyLength - hilbertPastLength);
+                hilbertBuffer[activeChan]->copyFrom(rpBuffer, hilbertPastLength);
+            }
 
             // read current AR parameters safely
-            Array<double> currParams;
+            Array<double> localParams;
+            localParams.resize(arOrder);
+            double* pLocalParam = localParams.getRawDataPointer();
+            const double* rpParam = arParams[activeChan]->getRawDataPointer();
             {
                 const ScopedLock currParamLock(*arParamLock[activeChan]);
 
                 for (int i = 0; i < arOrder; ++i)
                 {
-                    currParams.set(i, (*arParams[activeChan])[i]);
+                    pLocalParam[i] = rpParam[i];
                 }
             }
             
-            double* rpParam = currParams.getRawDataPointer();
-            arPredict(rpBuffer, wpHilbert, predictionLength, rpParam, arOrder);
+
+            // use AR(20) model to predict upcoming data and append to dataToProcess
+            // get beyond end of history buffer indirectly to avoid juce assertion failure
+            rpBuffer = historyBuffer.getReadPointer(activeChan, historyLength - 1) + 1;
+            double* wpHilbert = hilbertBuffer[activeChan]->getRealPointer(hilbertPastLength);
+
+            arPredict(rpBuffer, wpHilbert, predictionLength, pLocalParam, arOrder);
 
             // Hilbert-transform dataToProcess
             forwardPlan[activeChan]->execute();      // reads from dataToProcess, writes to fftData
@@ -324,7 +331,9 @@ bool PhaseCalculator::disable()
     haveSentWarning = false;
 
     // reset states of active inputs
-    for (int activeChan = 0; activeChan < numActiveChansAllocated; ++activeChan)
+    Array<int> activeInputs = getActiveInputs();
+    int nActiveInputs = activeInputs.size();
+    for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
     {
         bufferFreeSpace.set(activeChan, historyLength);
         chanState.set(activeChan, NOT_FULL);
@@ -439,6 +448,12 @@ void PhaseCalculator::updateSettings()
     // create new data channels if necessary
     updateSubProcessorMap();
     updateExtraChannels();
+
+    if (outputMode == PH_AND_MAG)
+    {
+        // keep previously selected input channels from becoming selected extra channels
+        deselectAllExtraChannels();
+    }
 }
 
 
@@ -612,10 +627,11 @@ void PhaseCalculator::setVisContChan(int newChan)
     {
         Array<int> activeInputs = getActiveInputs();
         int visActiveChan = activeInputs.indexOf(newChan);
-        jassert(visActiveChan != -1 && visActiveChan < filters.size());
+        jassert(visActiveChan >= 0 && visActiveChan < filters.size());
 
+        // disable event receival temporarily so we can flush the buffer
         int tempVisEventChan = visEventChannel;
-        visEventChannel = -1; // disable temporarily
+        visEventChannel = -1;
 
         // clear timestamp queue
         while (!visTsBuffer.empty())
@@ -681,27 +697,22 @@ void PhaseCalculator::setFilterParameters()
 {
     Array<int> activeInputs = getActiveInputs();
     int nActiveInputs = activeInputs.size();
+
+    double currLowCut = lowCut, currHighCut = highCut;
+    jassert(currLowCut >= 0 && currLowCut < currHighCut);
+
     for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
     {
         jassert(activeChan < filters.size());
-        jassert(lowCut >= 0 && lowCut < highCut);
         int chan = activeInputs[activeChan];
 
         Dsp::Params params;
         params[0] = getDataChannel(chan)->getSampleRate();  // sample rate
         params[1] = 2;                                      // order
-        params[2] = (highCut + lowCut) / 2;                 // center frequency
-        params[3] = highCut - lowCut;                       // bandwidth
+        params[2] = (currHighCut + currLowCut) / 2;         // center frequency
+        params[3] = currHighCut - currLowCut;               // bandwidth
 
         filters[activeChan]->setParams(params);
-    }
-
-    // copy filter parameters for corresponding channel to visReverseFilter
-    if (visContinuousChannel >= 0)
-    {
-        int visActiveChan = activeInputs.indexOf(visContinuousChannel);
-        jassert(visActiveChan != -1);
-        visReverseFilter.setParams(filters[visActiveChan]->getParams());
     }
 }
 
@@ -903,6 +914,35 @@ void PhaseCalculator::updateExtraChannels()
         }
     }
     settings.numOutputs = dataChannelArray.size();
+}
+
+void PhaseCalculator::deselectChannel(int chan)
+{
+    jassert(chan >= 0 && chan < getTotalDataChannels());
+
+    auto ed = getEditor();
+    bool p, r, a;
+    ed->getChannelSelectionState(chan, &p, &r, &a);
+    ed->setChannelSelectionState(chan - 1, false, r, a);
+}
+
+void PhaseCalculator::deselectAllExtraChannels()
+{
+    jassert(outputMode == PH_AND_MAG);
+    Array<int> activeChans = getEditor()->getActiveChannels();
+    int nInputs = getNumInputs();
+    int nExtraChans = 0;
+    for (int chan : activeChans)
+    {
+        if (chan < nInputs)
+        {
+            nExtraChans++;
+        }
+        else if (chan < nInputs + nExtraChans)
+        {
+            deselectChannel(chan);
+        }
+    }
 }
 
 void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)

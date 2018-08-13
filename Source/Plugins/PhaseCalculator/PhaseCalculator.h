@@ -171,6 +171,14 @@ private:
     // Create an extra output channel for each processed input channel if PH_AND_MAG is selected
     void updateExtraChannels();
 
+    // Deselect given channel in the "PARAMS" channel selector. Useful to ensure "extra channels"
+    // remain deselected (so that they don't become active inputs if the # of inputs changes).
+    void deselectChannel(int chan);
+
+    // Calls deselectChannel on each channel that is not currently an input. Only relevant
+    // when the output mode is phase and magnitude.
+    void deselectAllExtraChannels();
+
     /* 
      * Check the visualization timestamp queue, clear any that are expired
      * (too late to calculate phase), and calculate phase of any that are ready.
