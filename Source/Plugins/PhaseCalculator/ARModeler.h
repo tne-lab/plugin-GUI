@@ -24,8 +24,7 @@
 
 class ARModeler {
 public:
-    ARModeler() = delete;
-    ARModeler(int order, int length, int strideIn = 1, bool* success = nullptr) 
+    ARModeler(int order, int length, int strideIn = 1, bool* success = nullptr)
         : arOrder       (order)
         , stride        (strideIn)
         , inputLength   (length)
@@ -45,46 +44,35 @@ public:
         reallocateStorage();
     }
 
+    ARModeler() : arOrder(1), inputLength(2)
+    {
+        reallocateStorage();
+    }
+
+    ARModeler(int order, int length, int strideIn = 1, bool* success = nullptr)
+        : ARModeler()
+    {
+        bool s = setParams(order, length, strideIn);
+        if (success != nullptr)
+        {
+            *success = s;
+        }
+    }
+
     ~ARModeler() { }
 
-    // Set order; returns true if successful.
-    bool setOrder(int order)
+    // returns true if successful.
+    bool setParams(int order, int length, int strideIn)
     {
+        int newStridedLength = calcStridedLength(inputLength, strideIn);
         if (order < 1 || stridedLength < order + 1)
         {
             jassertfalse;
             return false;
         }
         arOrder = order;
-        reallocateStorage();
-        return true;
-    }
-
-    // Set length; returns true if successful.
-    bool setInputLength(int length)
-    {
-        int newStridedLength = calcStridedLength(length, stride);
-        if (newStridedLength < arOrder + 1)
-        {
-            jassertfalse;
-            return false;
-        }
         inputLength = length;
-        stridedLength = newStridedLength;
-        reallocateStorage();
-        return true;
-    }
-
-    // Set stride; returns true if successful.
-    bool setStride(int newStride)
-    {
-        int newStridedLength = calcStridedLength(inputLength, newStride);
-        if (newStridedLength < arOrder + 1)
-        {
-            jassertfalse;
-            return false;
-        }
-        stride = newStride;
+        stride = strideIn;
         stridedLength = newStridedLength;
         reallocateStorage();
         return true;
@@ -163,6 +151,8 @@ private:
     Array<double> per;
     Array<double> pef;
     Array<double> h;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ARModeler);
 };
 
 #endif AR_MODELER_H_INCLUDED

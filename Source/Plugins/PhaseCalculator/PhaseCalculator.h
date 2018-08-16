@@ -79,7 +79,6 @@ enum OutputMode { PH = 1, MAG, PH_AND_MAG, IM };
 class PhaseCalculator : public GenericProcessor, public Thread
 {
     friend class PhaseCalculatorEditor;
-    friend class ProcessBufferSlider;
 public:
 
     PhaseCalculator();
@@ -105,6 +104,9 @@ public:
     // handle changing number of channels
     void updateSettings() override;
 
+    // Returns array of active channels that only includes inputs (not extra outputs)
+    Array<int> getActiveInputs();
+
     // ----- to create new channels for multiple outputs -------
     bool isGeneratesTimestamps() const override;
     int getNumSubProcessors() const override;
@@ -126,6 +128,18 @@ private:
     void handleEvent(const EventChannel* eventInfo, const MidiMessage& event,
         int samplePosition = 0) override;
 
+    // Sets arOrder (which in turn influences historyLength and the arModeler)
+    void setAROrder(int newOrder);
+
+    // Sets lowCut (which in turn influences highCut)
+    void setLowCut(float newLowCut);
+
+    // Sets highCut (which in turn influences lowCut)
+    void setHighCut(float newHighCut);
+
+    // Sets visContinuousChannel and updates the visualization filter
+    void setVisContChan(int newChan);
+
     // Update historyLength to be the minimum possible size (depending on
     // VIS_HILBERT_LENGTH, hilbertLength, predictionLength, and arOrder).
     void updateHistoryLength();
@@ -138,9 +152,8 @@ private:
     // Returns the new selection state of the channel.
     bool validateSampleRate(int chan);
 
-    // Reset all the state associated with an active input channel (called when it is inactivated
-    // or acquisition stops). Assumes the channel has been active.
-    void resetInputChannel(int chan);
+    // Allocate memory for a new active input channel
+    void addActiveChannel();
 
     // Do glitch unwrapping
     void unwrapBuffer(float* wp, int nSamples, int chan);
@@ -154,6 +167,14 @@ private:
     // Create an extra output channel for each processed input channel if PH_AND_MAG is selected
     void updateExtraChannels();
 
+    // Deselect given channel in the "PARAMS" channel selector. Useful to ensure "extra channels"
+    // remain deselected (so that they don't become active inputs if the # of inputs changes).
+    void deselectChannel(int chan);
+
+    // Calls deselectChannel on each channel that is not currently an input. Only relevant
+    // when the output mode is phase and magnitude.
+    void deselectAllExtraChannels();
+
     /*
      * Check the visualization timestamp queue, clear any that are expired
      * (too late to calculate phase), and calculate phase of any that are ready.
@@ -163,14 +184,15 @@ private:
 
     // ---- static utility methods ----
 
-    ///*
-    // * arPredict: use autoregressive model of order to predict future data.
-    // * Input params is an array of coefficients of an AR model of length 'order'.
-    // * Writes writeNum future data values starting at location writeStart.
-    // * *** assumes there are at least 'order' existing data points *before* writeStart
-    // * to use to calculate future data points.
-    // */
-    //static void arPredict(double* writeStart, int writeNum, const double* params, int order);
+    /*
+     * arPredict: use autoregressive model of order to predict future data.
+     * Input params is an array of coefficients of an AR model of length 'order'.
+     * Writes writeNum future data values starting at location writeStart.
+     * *** assumes there are at least 'order' existing data points *before* readEnd
+     * to use to calculate first 'order' data points. readEnd can equal writeStart.
+     */
+    static void arPredict(const double* readEnd, double* writeStart, int writeNum,
+        const double* params, int order);
 
     /*
      * hilbertManip: Hilbert transforms data in the frequency domain (including normalization by length of data).
@@ -206,6 +228,8 @@ private:
     int visContinuousChannel;
 
     // ---- internals -------
+
+    int numActiveChansAllocated = 0;
 
     // Storage area for filtered data to be used by the side thread to calculate AR model parameters
     // and by the visualization event handler to calculate acccurate phases at past event times.
@@ -278,6 +302,11 @@ private:
     BandpassFilter visReverseFilter;
 
     // ------- constants ------------
+
+    // default passband width if pushing lowCut down or highCut up to fix invalid range,
+    // and also the minimum for lowCut.
+    // (meant to be larger than actual minimum floating-point eps)
+    static const float PASSBAND_EPS;
 
     // priority of the AR model calculating thread (0 = lowest, 10 = highest)
     static const int AR_PRIORITY = 3;
