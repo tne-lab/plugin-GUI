@@ -379,7 +379,8 @@ void PhaseCalculator::run()
     int currInterval = calcInterval;
     timer.startTimer(currInterval);
 
-    int numActiveChans = getActiveInputs().size();
+    Array<int> activeInputs = getActiveInputs();
+    int numActiveChans = activeInputs.size();
 
     while (true)
     {
@@ -407,7 +408,7 @@ void PhaseCalculator::run()
             // end critical section
 
             // calculate parameters
-            arModelers[chan]->fitModel(data, paramsTemp);
+            arModelers[activeInputs[activeChan]]->fitModel(data, paramsTemp);
 
             // write params safely
             {
@@ -751,7 +752,7 @@ bool PhaseCalculator::validateSampleRate(int chan)
         int fsMultInt = static_cast<int>(fsMultRound);
         sampleRateMultiple.set(chan, fsMultInt);
         dsOffset.set(chan, fsMultInt - 1);
-        bool s = arModelers[chan]->setParams(arOrder, historyLength, sampleRateMultiple);
+        bool s = arModelers[chan]->setParams(arOrder, historyLength, fsMultInt);
         jassert(s);
         return true;
     }

@@ -270,8 +270,8 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == lowCutEditable)
     {
         float floatInput;
-        bool valid = updateFloatControl(labelThatHasChanged, PASSBAND_EPS,
-            processor->HT_FS / 2 - PASSBAND_EPS, processor->lowCut, &floatInput);
+        bool valid = updateFloatControl(labelThatHasChanged, PhaseCalculator::PASSBAND_EPS,
+            processor->HT_FS / 2 - PhaseCalculator::PASSBAND_EPS, processor->lowCut, &floatInput);
 
         if (valid)
         {
@@ -281,7 +281,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == highCutEditable)
     {
         float floatInput;
-        bool valid = updateFloatControl(labelThatHasChanged, 2 * PASSBAND_EPS,
+        bool valid = updateFloatControl(labelThatHasChanged, 2 * PhaseCalculator::PASSBAND_EPS,
             processor->HT_FS / 2, processor->highCut, &floatInput);
 
         if (valid)
@@ -478,42 +478,3 @@ bool PhaseCalculatorEditor::updateFloatControl(Ctrl* c, float min, float max,
     c->setText(String(*out), dontSendNotification);
     return true;
 }
-<<<<<<< HEAD
-
-// ProcessBufferSlider definitions
-ProcessBufferSlider::ProcessBufferSlider(const String& componentName)
-    : Slider        (componentName)
-    , realMinValue  (0)
-{
-    setLookAndFeel(&myLookAndFeel);
-    setSliderStyle(LinearBar);
-    setTextBoxStyle(NoTextBox, false, 40, 20);
-    setScrollWheelEnabled(false);
-}
-
-ProcessBufferSlider::~ProcessBufferSlider() {}
-
-double ProcessBufferSlider::snapValue(double attemptedValue, DragMode dragMode)
-{
-    return jmax(attemptedValue, realMinValue);
-}
-
-void ProcessBufferSlider::updateFromProcessor(PhaseCalculator* parentNode)
-{
-    int hilbertLength = parentNode->hilbertLength;
-    int predLength = parentNode->predictionLength;
-    realMinValue = parentNode->arOrder;
-
-    setRange(0, hilbertLength, 1);
-
-    // enforce min value via snapValue and slider listener
-    setValue(0); // hack to ensure the listener gets called even if only the range is changed
-    setValue(hilbertLength - predLength);
-}
-
-double ProcessBufferSlider::getRealMinValue()
-{
-    return realMinValue;
-}
-=======
->>>>>>> adaptive-threshold
