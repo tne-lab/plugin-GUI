@@ -62,76 +62,6 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool 
     highCutEditable->setColour(Label::textColourId, Colours::white);
     addAndMakeVisible(highCutEditable);
 
-    hilbertLengthLabel = new Label("hilbertLength", "Buffer length:");
-    hilbertLengthLabel->setBounds(filterWidth + 8, 25, 180, 20);
-    hilbertLengthLabel->setFont(Font("Small Text", 12, Font::plain));
-    hilbertLengthLabel->setColour(Label::textColourId, Colours::darkgrey);
-    addAndMakeVisible(hilbertLengthLabel);
-
-    hilbertLengthBox = new ComboBox("Buffer size");
-    hilbertLengthBox->setEditableText(true);
-    for (int pow = PhaseCalculator::MIN_HILB_LEN_POW; pow <= PhaseCalculator::MAX_HILB_LEN_POW; ++pow)
-    {
-        hilbertLengthBox->addItem(String(1 << pow), pow);
-    }
-    hilbertLengthBox->setText(String(processor->hilbertLength), dontSendNotification);
-    hilbertLengthBox->setTooltip(HILB_LENGTH_TOOLTIP);
-    hilbertLengthBox->setBounds(filterWidth + 10, 45, 80, 20);
-    hilbertLengthBox->addListener(this);
-    addAndMakeVisible(hilbertLengthBox);
-
-    hilbertLengthUnitLabel = new Label("hilbertLengthUnit", "Samp.");
-    hilbertLengthUnitLabel->setBounds(filterWidth + 90, 45, 40, 20);
-    hilbertLengthUnitLabel->setFont(Font("Small Text", 12, Font::plain));
-    hilbertLengthUnitLabel->setColour(Label::textColourId, Colours::darkgrey);
-    addAndMakeVisible(hilbertLengthUnitLabel);
-
-    pastLengthLabel = new Label("pastLengthL", "Past:");
-    pastLengthLabel->setBounds(filterWidth + 8, 85, 60, 15);
-    pastLengthLabel->setFont(Font("Small Text", 12, Font::plain));
-    pastLengthLabel->setColour(Label::backgroundColourId, Colour(230, 168, 0));
-    pastLengthLabel->setColour(Label::textColourId, Colours::darkgrey);
-    addAndMakeVisible(pastLengthLabel);
-
-    predLengthLabel = new Label("predLengthL", "Future:");
-    predLengthLabel->setBounds(filterWidth + 70, 85, 60, 15);
-    predLengthLabel->setFont(Font("Small Text", 12, Font::plain));
-    predLengthLabel->setColour(Label::backgroundColourId, Colour(102, 140, 255));
-    predLengthLabel->setColour(Label::textColourId, Colours::darkgrey);
-    addAndMakeVisible(predLengthLabel);
-
-    pastLengthEditable = new Label("pastLengthE");
-    pastLengthEditable->setEditable(true);
-    pastLengthEditable->addListener(this);
-    pastLengthEditable->setText(String(processor->hilbertLength - processor->predictionLength), dontSendNotification);
-    pastLengthEditable->setBounds(filterWidth + 8, 102, 60, 18);
-    pastLengthEditable->setColour(Label::backgroundColourId, Colours::grey);
-    pastLengthEditable->setColour(Label::textColourId, Colours::white);
-    addAndMakeVisible(pastLengthEditable);
-
-    predLengthEditable = new Label("predLengthE");
-    predLengthEditable->setEditable(true);
-    predLengthEditable->addListener(this);
-    predLengthEditable->setText(String(processor->predictionLength), dontSendNotification);
-    predLengthEditable->setBounds(filterWidth + 70, 102, 60, 18);
-    predLengthEditable->setColour(Label::backgroundColourId, Colours::grey);
-    predLengthEditable->setColour(Label::textColourId, Colours::white);
-    addAndMakeVisible(predLengthEditable);
-
-    predLengthSlider = new Slider("predLength");
-    predLengthSlider->setLookAndFeel(&v3LookAndFeel);
-    predLengthSlider->setSliderStyle(Slider::LinearBar);
-    predLengthSlider->setTextBoxStyle(Slider::NoTextBox, false, 40, 20);
-    predLengthSlider->setScrollWheelEnabled(false);
-    predLengthSlider->setBounds(filterWidth + 8, 70, 122, 10);
-    predLengthSlider->setColour(Slider::thumbColourId, Colour(255, 187, 0));
-    predLengthSlider->setColour(Slider::backgroundColourId, Colour(51, 102, 255));
-    predLengthSlider->setTooltip(PRED_LENGTH_TOOLTIP);
-    predLengthSlider->addListener(this);
-    predLengthSlider->setRange(0, processor->hilbertLength, 1);
-    predLengthSlider->setValue(processor->hilbertLength - processor->predictionLength, dontSendNotification);
-    addAndMakeVisible(predLengthSlider);
-
     recalcIntervalLabel = new Label("recalcL", "AR Refresh:");
     recalcIntervalLabel->setBounds(filterWidth + 140, 25, 100, 20);
     recalcIntervalLabel->setFont(Font("Small Text", 12, Font::plain));
@@ -197,23 +127,7 @@ void PhaseCalculatorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
 {
     PhaseCalculator* processor = static_cast<PhaseCalculator*>(getProcessor());
 
-    if (comboBoxThatHasChanged == hilbertLengthBox)
-    {
-        int newId = hilbertLengthBox->getSelectedId();
-        int newHilbertLength;
-        if (newId) // one of the items in the list is selected
-        {
-            newHilbertLength = (1 << newId);
-        }
-        else if (!updateIntControl(comboBoxThatHasChanged, PhaseCalculator::MIN_HILB_LEN_POW,
-            PhaseCalculator::MAX_HILB_LEN_POW, processor->hilbertLength, &newHilbertLength))
-        {
-            return;
-        }
-
-        processor->setParameter(HILBERT_LENGTH, static_cast<float>(newHilbertLength));
-    }
-    else if (comboBoxThatHasChanged == outputModeBox)
+	if (comboBoxThatHasChanged == outputModeBox)
     {
         processor->setParameter(OUTPUT_MODE, static_cast<float>(outputModeBox->getSelectedId()));
     }
@@ -223,31 +137,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
 {
     PhaseCalculator* processor = static_cast<PhaseCalculator*>(getProcessor());
 
-    int sliderMax = static_cast<int>(predLengthSlider->getMaximum());
-
-    if (labelThatHasChanged == pastLengthEditable)
-    {
-        int intInput;
-        bool valid = updateIntControl(labelThatHasChanged, 0, processor->hilbertLength,
-            processor->hilbertLength - processor->predictionLength, &intInput);
-
-        if (valid)
-        {
-            processor->setParameter(PAST_LENGTH, static_cast<float>(intInput));
-        }
-    }
-    else if (labelThatHasChanged == predLengthEditable)
-    {
-        int intInput;
-        bool valid = updateIntControl(labelThatHasChanged, 0, processor->hilbertLength,
-            processor->predictionLength, &intInput);
-
-        if (valid)
-        {
-            processor->setParameter(PRED_LENGTH, static_cast<float>(intInput));
-        }
-    }
-    else if (labelThatHasChanged == recalcIntervalEditable)
+	if (labelThatHasChanged == recalcIntervalEditable)
     {
         int intInput;
         bool valid = updateIntControl(labelThatHasChanged, 0, INT_MAX, processor->calcInterval, &intInput);
@@ -291,16 +181,6 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     }
 }
 
-void PhaseCalculatorEditor::sliderEvent(Slider* slider)
-{
-    if (slider == predLengthSlider)
-    {
-        int newVal = slider->getValue();
-        int maxVal = slider->getMaximum();
-        getProcessor()->setParameter(PRED_LENGTH, static_cast<float>(maxVal - newVal));
-    }
-}
-
 void PhaseCalculatorEditor::channelChanged(int chan, bool newState)
 {
     auto pc = static_cast<PhaseCalculator*>(getProcessor());
@@ -338,11 +218,6 @@ void PhaseCalculatorEditor::channelChanged(int chan, bool newState)
 
 void PhaseCalculatorEditor::startAcquisition()
 {
-    GenericEditor::startAcquisition();
-    hilbertLengthBox->setEnabled(false);
-    predLengthSlider->setEnabled(false);
-    pastLengthEditable->setEnabled(false);
-    predLengthEditable->setEnabled(false);
     lowCutEditable->setEnabled(false);
     highCutEditable->setEnabled(false);
     arOrderEditable->setEnabled(false);
@@ -352,11 +227,6 @@ void PhaseCalculatorEditor::startAcquisition()
 
 void PhaseCalculatorEditor::stopAcquisition()
 {
-    GenericEditor::stopAcquisition();
-    hilbertLengthBox->setEnabled(true);
-    predLengthSlider->setEnabled(true);
-    pastLengthEditable->setEnabled(true);
-    predLengthEditable->setEnabled(true);
     lowCutEditable->setEnabled(true);
     highCutEditable->setEnabled(true);
     arOrderEditable->setEnabled(true);
@@ -378,8 +248,6 @@ void PhaseCalculatorEditor::saveCustomParameters(XmlElement* xml)
     PhaseCalculator* processor = (PhaseCalculator*)(getProcessor());
 
     XmlElement* paramValues = xml->createNewChildElement("VALUES");
-    paramValues->setAttribute("hilbertLength", processor->hilbertLength);
-    paramValues->setAttribute("predLength", processor->predictionLength);
     paramValues->setAttribute("calcInterval", processor->calcInterval);
     paramValues->setAttribute("arOrder", processor->arOrder);
     paramValues->setAttribute("lowCut", processor->lowCut);
@@ -394,10 +262,6 @@ void PhaseCalculatorEditor::loadCustomParameters(XmlElement* xml)
     forEachXmlChildElementWithTagName(*xml, xmlNode, "VALUES")
     {
         // some parameters have two fallbacks for backwards compatability
-        hilbertLengthBox->setText(xmlNode->getStringAttribute("hilbertLength",
-            xmlNode->getStringAttribute("processLength", hilbertLengthBox->getText())), sendNotificationSync);
-        predLengthEditable->setText(xmlNode->getStringAttribute("predLength",
-            xmlNode->getStringAttribute("numFuture", predLengthEditable->getText())), sendNotificationSync);
         recalcIntervalEditable->setText(xmlNode->getStringAttribute("calcInterval", recalcIntervalEditable->getText()), sendNotificationSync);
         arOrderEditable->setText(xmlNode->getStringAttribute("arOrder", arOrderEditable->getText()), sendNotificationSync);
         lowCutEditable->setText(xmlNode->getStringAttribute("lowCut", lowCutEditable->getText()), sendNotificationSync);

@@ -44,9 +44,6 @@ public:
     // implements Label::Listener
     void labelTextChanged(Label* labelThatHasChanged) override;
 
-    // overrides GenericEditor
-    void sliderEvent(Slider* slider) override;
-
     // update display based on current channel
     void channelChanged(int chan, bool newState) override;
 
@@ -84,17 +81,6 @@ private:
     ScopedPointer<Label>    lowCutEditable;
     ScopedPointer<Label>    highCutLabel;
     ScopedPointer<Label>    highCutEditable;
-
-    ScopedPointer<Label>    hilbertLengthLabel;
-    ScopedPointer<Label>    hilbertLengthUnitLabel;
-    ScopedPointer<ComboBox> hilbertLengthBox;
-
-    LookAndFeel_V3        v3LookAndFeel;
-    ScopedPointer<Slider> predLengthSlider;
-    ScopedPointer<Label>  pastLengthLabel;
-    ScopedPointer<Label>  pastLengthEditable;
-    ScopedPointer<Label>  predLengthLabel;
-    ScopedPointer<Label>  predLengthEditable;
 
     ScopedPointer<Label>    recalcIntervalLabel;
     ScopedPointer<Label>    recalcIntervalEditable;

@@ -122,6 +122,36 @@ public:
 
 private:
 
+	// ------- constants ------------
+
+	// default passband width if pushing lowCut down or highCut up to fix invalid range,
+	// and also the minimum for lowCut.
+	// (meant to be larger than actual minimum floating-point eps)
+	static const float PASSBAND_EPS;
+
+	// priority of the AR model calculating thread (0 = lowest, 10 = highest)
+	static const int AR_PRIORITY = 3;
+
+	// "glitch limit" (how long of a segment is allowed to be unwrapped or smoothed, in samples)
+	static const int GLITCH_LIMIT = 200;
+
+	// process length for real-time visualization ground truth hilbert transform
+	// based on evaluation of phase error compared to offline processing
+	static const int VIS_HILBERT_LENGTH = 65536;
+	static const int VIS_TS_MIN_DELAY = 40000;
+	static const int VIS_TS_MAX_DELAY = 48000;
+
+	// hilbert transformer parameters
+	static const int HT_FS = 500;                       // sample rate
+	static const int HT_ORDER = 18;                     // filter order, must be even
+	static const int HT_DELAY = HT_ORDER / 2;           // samples of group delay
+	static const int HT_SCALE_FACTOR_QUERY_FREQS = 3;   // number of evenly-spaced frequencies
+	// to query when estimating the mean
+	// (nonlinear) HT magnitude response
+
+	// hilbert transformer
+	static const double HT_COEF[HT_ORDER + 1];
+
     // ---- methods ----
 
     // Allow responding to stim events if a stimEventChannel is selected.
@@ -143,6 +173,9 @@ private:
     // Update historyLength to be the minimum possible size (depending on
     // VIS_HILBERT_LENGTH, hilbertLength, predictionLength, and arOrder).
     void updateHistoryLength();
+
+	// Update the htScaleFactor depending on the lowCut and highCut of the filter.
+	void updateScaleFactor();
 
     // Update the filters of active channels. From FilterNode code.
     void setFilterParameters();
@@ -251,10 +284,13 @@ private:
     // for active input channels, equals the sample rate divided by HT_FS
     Array<int> sampleRateMultiple;
 
-    // keep track of each active channel's last non-interpolated ("computed") output sample
-    // and the offset of next computed sample from start of next buffer.
-    Array<float> lastComputedSample;
+    // keep track of each active channel's last 2 non-interpolated ("computed") transformer outputs
+    // and the offset of the last computed sample from the end of the previous buffer.
+    Array<std::complex<double>> lastComputedSample;
     Array<int> dsOffset;
+
+	// storage area for predicted samples (to compensate for group delay)
+	double predSamps[HT_ORDER / 2 + 1];
 
     // keep track of sample output, for glitch correction
     Array<float> lastSample;
@@ -300,33 +336,6 @@ private:
 
     OwnedArray<BandpassFilter> filters;
     BandpassFilter visReverseFilter;
-
-    // ------- constants ------------
-
-    // default passband width if pushing lowCut down or highCut up to fix invalid range,
-    // and also the minimum for lowCut.
-    // (meant to be larger than actual minimum floating-point eps)
-    static const float PASSBAND_EPS;
-
-    // priority of the AR model calculating thread (0 = lowest, 10 = highest)
-    static const int AR_PRIORITY = 3;
-
-    // "glitch limit" (how long of a segment is allowed to be unwrapped or smoothed, in samples)
-    static const int GLITCH_LIMIT = 200;
-
-    // process length for real-time visualization ground truth hilbert transform
-    // based on evaluation of phase error compared to offline processing
-    static const int VIS_HILBERT_LENGTH = 65536;
-    static const int VIS_TS_MIN_DELAY = 40000;
-    static const int VIS_TS_MAX_DELAY = 48000;
-
-    // hilbert transformer parameters
-    static const int HT_FS = 500;              // sample rate
-    static const int HT_ORDER = 18;            // filter order, must be even
-    static const int HT_DELAY = HT_ORDER / 2;  // samples of group delay
-
-    // hilbert transformer
-    static const double HT_COEF[HT_ORDER + 1];
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseCalculator);
 };
