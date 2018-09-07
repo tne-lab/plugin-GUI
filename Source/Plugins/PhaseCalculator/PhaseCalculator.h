@@ -45,6 +45,7 @@ accuracy of phase-locked stimulation in real time.
 #include <ProcessorHeaders.h>
 #include <DspLib/Dsp.h>  // Filtering
 #include <queue>
+#include <array>
 #include "FFTWWrapper.h" // Fourier transform
 #include "ARModeler.h"   // Autoregressive modeling
 
@@ -79,6 +80,37 @@ enum OutputMode { PH = 1, MAG, PH_AND_MAG, IM };
 class PhaseCalculator : public GenericProcessor, public Thread
 {
     friend class PhaseCalculatorEditor;
+
+	// ------- constants ------------
+
+	// default passband width if pushing lowCut down or highCut up to fix invalid range,
+	// and also the minimum for lowCut.
+	// (meant to be larger than actual minimum floating-point eps)
+	static const float PASSBAND_EPS;
+
+	// priority of the AR model calculating thread (0 = lowest, 10 = highest)
+	static const int AR_PRIORITY = 3;
+
+	// "glitch limit" (how long of a segment is allowed to be unwrapped or smoothed, in samples)
+	static const int GLITCH_LIMIT = 200;
+
+	// process length for real-time visualization ground truth hilbert transform
+	// based on evaluation of phase error compared to offline processing
+	static const int VIS_HILBERT_LENGTH = 65536;
+	static const int VIS_TS_MIN_DELAY = 40000;
+	static const int VIS_TS_MAX_DELAY = 48000;
+
+	// hilbert transformer parameters
+	static const int HT_FS = 500;                       // sample rate
+	static const int HT_ORDER = 18;                     // filter order, must be even
+	static const int HT_DELAY = HT_ORDER / 2;           // samples of group delay
+	static const int HT_SCALE_FACTOR_QUERY_FREQS = 3;   // number of evenly-spaced frequencies
+	// to query when estimating the mean
+	// (nonlinear) HT magnitude response
+
+	// hilbert transformer
+	static const double HT_COEF[HT_ORDER + 1];
+
 public:
 
     PhaseCalculator();
@@ -121,36 +153,6 @@ public:
     void loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType) override;
 
 private:
-
-	// ------- constants ------------
-
-	// default passband width if pushing lowCut down or highCut up to fix invalid range,
-	// and also the minimum for lowCut.
-	// (meant to be larger than actual minimum floating-point eps)
-	static const float PASSBAND_EPS;
-
-	// priority of the AR model calculating thread (0 = lowest, 10 = highest)
-	static const int AR_PRIORITY = 3;
-
-	// "glitch limit" (how long of a segment is allowed to be unwrapped or smoothed, in samples)
-	static const int GLITCH_LIMIT = 200;
-
-	// process length for real-time visualization ground truth hilbert transform
-	// based on evaluation of phase error compared to offline processing
-	static const int VIS_HILBERT_LENGTH = 65536;
-	static const int VIS_TS_MIN_DELAY = 40000;
-	static const int VIS_TS_MAX_DELAY = 48000;
-
-	// hilbert transformer parameters
-	static const int HT_FS = 500;                       // sample rate
-	static const int HT_ORDER = 18;                     // filter order, must be even
-	static const int HT_DELAY = HT_ORDER / 2;           // samples of group delay
-	static const int HT_SCALE_FACTOR_QUERY_FREQS = 3;   // number of evenly-spaced frequencies
-	// to query when estimating the mean
-	// (nonlinear) HT magnitude response
-
-	// hilbert transformer
-	static const double HT_COEF[HT_ORDER + 1];
 
     // ---- methods ----
 
@@ -219,13 +221,17 @@ private:
 
     /*
      * arPredict: use autoregressive model of order to predict future data.
+	 * 
+	 * lastSample points to the most recent sample of past data that will be used to
+	 * compute phase, and there must be at least stride * (order - 1) samples
+	 * preceding it in order to do the AR prediction.
+	 * 
      * Input params is an array of coefficients of an AR model of length 'order'.
-     * Writes writeNum future data values starting at location writeStart.
-     * *** assumes there are at least 'order' existing data points *before* readEnd
-     * to use to calculate first 'order' data points. readEnd can equal writeStart.
+	 *
+     * Writes HT_DELAY + 1 future data values to prediction.
      */
-    static void arPredict(const double* readEnd, double* writeStart, int writeNum,
-        const double* params, int order);
+    static void arPredict(const double* lastSample, double* prediction,
+		const double* params, int stride, int order);
 
     /*
      * hilbertManip: Hilbert transforms data in the frequency domain (including normalization by length of data).
@@ -236,6 +242,9 @@ private:
     // Get the htScaleFactor for the given filter band (with sample rate HT_FS). Currently uses
     // a mean over three points to approximate the magnitude response over the band.
     static double getScaleFactor(double lowCut, double highCut);
+
+	// Execute the hilbert transformer on one sample and update the state.
+	static double htFilterOne(double input, std::array<double, HT_ORDER + 1>& state);
 
     // ---- customizable parameters ------
 
@@ -284,23 +293,34 @@ private:
     // for active input channels, equals the sample rate divided by HT_FS
     Array<int> sampleRateMultiple;
 
-    // keep track of each active channel's last 2 non-interpolated ("computed") transformer outputs
-    // and the offset of the last computed sample from the end of the previous buffer.
-    Array<std::complex<double>> lastComputedSample;
-    Array<int> dsOffset;
+	// AR model parameters
+	OwnedArray<Array<double>> arParams;
+	OwnedArray<CriticalSection> arParamLock;
 
 	// storage area for predicted samples (to compensate for group delay)
-	double predSamps[HT_ORDER / 2 + 1];
+	double predSamps[HT_DELAY + 1];
+
+	// state of each hilbert transformer (persistent and temporary)
+	OwnedArray<std::array<double, HT_ORDER + 1>> htState;
+	std::array<double, HT_ORDER + 1> htTempState;
+
+	// store indices of current buffer to feed into transformer
+	Array<int> htInds;
+
+	// store output of hilbert transformer
+    Array<std::complex<double>> htOutput;
+
+	// approximate multiplier for the imaginary component output of the HT (depends on filter band)
+	double htScaleFactor;
+
+	// keep track of each active channel's last non-interpolated ("computed") transformer output
+	// and the number of samples by which this sample precedes the start of the next buffer
+	// (ranges from 1 to sampleRateMultiple).
+	Array<std::complex<double>> lastComputedSample;
+	Array<int> dsOffset;
 
     // keep track of sample output, for glitch correction
     Array<float> lastSample;
-
-    // AR model parameters
-    OwnedArray<Array<double>> arParams;
-    OwnedArray<CriticalSection> arParamLock;
-
-    // approximate multiplier for the imaginary component output of the HT (depends on filter band)
-    double htScaleFactor;
 
     // maps full source subprocessor IDs of incoming streams to indices of
     // corresponding subprocessors created here.
