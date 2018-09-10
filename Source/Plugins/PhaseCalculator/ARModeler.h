@@ -24,33 +24,7 @@
 
 class ARModeler {
 public:
-    ARModeler(int order, int length, int strideIn = 1, bool* success = nullptr)
-        : arOrder       (order)
-        , stride        (strideIn)
-        , inputLength   (length)
-        , stridedLength (calcStridedLength(length, strideIn))
-    {
-        if (order < 1 || stridedLength < order + 1)
-        {
-            // invalid length/order/stride combination
-            jassertfalse;
-            if (success != nullptr) { *success = false; }
-            arOrder = 1;
-            inputLength = 2;
-            stridedLength = 2;
-            stride = 1;
-        }
-        else if (success != nullptr) { *success = true; }
-        reallocateStorage();
-    }
-
-    ARModeler() : arOrder(1), inputLength(2)
-    {
-        reallocateStorage();
-    }
-
-    ARModeler(int order, int length, int strideIn = 1, bool* success = nullptr)
-        : ARModeler()
+    ARModeler(int order = 1, int length = 2, int strideIn = 1, bool* success = nullptr)
     {
         bool s = setParams(order, length, strideIn);
         if (success != nullptr)
@@ -138,7 +112,7 @@ private:
         pef.insertMultiple(0, 0, stridedLength);
     }
 
-    static int calcStridedLength(int inputLength, int stride) inline
+    static int calcStridedLength(int inputLength, int stride)
     {
         jassert(stride > 0);
         return (inputLength + (stride - 1)) / stride;

@@ -243,7 +243,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
 			int kOut = -HT_DELAY;
 			for (int kIn = 0; kIn < htInds.size(); ++kIn, ++kOut)
 			{
-				double samp = htFilterOne(wpIn[htInds[kIn]], *htState[activeChan]);
+				double samp = htFilterSamp(wpIn[htInds[kIn]], *htState[activeChan]);
 				if (kOut >= 0)
 				{
 					double rc = wpIn[htInds[kOut]];
@@ -256,10 +256,9 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
 			htTempState = *htState[activeChan];
 			
 			// execute transformer on prediction
-			std::complex<double> futureOutput;
 			for (int i = 0; i <= HT_DELAY; ++i, ++kOut)
 			{
-				double samp = htFilterOne(predSamps[i], htTempState);
+				double samp = htFilterSamp(predSamps[i], htTempState);
 				if (kOut >= 0)
 				{
 					double rc = i == HT_DELAY ? predSamps[0] : wpIn[htInds[kOut]];
@@ -268,8 +267,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
 				}
 			}
 
-            // calculate requested output and write out to buffer
-            auto rpHilbert = hilbertBuffer[activeChan]->getComplexPointer(hilbertPastLength - nSamplesToProcess);
+			// output with upsampling (interpolation)
             float* wpOut = buffer.getWritePointer(chan);
             float* wpOut2;
             if (outputMode == PH_AND_MAG)
@@ -280,43 +278,60 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                 wpOut2 = buffer.getWritePointer(outChan2);
             }
 
-            for (int i = 0; i < nSamplesToProcess; ++i)
+			kOut = 0;
+			std::complex<double>& lastCS = (lastComputedSample.getRawDataPointer())[activeChan];
+			std::complex<double> nextCS = htOutput[kOut];
+			double currPhaseSpan = circDist(std::arg(nextCS), std::arg(lastCS), Dsp::doublePi);
+			double currMagSpan = std::abs(nextCS) - std::abs(lastCS);
+
+			for (int i = 0; i < nSamples; ++i)
             {
-                switch (outputMode)
+				int subSample = (dsOffset[chan] + i) % sampleRateMultiple[chan];
+				if (subSample == 0)
+				{
+					// update lastComputedSample and interpolation spans
+					lastCS = nextCS;
+					nextCS = htOutput[++kOut];
+					currPhaseSpan = circDist(std::arg(nextCS), std::arg(lastCS), Dsp::doublePi);
+					currMagSpan = std::abs(nextCS) - std::abs(lastCS);
+				}
+
+				double thisPhase = std::arg(lastCS) + currPhaseSpan * subSample / sampleRateMultiple[chan];
+				double thisMag = std::abs(lastCS) + currMagSpan * subSample / sampleRateMultiple[chan];
+
+				switch (outputMode)
                 {
                 case MAG:
-                    wpOut[i + outputStartIndex] = static_cast<float>(std::abs(rpHilbert[i]));
+                    wpOut[i] = static_cast<float>(thisMag);
                     break;
 
                 case PH_AND_MAG:
-                    wpOut2[i + outputStartIndex] = static_cast<float>(std::abs(rpHilbert[i]));
+                    wpOut2[i] = static_cast<float>(thisMag);
                     // fall through
                 case PH:
                     // output in degrees
-                    wpOut[i + outputStartIndex] = static_cast<float>(std::arg(rpHilbert[i]) * (180.0 / Dsp::doublePi));
+                    wpOut[i] = static_cast<float>(thisPhase * (180.0 / Dsp::doublePi));
                     break;
 
                 case IM:
-                    wpOut[i + outputStartIndex] = static_cast<float>(std::imag(rpHilbert[i]));
+                    wpOut[i] = static_cast<float>(thisMag * std::sin(thisPhase));
                     break;
                 }
             }
+			dsOffset.set(chan, ((dsOffset[chan] + nSamples - 1) % sampleRateMultiple[chan]) + 1);
 
             // unwrapping / smoothing
             if (outputMode == PH || outputMode == PH_AND_MAG)
             {
                 unwrapBuffer(wpOut, nSamples, activeChan);
                 smoothBuffer(wpOut, nSamples, activeChan);
+				lastPhase.set(activeChan, wpOut[nSamples - 1]);
             }
-
-			// update lastComputedSample and dsOffset
-			// TODO lastComputedSample
-			dsOffset.set(chan, (dsOffset[chan] + nSamples - 1) % sampleRateMultiple[chan] + 1);
         }
         else // fifo not full or AR model not ready
         {
             // just output zeros
-            buffer.clear(chan, outputStartIndex, nSamplesToProcess);
+			buffer.clear(chan, 0, nSamples);
         }
 
         // if this is the monitored channel for events, check whether we can add a new phase
@@ -324,9 +339,6 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         {
             calcVisPhases(getTimestamp(chan) + getNumSamples(chan));
         }
-
-        // keep track of last sample
-        lastSample.set(activeChan, buffer.getSample(chan, nSamples - 1));
     }
 }
 
@@ -360,7 +372,7 @@ bool PhaseCalculator::disable()
         bufferFreeSpace.set(activeChan, historyLength);
         chanState.set(activeChan, NOT_FULL);
 		htState[activeChan]->fill(0);
-        lastSample.set(activeChan, 0);
+        lastPhase.set(activeChan, 0);
 		lastComputedSample.set(activeChan, 0);
         dsOffset.set(activeChan, sampleRateMultiple[activeChan]);
         filters[activeInputs[activeChan]]->reset();
@@ -520,7 +532,12 @@ void PhaseCalculator::updateSettings()
 Array<int> PhaseCalculator::getActiveInputs()
 {
     int numInputs = getNumInputs();
-    auto ed = static_cast<PhaseCalculatorEditor*>(getEditor());
+	auto ed = static_cast<PhaseCalculatorEditor*>(getEditor());
+	if (numInputs == 0 || !ed)
+	{
+		return Array<int>();
+	}
+
     Array<int> activeChannels = ed->getActiveChannels();
     int numToRemove = 0;
     for (int i = activeChannels.size() - 1;
@@ -579,6 +596,14 @@ void PhaseCalculator::loadCustomChannelParametersFromXml(XmlElement* channelElem
         setVisContChan(channelElement->getIntAttribute("number"));
         static_cast<PhaseCalculatorEditor*>(getEditor())->refreshVisContinuousChan();
     }
+}
+
+double PhaseCalculator::circDist(double x, double ref, double cutoff)
+{
+	const double TWO_PI = 2 * Dsp::doublePi;
+	double xMod = std::fmod(x - ref, TWO_PI);
+	double xPos = (xMod < 0 ? xMod + TWO_PI : xMod);
+	return (xPos > cutoff ? xPos - TWO_PI : xPos);
 }
 
 // ------------ PRIVATE METHODS ---------------
@@ -744,7 +769,7 @@ void PhaseCalculator::addActiveChannel()
     // simple arrays
     bufferFreeSpace.add(historyLength);
     chanState.add(NOT_FULL);
-    lastSample.add(0);
+    lastPhase.add(0);
 	lastComputedSample.add(0);
 
     // owned arrays
@@ -788,7 +813,7 @@ void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int activeChan)
 {
     for (int startInd = 0; startInd < nSamples - 1; startInd++)
     {
-        float diff = wp[startInd] - (startInd == 0 ? lastSample[activeChan] : wp[startInd - 1]);
+        float diff = wp[startInd] - (startInd == 0 ? lastPhase[activeChan] : wp[startInd - 1]);
         if (abs(diff) > 180)
         {
             // search forward for a jump in the opposite direction
@@ -834,20 +859,20 @@ void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int activeChan)
 void PhaseCalculator::smoothBuffer(float* wp, int nSamples, int activeChan)
 {
     int actualGL = jmin(GLITCH_LIMIT, nSamples - 1);
-    float diff = wp[0] - lastSample[activeChan];
+    float diff = wp[0] - lastPhase[activeChan];
     if (diff < 0 && diff > -180)
     {
         // identify whether signal exceeds last sample of the previous buffer within glitchLimit samples.
         int endIndex = -1;
         for (int i = 1; i <= actualGL; i++)
         {
-            if (wp[i] > lastSample[activeChan])
+            if (wp[i] > lastPhase[activeChan])
             {
                 endIndex = i;
                 break;
             }
             // corner case where signal wraps before it exceeds lastSample
-            else if (wp[i] - wp[i - 1] < -180 && (wp[i] + 360) > lastSample[activeChan])
+            else if (wp[i] - wp[i - 1] < -180 && (wp[i] + 360) > lastPhase[activeChan])
             {
                 wp[i] += 360;
                 endIndex = i;
@@ -858,10 +883,10 @@ void PhaseCalculator::smoothBuffer(float* wp, int nSamples, int activeChan)
         if (endIndex != -1)
         {
             // interpolate points from buffer start to endIndex
-            float slope = (wp[endIndex] - lastSample[activeChan]) / (endIndex + 1);
+            float slope = (wp[endIndex] - lastPhase[activeChan]) / (endIndex + 1);
             for (int i = 0; i < endIndex; i++)
             {
-                wp[i] = lastSample[activeChan] + (i + 1) * slope;
+                wp[i] = lastPhase[activeChan] + (i + 1) * slope;
             }
         }
     }
@@ -1113,7 +1138,7 @@ double PhaseCalculator::getScaleFactor(double lowCut, double highCut)
 	return 1 / meanAbsResponse;
 }
 
-double PhaseCalculator::htFilterOne(double input, std::array<double, HT_ORDER + 1>& state)
+double PhaseCalculator::htFilterSamp(double input, std::array<double, HT_ORDER + 1>& state)
 {
 	double* state_p = state.data();
 

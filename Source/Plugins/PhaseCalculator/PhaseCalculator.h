@@ -151,6 +151,13 @@ public:
     // for visualizer continuous channel
     void saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType) override;
     void loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType) override;
+	
+	/*
+	 * Circular distance between angles x and ref (in radians). The "cutoff" is the maximum
+	 * possible positive output; greater differences will be wrapped to negative angles.
+	 * For interpolation, and also RosePlot visualization.
+	 */
+	static double circDist(double x, double ref, double cutoff = 2 * Dsp::doublePi);
 
 private:
 
@@ -244,7 +251,7 @@ private:
     static double getScaleFactor(double lowCut, double highCut);
 
 	// Execute the hilbert transformer on one sample and update the state.
-	static double htFilterOne(double input, std::array<double, HT_ORDER + 1>& state);
+	static double htFilterSamp(double input, std::array<double, HT_ORDER + 1>& state);
 
     // ---- customizable parameters ------
 
@@ -319,8 +326,8 @@ private:
 	Array<std::complex<double>> lastComputedSample;
 	Array<int> dsOffset;
 
-    // keep track of sample output, for glitch correction
-    Array<float> lastSample;
+    // keep track of last phase output, for glitch correction
+    Array<float> lastPhase;
 
     // maps full source subprocessor IDs of incoming streams to indices of
     // corresponding subprocessors created here.
