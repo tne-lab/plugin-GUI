@@ -487,7 +487,7 @@ double RosePlot::getCircMean(bool usingReference)
     }
 
     double reference = usingReference ? referenceAngle : 0.0;
-	// use range of (-90, 270] for ease of use
+    // use range of (-90, 270] for ease of use
     double meanRad = PhaseCalculator::circDist(std::arg(rSum), reference, 3 * PI / 2);
     return meanRad * 180 / PI;
 }
@@ -536,8 +536,8 @@ RosePlot::circularBinComparator::circularBinComparator(int numBinsIn, double ref
 
 bool RosePlot::circularBinComparator::operator() (const double& lhs, const double& rhs) const
 {
-	double lhsDist = PhaseCalculator::circDist(lhs, referenceAngle);
-	double rhsDist = PhaseCalculator::circDist(rhs, referenceAngle);
+    double lhsDist = PhaseCalculator::circDist(lhs, referenceAngle);
+    double rhsDist = PhaseCalculator::circDist(rhs, referenceAngle);
     int lhsBin = static_cast<int>(std::floor(lhsDist * numBins / (2 * PI)));
     int rhsBin = static_cast<int>(std::floor(rhsDist * numBins / (2 * PI)));
     return lhsBin < rhsBin;

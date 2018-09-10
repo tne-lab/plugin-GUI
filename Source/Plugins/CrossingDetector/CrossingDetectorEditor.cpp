@@ -1215,7 +1215,11 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
     forEachXmlChildElementWithTagName(*xml, xmlNode, "VALUES")
     {
         // channels
-        inputBox->setSelectedId(xmlNode->getIntAttribute("inputChanId", inputBox->getSelectedId()), sendNotificationSync);
+		int inputChanId = xmlNode->getIntAttribute("inputChanId", inputBox->getSelectedId());
+		if (inputBox->indexOfItemId(inputChanId) >= 0) // guard against different # of channels
+		{
+			inputBox->setSelectedId(inputChanId, sendNotificationSync);
+		}
         outputBox->setSelectedId(xmlNode->getIntAttribute("outputChanId", outputBox->getSelectedId()), sendNotificationSync);
 
         // rising/falling
@@ -1238,7 +1242,12 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         thresholdEditable->setText(xmlNode->getStringAttribute("threshold", thresholdEditable->getText()), sendNotificationSync);
         minThreshEditable->setText(xmlNode->getStringAttribute("minThresh", minThreshEditable->getText()), sendNotificationSync);
         maxThreshEditable->setText(xmlNode->getStringAttribute("maxThresh", maxThreshEditable->getText()), sendNotificationSync);
-        channelThreshBox->setSelectedId(xmlNode->getIntAttribute("thresholdChanId", channelThreshBox->getSelectedId()), sendNotificationSync);
+		
+		int thresholdChanId = xmlNode->getIntAttribute("thresholdChanId", channelThreshBox->getSelectedId());
+		if (channelThreshBox->indexOfItemId(thresholdChanId) >= 0) // guard against different # of channels
+		{
+			channelThreshBox->setSelectedId(thresholdChanId, sendNotificationSync);
+		}
         
         int thresholdType;
         if (xmlNode->hasAttribute("bRandThresh"))

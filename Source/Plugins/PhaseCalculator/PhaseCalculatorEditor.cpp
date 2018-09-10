@@ -127,7 +127,7 @@ void PhaseCalculatorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
 {
     PhaseCalculator* processor = static_cast<PhaseCalculator*>(getProcessor());
 
-	if (comboBoxThatHasChanged == outputModeBox)
+    if (comboBoxThatHasChanged == outputModeBox)
     {
         processor->setParameter(OUTPUT_MODE, static_cast<float>(outputModeBox->getSelectedId()));
     }
@@ -137,7 +137,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
 {
     PhaseCalculator* processor = static_cast<PhaseCalculator*>(getProcessor());
 
-	if (labelThatHasChanged == recalcIntervalEditable)
+    if (labelThatHasChanged == recalcIntervalEditable)
     {
         int intInput;
         bool valid = updateIntControl(labelThatHasChanged, 0, INT_MAX, processor->calcInterval, &intInput);

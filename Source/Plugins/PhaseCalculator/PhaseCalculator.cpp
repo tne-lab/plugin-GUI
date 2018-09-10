@@ -168,7 +168,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         float* const wpIn = buffer.getWritePointer(chan);
         filters[chan]->process(nSamples, &wpIn);
 
-		// shift old data and copy new data into historyBuffer (as much as can fit)
+        // shift old data and copy new data into historyBuffer (as much as can fit)
         int historyStartIndex = jmax(nSamples - historyLength, 0);
         int nSamplesToEnqueue = nSamples - historyStartIndex;
         int nOldSamples = historyLength - nSamplesToEnqueue;
@@ -208,7 +208,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
 
         // calc phase and write out (only if AR model has been calculated)
         if (chanState[activeChan] == FULL_AR) 
-		{
+        {
             // read current AR parameters safely
             Array<double> localParams;
             localParams.resize(arOrder);
@@ -227,47 +227,47 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             rpBuffer = historyBuffer.getReadPointer(activeChan, historyLength - dsOffset[chan]);
             arPredict(rpBuffer, predSamps, pLocalParam, sampleRateMultiple[chan], arOrder);
 
-			// identify indices of current buffer to execute HT
-			htInds.clearQuick();
-			for (int i = sampleRateMultiple[chan] - dsOffset[chan]; i < nSamples; i += sampleRateMultiple[chan])
-			{
-				htInds.add(i);
-			}
+            // identify indices of current buffer to execute HT
+            htInds.clearQuick();
+            for (int i = sampleRateMultiple[chan] - dsOffset[chan]; i < nSamples; i += sampleRateMultiple[chan])
+            {
+                htInds.add(i);
+            }
 
-			int htOutputSamps = htInds.size() + 1;
-			if (htOutput.size() < htOutputSamps)
-			{
-				htOutput.resize(htOutputSamps);
-			}
+            int htOutputSamps = htInds.size() + 1;
+            if (htOutput.size() < htOutputSamps)
+            {
+                htOutput.resize(htOutputSamps);
+            }
 
-			int kOut = -HT_DELAY;
-			for (int kIn = 0; kIn < htInds.size(); ++kIn, ++kOut)
-			{
-				double samp = htFilterSamp(wpIn[htInds[kIn]], *htState[activeChan]);
-				if (kOut >= 0)
-				{
-					double rc = wpIn[htInds[kOut]];
-					double ic = htScaleFactor * samp;
-					htOutput.set(kOut, std::complex<double>(rc, ic));
-				}
-			}
+            int kOut = -HT_DELAY;
+            for (int kIn = 0; kIn < htInds.size(); ++kIn, ++kOut)
+            {
+                double samp = htFilterSamp(wpIn[htInds[kIn]], *htState[activeChan]);
+                if (kOut >= 0)
+                {
+                    double rc = wpIn[htInds[kOut]];
+                    double ic = htScaleFactor * samp;
+                    htOutput.set(kOut, std::complex<double>(rc, ic));
+                }
+            }
 
-			// copy state to tranform prediction without changing the end-of-buffer state
-			htTempState = *htState[activeChan];
-			
-			// execute transformer on prediction
-			for (int i = 0; i <= HT_DELAY; ++i, ++kOut)
-			{
-				double samp = htFilterSamp(predSamps[i], htTempState);
-				if (kOut >= 0)
-				{
-					double rc = i == HT_DELAY ? predSamps[0] : wpIn[htInds[kOut]];
-					double ic = htScaleFactor * samp;
-					htOutput.set(kOut, std::complex<double>(rc, ic));
-				}
-			}
+            // copy state to tranform prediction without changing the end-of-buffer state
+            htTempState = *htState[activeChan];
+            
+            // execute transformer on prediction
+            for (int i = 0; i <= HT_DELAY; ++i, ++kOut)
+            {
+                double samp = htFilterSamp(predSamps[i], htTempState);
+                if (kOut >= 0)
+                {
+                    double rc = i == HT_DELAY ? predSamps[0] : wpIn[htInds[kOut]];
+                    double ic = htScaleFactor * samp;
+                    htOutput.set(kOut, std::complex<double>(rc, ic));
+                }
+            }
 
-			// output with upsampling (interpolation)
+            // output with upsampling (interpolation)
             float* wpOut = buffer.getWritePointer(chan);
             float* wpOut2;
             if (outputMode == PH_AND_MAG)
@@ -278,28 +278,28 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                 wpOut2 = buffer.getWritePointer(outChan2);
             }
 
-			kOut = 0;
-			std::complex<double>& lastCS = (lastComputedSample.getRawDataPointer())[activeChan];
-			std::complex<double> nextCS = htOutput[kOut];
-			double currPhaseSpan = circDist(std::arg(nextCS), std::arg(lastCS), Dsp::doublePi);
-			double currMagSpan = std::abs(nextCS) - std::abs(lastCS);
+            kOut = 0;
+            std::complex<double>& lastCS = (lastComputedSample.getRawDataPointer())[activeChan];
+            std::complex<double> nextCS = htOutput[kOut];
+            double currPhaseSpan = circDist(std::arg(nextCS), std::arg(lastCS), Dsp::doublePi);
+            double currMagSpan = std::abs(nextCS) - std::abs(lastCS);
 
-			for (int i = 0; i < nSamples; ++i)
+            for (int i = 0; i < nSamples; ++i)
             {
-				int subSample = (dsOffset[chan] + i) % sampleRateMultiple[chan];
-				if (subSample == 0)
-				{
-					// update lastComputedSample and interpolation spans
-					lastCS = nextCS;
-					nextCS = htOutput[++kOut];
-					currPhaseSpan = circDist(std::arg(nextCS), std::arg(lastCS), Dsp::doublePi);
-					currMagSpan = std::abs(nextCS) - std::abs(lastCS);
-				}
+                int subSample = (dsOffset[chan] + i) % sampleRateMultiple[chan];
+                if (subSample == 0)
+                {
+                    // update lastComputedSample and interpolation spans
+                    lastCS = nextCS;
+                    nextCS = htOutput[++kOut];
+                    currPhaseSpan = circDist(std::arg(nextCS), std::arg(lastCS), Dsp::doublePi);
+                    currMagSpan = std::abs(nextCS) - std::abs(lastCS);
+                }
 
-				double thisPhase = std::arg(lastCS) + currPhaseSpan * subSample / sampleRateMultiple[chan];
-				double thisMag = std::abs(lastCS) + currMagSpan * subSample / sampleRateMultiple[chan];
+                double thisPhase = std::arg(lastCS) + currPhaseSpan * subSample / sampleRateMultiple[chan];
+                double thisMag = std::abs(lastCS) + currMagSpan * subSample / sampleRateMultiple[chan];
 
-				switch (outputMode)
+                switch (outputMode)
                 {
                 case MAG:
                     wpOut[i] = static_cast<float>(thisMag);
@@ -318,20 +318,20 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                     break;
                 }
             }
-			dsOffset.set(chan, ((dsOffset[chan] + nSamples - 1) % sampleRateMultiple[chan]) + 1);
+            dsOffset.set(chan, ((dsOffset[chan] + nSamples - 1) % sampleRateMultiple[chan]) + 1);
 
             // unwrapping / smoothing
             if (outputMode == PH || outputMode == PH_AND_MAG)
             {
                 unwrapBuffer(wpOut, nSamples, activeChan);
                 smoothBuffer(wpOut, nSamples, activeChan);
-				lastPhase.set(activeChan, wpOut[nSamples - 1]);
+                lastPhase.set(activeChan, wpOut[nSamples - 1]);
             }
         }
         else // fifo not full or AR model not ready
         {
             // just output zeros
-			buffer.clear(chan, 0, nSamples);
+            buffer.clear(chan, 0, nSamples);
         }
 
         // if this is the monitored channel for events, check whether we can add a new phase
@@ -371,9 +371,9 @@ bool PhaseCalculator::disable()
     {
         bufferFreeSpace.set(activeChan, historyLength);
         chanState.set(activeChan, NOT_FULL);
-		htState[activeChan]->fill(0);
+        htState[activeChan]->fill(0);
         lastPhase.set(activeChan, 0);
-		lastComputedSample.set(activeChan, 0);
+        lastComputedSample.set(activeChan, 0);
         dsOffset.set(activeChan, sampleRateMultiple[activeChan]);
         filters[activeInputs[activeChan]]->reset();
     }
@@ -532,11 +532,11 @@ void PhaseCalculator::updateSettings()
 Array<int> PhaseCalculator::getActiveInputs()
 {
     int numInputs = getNumInputs();
-	auto ed = static_cast<PhaseCalculatorEditor*>(getEditor());
-	if (numInputs == 0 || !ed)
-	{
-		return Array<int>();
-	}
+    auto ed = static_cast<PhaseCalculatorEditor*>(getEditor());
+    if (numInputs == 0 || !ed)
+    {
+        return Array<int>();
+    }
 
     Array<int> activeChannels = ed->getActiveChannels();
     int numToRemove = 0;
@@ -590,20 +590,22 @@ void PhaseCalculator::saveCustomChannelParametersToXml(XmlElement* channelElemen
 void PhaseCalculator::loadCustomChannelParametersFromXml(XmlElement* channelElement,
     InfoObjectCommon::InfoObjectType channelType)
 {
-    if (channelElement->hasAttribute("visualize"))
+    int chanNum = channelElement->getIntAttribute("number");
+
+    if (chanNum < getNumInputs() && channelElement->hasAttribute("visualize"))
     {
         // The saved channel should be added to the dropdown at this point.
-        setVisContChan(channelElement->getIntAttribute("number"));
+        setVisContChan(chanNum);
         static_cast<PhaseCalculatorEditor*>(getEditor())->refreshVisContinuousChan();
     }
 }
 
 double PhaseCalculator::circDist(double x, double ref, double cutoff)
 {
-	const double TWO_PI = 2 * Dsp::doublePi;
-	double xMod = std::fmod(x - ref, TWO_PI);
-	double xPos = (xMod < 0 ? xMod + TWO_PI : xMod);
-	return (xPos > cutoff ? xPos - TWO_PI : xPos);
+    const double TWO_PI = 2 * Dsp::doublePi;
+    double xMod = std::fmod(x - ref, TWO_PI);
+    double xPos = (xMod < 0 ? xMod + TWO_PI : xMod);
+    return (xPos > cutoff ? xPos - TWO_PI : xPos);
 }
 
 // ------------ PRIVATE METHODS ---------------
@@ -661,8 +663,8 @@ void PhaseCalculator::setLowCut(float newLowCut)
         highCut = lowCut + PASSBAND_EPS;
         static_cast<PhaseCalculatorEditor*>(getEditor())->refreshHighCut();
     }
-	updateScaleFactor();
-	setFilterParameters();
+    updateScaleFactor();
+    setFilterParameters();
 }
 
 void PhaseCalculator::setHighCut(float newHighCut)
@@ -676,7 +678,7 @@ void PhaseCalculator::setHighCut(float newHighCut)
         lowCut = highCut - PASSBAND_EPS;
         static_cast<PhaseCalculatorEditor*>(getEditor())->refreshLowCut();
     }
-	updateScaleFactor();
+    updateScaleFactor();
     setFilterParameters();
 }
 
@@ -738,7 +740,7 @@ void PhaseCalculator::updateHistoryLength()
 
 void PhaseCalculator::updateScaleFactor()
 {
-	htScaleFactor = getScaleFactor(lowCut, highCut);
+    htScaleFactor = getScaleFactor(lowCut, highCut);
 }
 
 void PhaseCalculator::setFilterParameters()
@@ -770,15 +772,15 @@ void PhaseCalculator::addActiveChannel()
     bufferFreeSpace.add(historyLength);
     chanState.add(NOT_FULL);
     lastPhase.add(0);
-	lastComputedSample.add(0);
+    lastComputedSample.add(0);
 
     // owned arrays
     historyLock.add(new CriticalSection());
     arParamLock.add(new CriticalSection());
     arParams.add(new Array<double>());
     arParams.getLast()->resize(arOrder);
-	htState.add(new std::array<double, HT_ORDER + 1>());
-	htState.getLast()->fill(0);
+    htState.add(new std::array<double, HT_ORDER + 1>());
+    htState.getLast()->fill(0);
 }
 
 bool PhaseCalculator::validateSampleRate(int chan)
@@ -1070,7 +1072,7 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
 }
 
 void PhaseCalculator::arPredict(const double* lastSample, double* prediction,
-	const double* params, int stride, int order)
+    const double* params, int stride, int order)
 {
     for (int s = 0; s <= HT_DELAY; ++s)
     {
@@ -1080,7 +1082,7 @@ void PhaseCalculator::arPredict(const double* lastSample, double* prediction,
         {
             // ind = index of previous output to read
             prediction[s] -= params[s - 1 - ind] *
-				(ind < 0 ? lastSample[(ind + 1) * stride] : prediction[ind]);
+                (ind < 0 ? lastSample[(ind + 1) * stride] : prediction[ind]);
         }
     }
 }
@@ -1115,43 +1117,43 @@ void PhaseCalculator::hilbertManip(FFTWArray* fftData)
 
 double PhaseCalculator::getScaleFactor(double lowCut, double highCut)
 {
-	jassert(HT_SCALE_FACTOR_QUERY_FREQS >= 2);
-	int numFreqs = HT_SCALE_FACTOR_QUERY_FREQS;
+    jassert(HT_SCALE_FACTOR_QUERY_FREQS >= 2);
+    int numFreqs = HT_SCALE_FACTOR_QUERY_FREQS;
 
-	double meanAbsResponse = 0;
+    double meanAbsResponse = 0;
 
-	// at each frequency, calculate the filter response
-	for (int kFreq = 0; kFreq < numFreqs; ++kFreq)
-	{
-		double freq = lowCut + kFreq * (highCut - lowCut) / (numFreqs - 1);
-		double normFreq = freq / (HT_FS / 2);
-		std::complex<double> response = 0;
+    // at each frequency, calculate the filter response
+    for (int kFreq = 0; kFreq < numFreqs; ++kFreq)
+    {
+        double freq = lowCut + kFreq * (highCut - lowCut) / (numFreqs - 1);
+        double normFreq = freq / (HT_FS / 2);
+        std::complex<double> response = 0;
 
-		for (int kCoef = 0; kCoef <= HT_ORDER; ++kCoef)
-		{
-			response += std::polar(HT_COEF[kCoef], -kCoef * normFreq * Dsp::doublePi);
-		}
+        for (int kCoef = 0; kCoef <= HT_ORDER; ++kCoef)
+        {
+            response += std::polar(HT_COEF[kCoef], -kCoef * normFreq * Dsp::doublePi);
+        }
 
-		meanAbsResponse += std::abs(response) / numFreqs;
-	}
+        meanAbsResponse += std::abs(response) / numFreqs;
+    }
 
-	return 1 / meanAbsResponse;
+    return 1 / meanAbsResponse;
 }
 
 double PhaseCalculator::htFilterSamp(double input, std::array<double, HT_ORDER + 1>& state)
 {
-	double* state_p = state.data();
+    double* state_p = state.data();
 
-	// initialize new state entry
-	state[HT_ORDER] = 0;
+    // initialize new state entry
+    state[HT_ORDER] = 0;
 
-	// incorporate new input
-	FloatVectorOperations::addWithMultiply(state_p, HT_COEF, input, HT_ORDER + 1);
+    // incorporate new input
+    FloatVectorOperations::addWithMultiply(state_p, HT_COEF, input, HT_ORDER + 1);
 
-	// shift state
-	double sampOut = state[0];
-	memmove(state_p, state_p + 1, HT_ORDER);
-	return sampOut;
+    // shift state
+    double sampOut = state[0];
+    memmove(state_p, state_p + 1, HT_ORDER);
+    return sampOut;
 }
 
 // Hilbert transformer coefficients (FIR filter)
