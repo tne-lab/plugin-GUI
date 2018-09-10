@@ -459,20 +459,20 @@ void PhaseCalculator::updateSettings()
 
 Array<int> PhaseCalculator::getActiveInputs()
 {
-	int numInputs = getNumInputs();
-	auto ed = static_cast<PhaseCalculatorEditor*>(getEditor());
-	if (numInputs == 0 || !ed)
-	{
-		return Array<int>();
-	}
+    int numInputs = getNumInputs();
+    auto ed = static_cast<PhaseCalculatorEditor*>(getEditor());
+    if (numInputs == 0 || !ed)
+    {
+        return Array<int>();
+    }
 
-	Array<int> activeChannels = ed->getActiveChannels();
-	int numToRemove = 0;
-	for (int i = activeChannels.size() - 1;
-		i >= 0 && activeChannels[i] >= numInputs;
-		--i, ++numToRemove);
-	activeChannels.removeLast(numToRemove);
-	return activeChannels;
+    Array<int> activeChannels = ed->getActiveChannels();
+    int numToRemove = 0;
+    for (int i = activeChannels.size() - 1;
+        i >= 0 && activeChannels[i] >= numInputs;
+        --i, ++numToRemove);
+    activeChannels.removeLast(numToRemove);
+    return activeChannels;
 }
 
 
@@ -518,13 +518,13 @@ void PhaseCalculator::saveCustomChannelParametersToXml(XmlElement* channelElemen
 void PhaseCalculator::loadCustomChannelParametersFromXml(XmlElement* channelElement,
     InfoObjectCommon::InfoObjectType channelType)
 {
-	int chanNum = channelElement->getIntAttribute("number");
+    int chanNum = channelElement->getIntAttribute("number");
 
     if (chanNum < getNumInputs() && channelElement->hasAttribute("visualize"))
     {
-		// The saved channel should be added to the dropdown at this point.
-		setVisContChan(chanNum);
-		static_cast<PhaseCalculatorEditor*>(getEditor())->refreshVisContinuousChan();
+        // The saved channel should be added to the dropdown at this point.
+        setVisContChan(chanNum);
+        static_cast<PhaseCalculatorEditor*>(getEditor())->refreshVisContinuousChan();
     }
 }
 
