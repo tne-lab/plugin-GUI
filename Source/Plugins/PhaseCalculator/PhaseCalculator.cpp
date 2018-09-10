@@ -182,15 +182,12 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             const ScopedLock myHistoryLock(*historyLock[activeChan]);
 
             // shift old data
-            for (int i = 0; i < nOldSamples; ++i)
-            {
-                *wpBuffer++ = *rpBuffer++;
-            }
+            memmove(wpBuffer, rpBuffer, nOldSamples * sizeof(double));
 
             // copy new data
             for (int i = 0; i < nSamplesToEnqueue; ++i)
             {
-                *wpBuffer++ = wpIn[historyStartIndex + i];
+                wpBuffer[nOldSamples + i] = wpIn[historyStartIndex + i];
             }
         }
 
@@ -279,27 +276,58 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             }
 
             kOut = 0;
-            std::complex<double>& lastCS = (lastComputedSample.getRawDataPointer())[activeChan];
+            std::complex<double> prevCS = lastComputedSample[activeChan];
             std::complex<double> nextCS = htOutput[kOut];
-            double currPhaseSpan = circDist(std::arg(nextCS), std::arg(lastCS), Dsp::doublePi);
-            double currMagSpan = std::abs(nextCS) - std::abs(lastCS);
-            double thisPhase, thisMag;
+            double prevPhase, nextPhase, phaseSpan, thisPhase;
+            double prevMag, nextMag, magSpan, thisMag;
+            bool needPhase = outputMode != MAG;
+            bool needMag = outputMode != PH;
 
-            for (int i = 0; i < nSamples; ++i)
+            if (needPhase)
             {
-                int subSample = (dsOffset[chan] + i) % sampleRateMultiple[chan];
+                prevPhase = std::arg(prevCS);
+                nextPhase = std::arg(nextCS);
+                phaseSpan = circDist(nextPhase, prevPhase, Dsp::doublePi);
+            }
+            if (needMag)
+            {
+                prevMag = std::abs(prevCS);
+                nextMag = std::abs(nextCS);
+                magSpan = nextMag - prevMag;
+            }
+            int subSample = dsOffset[chan] % sampleRateMultiple[chan];
+
+            for (int i = 0; i < nSamples; ++i, subSample = (subSample + 1) % sampleRateMultiple[chan])
+            {
                 if (subSample == 0)
                 {
-                    // update lastComputedSample and interpolation spans
-                    lastCS = nextCS;
+                    // update interpolation frame
+                    prevCS = nextCS;
                     nextCS = htOutput[++kOut];
-                    currPhaseSpan = circDist(std::arg(nextCS), std::arg(lastCS), Dsp::doublePi);
-                    currMagSpan = std::abs(nextCS) - std::abs(lastCS);
+                    
+                    if (needPhase)
+                    {
+                        prevPhase = nextPhase;
+                        nextPhase = std::arg(nextCS);
+                        phaseSpan = circDist(nextPhase, prevPhase, Dsp::doublePi);
+                    }
+                    if (needMag)
+                    {
+                        prevMag = nextMag;
+                        nextMag = std::abs(nextCS);
+                        magSpan = nextMag - prevMag;
+                    }
                 }
 
-                thisPhase = std::arg(lastCS) + currPhaseSpan * subSample / sampleRateMultiple[chan];
-                thisPhase = circDist(thisPhase, 0, Dsp::doublePi);
-                thisMag = std::abs(lastCS) + currMagSpan * subSample / sampleRateMultiple[chan];
+                if (needPhase)
+                {
+                    thisPhase = prevPhase + phaseSpan * subSample / sampleRateMultiple[chan];
+                    thisPhase = circDist(thisPhase, 0, Dsp::doublePi);
+                }
+                if (needMag)
+                {
+                    thisMag = prevMag + magSpan * subSample / sampleRateMultiple[chan];
+                }
 
                 switch (outputMode)
                 {
@@ -320,6 +348,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                     break;
                 }
             }
+            lastComputedSample.set(activeChan, prevCS);
             dsOffset.set(chan, ((dsOffset[chan] + nSamples - 1) % sampleRateMultiple[chan]) + 1);
 
             // unwrapping / smoothing
