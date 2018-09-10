@@ -38,8 +38,8 @@ public:
     // returns true if successful.
     bool setParams(int order, int length, int strideIn)
     {
-        int newStridedLength = calcStridedLength(inputLength, strideIn);
-        if (order < 1 || stridedLength < order + 1)
+        int newStridedLength = calcStridedLength(length, strideIn);
+        if (order < 1 || newStridedLength < order + 1)
         {
             jassertfalse;
             return false;

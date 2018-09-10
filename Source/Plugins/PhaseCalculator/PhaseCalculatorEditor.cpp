@@ -25,10 +25,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <climits> // INT_MAX
 
 PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
-    : VisualizerEditor     (parentNode, 325, useDefaultParameterEditors)
+    : VisualizerEditor     (parentNode, 190, useDefaultParameterEditors)
 {
     tabText = "Event Phase Plot";
-    int filterWidth = 80;
+    int filterWidth = 85;
 
     PhaseCalculator* processor = static_cast<PhaseCalculator*>(parentNode);
 
@@ -63,7 +63,7 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool 
     addAndMakeVisible(highCutEditable);
 
     recalcIntervalLabel = new Label("recalcL", "AR Refresh:");
-    recalcIntervalLabel->setBounds(filterWidth + 140, 25, 100, 20);
+    recalcIntervalLabel->setBounds(filterWidth, 25, 100, 20);
     recalcIntervalLabel->setFont(Font("Small Text", 12, Font::plain));
     recalcIntervalLabel->setColour(Label::textColourId, Colours::darkgrey);
     addAndMakeVisible(recalcIntervalLabel);
@@ -71,7 +71,7 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool 
     recalcIntervalEditable = new Label("recalcE");
     recalcIntervalEditable->setEditable(true);
     recalcIntervalEditable->addListener(this);
-    recalcIntervalEditable->setBounds(filterWidth + 145, 44, 55, 18);
+    recalcIntervalEditable->setBounds(filterWidth + 5, 44, 55, 18);
     recalcIntervalEditable->setColour(Label::backgroundColourId, Colours::grey);
     recalcIntervalEditable->setColour(Label::textColourId, Colours::white);
     recalcIntervalEditable->setText(String(processor->calcInterval), dontSendNotification);
@@ -79,13 +79,13 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool 
     addAndMakeVisible(recalcIntervalEditable);
 
     recalcIntervalUnit = new Label("recalcU", "ms");
-    recalcIntervalUnit->setBounds(filterWidth + 200, 47, 25, 15);
+    recalcIntervalUnit->setBounds(filterWidth + 60, 47, 25, 15);
     recalcIntervalUnit->setFont(Font("Small Text", 12, Font::plain));
     recalcIntervalUnit->setColour(Label::textColourId, Colours::darkgrey);
     addAndMakeVisible(recalcIntervalUnit);
 
     arOrderLabel = new Label("arOrderL", "Order:");
-    arOrderLabel->setBounds(filterWidth + 140, 65, 60, 20);
+    arOrderLabel->setBounds(filterWidth, 65, 60, 20);
     arOrderLabel->setFont(Font("Small Text", 12, Font::plain));
     arOrderLabel->setColour(Label::textColourId, Colours::darkgrey);
     addAndMakeVisible(arOrderLabel);
@@ -93,7 +93,7 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool 
     arOrderEditable = new Label("arOrderE");
     arOrderEditable->setEditable(true);
     arOrderEditable->addListener(this);
-    arOrderEditable->setBounds(filterWidth + 195, 66, 25, 18);
+    arOrderEditable->setBounds(filterWidth + 55, 66, 25, 18);
     arOrderEditable->setColour(Label::backgroundColourId, Colours::grey);
     arOrderEditable->setColour(Label::textColourId, Colours::white);
     arOrderEditable->setText(String(processor->arOrder), sendNotificationAsync);
@@ -101,7 +101,7 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool 
     addAndMakeVisible(arOrderEditable);
 
     outputModeLabel = new Label("outputModeL", "Output:");
-    outputModeLabel->setBounds(filterWidth + 140, 87, 70, 20);
+    outputModeLabel->setBounds(filterWidth, 87, 70, 20);
     outputModeLabel->setFont(Font("Small Text", 12, Font::plain));
     outputModeLabel->setColour(Label::textColourId, Colours::darkgrey);
     addAndMakeVisible(outputModeLabel);
@@ -113,7 +113,7 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool 
     outputModeBox->addItem("IMAG", IM);
     outputModeBox->setSelectedId(processor->outputMode);
     outputModeBox->setTooltip(OUTPUT_MODE_TOOLTIP);
-    outputModeBox->setBounds(filterWidth + 145, 105, 76, 19);
+    outputModeBox->setBounds(filterWidth + 5, 105, 76, 19);
     outputModeBox->addListener(this);
     addAndMakeVisible(outputModeBox);
 

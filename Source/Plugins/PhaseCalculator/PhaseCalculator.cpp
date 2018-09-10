@@ -283,6 +283,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             std::complex<double> nextCS = htOutput[kOut];
             double currPhaseSpan = circDist(std::arg(nextCS), std::arg(lastCS), Dsp::doublePi);
             double currMagSpan = std::abs(nextCS) - std::abs(lastCS);
+            double thisPhase, thisMag;
 
             for (int i = 0; i < nSamples; ++i)
             {
@@ -296,8 +297,9 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                     currMagSpan = std::abs(nextCS) - std::abs(lastCS);
                 }
 
-                double thisPhase = std::arg(lastCS) + currPhaseSpan * subSample / sampleRateMultiple[chan];
-                double thisMag = std::abs(lastCS) + currMagSpan * subSample / sampleRateMultiple[chan];
+                thisPhase = std::arg(lastCS) + currPhaseSpan * subSample / sampleRateMultiple[chan];
+                thisPhase = circDist(thisPhase, 0, Dsp::doublePi);
+                thisMag = std::abs(lastCS) + currMagSpan * subSample / sampleRateMultiple[chan];
 
                 switch (outputMode)
                 {
@@ -806,7 +808,7 @@ bool PhaseCalculator::validateSampleRate(int chan)
 
     // deselect and send warning
     deselectChannel(chan);
-    CoreServices::sendStatusMessage("Channel " + String(chan + 1) + " was deselected because " +
+    CoreServices::sendStatusMessage("Channel " + String(chan + 1) + " was deselected because" +
         " its sample rate is not a multiple of " + String(HT_FS));
     return false;
 }
@@ -1152,7 +1154,7 @@ double PhaseCalculator::htFilterSamp(double input, std::array<double, HT_ORDER +
 
     // shift state
     double sampOut = state[0];
-    memmove(state_p, state_p + 1, HT_ORDER);
+    memmove(state_p, state_p + 1, HT_ORDER * sizeof(double));
     return sampOut;
 }
 
