@@ -92,7 +92,9 @@ public:
     AudioProcessorEditor* createEditor() override;
 
     // needed for visualization phase signal events (for adaptive crossing detector threshold)
-    void createEventChannels() override;
+    // don't want to override createEventChannels for this because the visContinuousChannel
+    // has to be updated from the canvas first.
+    void updateVisPhaseChannel();
 
     void setParameter(int parameterIndex, float newValue) override;
 
@@ -115,6 +117,9 @@ public:
     int getNumSubProcessors() const override;
     float getSampleRate(int subProcessorIdx = 0) const override;
     float getBitVolts(int subProcessorIdx = 0) const override;
+
+    // miscellaneous helper
+    int getFullSourceId(int chan);
 
     // for the visualizer
     std::queue<double>& getVisPhaseBuffer(ScopedPointer<ScopedLock>& lock);
