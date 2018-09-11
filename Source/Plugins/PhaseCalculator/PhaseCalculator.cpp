@@ -59,21 +59,21 @@ AudioProcessorEditor* PhaseCalculator::createEditor()
     return editor;
 }
 
-void PhaseCalculator::createEventChannels()
+void PhaseCalculator::updateVisPhaseChannel()
 {
-    // add vis phase event channel
+    eventChannelArray.clear();
     const DataChannel* visChannel = getDataChannel(visContinuousChannel);
-    float sampleRate = visChannel ? visChannel->getSampleRate() : CoreServices::getGlobalSampleRate();
-    juce::uint16 subproc = visChannel ? visChannel->getSubProcessorIdx() : 0;
 
-    EventChannel* chan = new EventChannel(EventChannel::DOUBLE_ARRAY, 1, 1, sampleRate, this, subproc);
-    chan->setName(chan->getName() + ": PC visualized phase (deg.)");
-    chan->setDescription("The accurate phase in degrees of each visualized event");
-    chan->setIdentifier("phasecalc.visphase");
-
-    // metadata storing source data channel
     if (visChannel)
     {
+        float sampleRate = visChannel->getSampleRate();
+
+        EventChannel* chan = new EventChannel(EventChannel::DOUBLE_ARRAY, 1, 1, sampleRate, this);
+        chan->setName(chan->getName() + ": PC visualized phase (deg.)");
+        chan->setDescription("The accurate phase in degrees of each visualized event");
+        chan->setIdentifier("phasecalc.visphase");
+
+        // metadata storing source data channel
         MetaDataDescriptor sourceChanDesc(MetaDataDescriptor::UINT16, 3, "Source Channel",
             "Index at its source, Source processor ID and Sub Processor index of the channel that triggers this event",
             "source.channel.identifier.full");
@@ -84,9 +84,9 @@ void PhaseCalculator::createEventChannels()
         sourceInfo[2] = visChannel->getSubProcessorIdx();
         sourceChanVal.setValue(static_cast<const uint16*>(sourceInfo));
         chan->addMetaData(sourceChanDesc, sourceChanVal);
-    }
 
-    visPhaseChannel = eventChannelArray.add(chan);
+        visPhaseChannel = eventChannelArray.add(chan);
+    }
 }
 
 void PhaseCalculator::setParameter(int parameterIndex, float newValue)
@@ -603,6 +603,19 @@ float PhaseCalculator::getBitVolts(int subProcessorIdx) const
     return getDataChannel(chan)->getBitVolts();
 }
 
+int PhaseCalculator::getFullSourceId(int chan)
+{
+    const DataChannel* chanInfo = getDataChannel(chan);
+    if (!chanInfo)
+    {
+        jassertfalse;
+        return 0;
+    }
+    uint16 sourceNodeId = chanInfo->getSourceNodeID();
+    uint16 subProcessorIdx = chanInfo->getSubProcessorIdx();
+    int procFullId = static_cast<int>(getProcessorFullId(sourceNodeId, subProcessorIdx));
+}
+
 std::queue<double>& PhaseCalculator::getVisPhaseBuffer(ScopedPointer<ScopedLock>& lock)
 {
     lock = new ScopedLock(visPhaseBufferLock);
@@ -735,6 +748,13 @@ void PhaseCalculator::setVisContChan(int newChan)
         visEventChannel = tempVisEventChan;
     }
     visContinuousChannel = newChan;
+    
+    // if acquisition is stopped (and thus the new channel might be from a different subprocessor),
+    // update the event channel.
+    if (!CoreServices::getAcquisitionStatus())
+    {
+        updateVisPhaseChannel();
+    }
 }
 
 void PhaseCalculator::updateHistoryLength()
@@ -1003,15 +1023,13 @@ void PhaseCalculator::updateExtraChannels()
         {
             // see GenericProcessor::createDataChannelsByType
             DataChannel* baseChan = dataChannelArray[chan];
-            uint16 sourceNodeId = baseChan->getSourceNodeID();
-            uint16 subProcessorIdx = baseChan->getSubProcessorIdx();
-            uint32 baseFullId = getProcessorFullId(sourceNodeId, subProcessorIdx);
-
+            int baseFullId = getFullSourceId(chan);
+                        
             DataChannel* newChan = new DataChannel(
                 baseChan->getChannelType(),
                 baseChan->getSampleRate(),
                 this,
-                subProcessorMap[static_cast<int>(baseFullId)]);
+                subProcessorMap[baseFullId]);
             newChan->setBitVolts(baseChan->getBitVolts());
             newChan->addToHistoricString(getName());
             dataChannelArray.add(newChan);
