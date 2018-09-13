@@ -1037,22 +1037,33 @@ void CrossingDetectorEditor::updateSettings()
     // update input combo box
     int numInputs = processor->getNumInputs();
     int currInputId = inputBox->getSelectedId();
-    inputBox->clear(dontSendNotification);
 
-    for (int chan = 1; chan <= numInputs; ++chan)
+    if (numInputs == 0)
     {
-        // using 1-based ids since 0 is reserved for "nothing selected"
-        inputBox->addItem(String(chan), chan);
-        if (currInputId == chan)
+        if (currInputId != 0)
         {
-            inputBox->setSelectedId(chan, sendNotificationSync);
+            inputBox->clear(sendNotificationSync);
         }
+        // else do nothing - box is already empty.
     }
-
-    if (inputBox->getSelectedId() == 0)
+    else
     {
-        // set id to -1 instead of 0 if empty to force a notification, given that it's been cleared
-        inputBox->setSelectedId((numInputs == 0) ? -1 : 1, sendNotificationSync);
+        inputBox->clear(dontSendNotification);
+        for (int chan = 1; chan <= numInputs; ++chan)
+        {
+            // using 1-based ids since 0 is reserved for "nothing selected"
+            inputBox->addItem(String(chan), chan);
+            if (currInputId == chan)
+            {
+                inputBox->setSelectedId(chan, dontSendNotification);
+            }
+        }
+
+        if (inputBox->getSelectedId() == 0)
+        {
+            // default to first channel
+            inputBox->setSelectedId(1, sendNotificationSync);
+        }
     }
 
     // update adaptive event channel combo box
