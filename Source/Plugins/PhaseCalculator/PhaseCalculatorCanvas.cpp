@@ -214,10 +214,13 @@ void PhaseCalculatorCanvas::update()
         cChannelBox->setSelectedId(firstChannelId, dontSendNotification);
     }
 
-    // now notify processor of update
+    // if channel changed, notify processor of update
     // subtract 1 to change from 1-based to 0-based
-    float newValue = static_cast<float>(cChannelBox->getSelectedId() - 1);
-    processor->setParameter(VIS_C_CHAN, newValue);
+    int newId = cChannelBox->getSelectedId();
+    if (newId != currSelectedId)
+    {
+        processor->setParameter(VIS_C_CHAN, static_cast<float>(newId - 1));
+    }
 }
 
 void PhaseCalculatorCanvas::refresh() 
@@ -241,11 +244,38 @@ void PhaseCalculatorCanvas::refresh()
 
 void PhaseCalculatorCanvas::beginAnimation() 
 {
+    // disable continuous channel options from a different subprocessor
+    // this is necessary to maintain the correct source subprocessor metadata on the
+    // visualized phase event channel, to avoid problems with the LFP viewer.
+    // (shouldn't cause issues unless the setup is pretty weird)
+    int selectedId = cChannelBox->getSelectedId();
+    if (selectedId > 0)
+    {
+        int currSourceSubproc = processor->getFullSourceId(selectedId - 1);
+
+        int numItems = cChannelBox->getNumItems();
+        for (int i = 0; i < numItems; ++i)
+        {
+            int id = cChannelBox->getItemId(i);
+            if (id != selectedId && processor->getFullSourceId(id - 1) != currSourceSubproc)
+            {
+                cChannelBox->setItemEnabled(id, false);
+            }
+        }
+    }
+
     startCallbacks();
 }
 
 void PhaseCalculatorCanvas::endAnimation()
 {
+    // re-enable all continuous channel options
+    int numItems = cChannelBox->getNumItems();
+    for (int i = 0; i < numItems; ++i)
+    {
+        cChannelBox->setItemEnabled(cChannelBox->getItemId(i), true);
+    }
+
     stopCallbacks();
 }
 

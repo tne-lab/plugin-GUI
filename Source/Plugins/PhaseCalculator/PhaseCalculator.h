@@ -91,6 +91,8 @@ public:
 
     AudioProcessorEditor* createEditor() override;
 
+    void createEventChannels() override;
+
     void setParameter(int parameterIndex, float newValue) override;
 
     void process(AudioSampleBuffer& buffer) override;
@@ -112,6 +114,9 @@ public:
     int getNumSubProcessors() const override;
     float getSampleRate(int subProcessorIdx = 0) const override;
     float getBitVolts(int subProcessorIdx = 0) const override;
+
+    // miscellaneous helper
+    int getFullSourceId(int chan);
 
     // for the visualizer
     std::queue<double>& getVisPhaseBuffer(ScopedPointer<ScopedLock>& lock);
@@ -179,7 +184,7 @@ private:
     // when the output mode is phase and magnitude.
     void deselectAllExtraChannels();
 
-    /* 
+    /*
      * Check the visualization timestamp queue, clear any that are expired
      * (too late to calculate phase), and calculate phase of any that are ready.
      * sdbEndTs = timestamp 1 past end of current buffer
@@ -205,7 +210,7 @@ private:
     static void hilbertManip(FFTWArray* fftData);
 
     // ---- customizable parameters ------
-    
+
     // number of samples to pass through the Hilbert transform in the main calculation
     int hilbertLength;
 
@@ -250,7 +255,7 @@ private:
 
     // Buffers for FFTW processing
     OwnedArray<FFTWArray> hilbertBuffer;
-    
+
     // Plans for the FFTW Fourier Transform library
     OwnedArray<FFTWPlan> forwardPlan;  // FFT
     OwnedArray<FFTWPlan> backwardPlan; // IFFT
@@ -290,6 +295,9 @@ private:
     // for phases of stimulations, to be read by the visualizer.
     std::queue<double> visPhaseBuffer;
     CriticalSection visPhaseBufferLock;  // avoid race conditions when updating visualizer
+
+    // event channel to send visualized phases over
+    EventChannel* visPhaseChannel;
 
     // filter design copied from FilterNode
     typedef Dsp::SmoothedFilterDesign

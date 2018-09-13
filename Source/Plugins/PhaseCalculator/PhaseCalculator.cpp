@@ -61,6 +61,38 @@ AudioProcessorEditor* PhaseCalculator::createEditor()
     return editor;
 }
 
+void PhaseCalculator::createEventChannels()
+{
+    const DataChannel* visChannel = getDataChannel(visContinuousChannel);
+
+    if (!visChannel)
+    {
+        visPhaseChannel = nullptr;
+        return;
+    }
+
+    float sampleRate = visChannel->getSampleRate();
+
+    EventChannel* chan = new EventChannel(EventChannel::DOUBLE_ARRAY, 1, 1, sampleRate, this);
+    chan->setName(chan->getName() + ": PC visualized phase (deg.)");
+    chan->setDescription("The accurate phase in degrees of each visualized event");
+    chan->setIdentifier("phasecalc.visphase");
+
+    // metadata storing source data channel
+    MetaDataDescriptor sourceChanDesc(MetaDataDescriptor::UINT16, 3, "Source Channel",
+        "Index at its source, Source processor ID and Sub Processor index of the channel that triggers this event",
+        "source.channel.identifier.full");
+    MetaDataValue sourceChanVal(sourceChanDesc);
+    uint16 sourceInfo[3];
+    sourceInfo[0] = visChannel->getSourceIndex();
+    sourceInfo[1] = visChannel->getSourceNodeID();
+    sourceInfo[2] = visChannel->getSubProcessorIdx();
+    sourceChanVal.setValue(static_cast<const uint16*>(sourceInfo));
+    chan->addMetaData(sourceChanDesc, sourceChanVal);
+
+    visPhaseChannel = eventChannelArray.add(chan);
+}
+
 void PhaseCalculator::setParameter(int parameterIndex, float newValue)
 {
     int numInputs = getNumInputs();
@@ -500,6 +532,19 @@ float PhaseCalculator::getBitVolts(int subProcessorIdx) const
     return getDataChannel(chan)->getBitVolts();
 }
 
+int PhaseCalculator::getFullSourceId(int chan)
+{
+    const DataChannel* chanInfo = getDataChannel(chan);
+    if (!chanInfo)
+    {
+        jassertfalse;
+        return 0;
+    }
+    uint16 sourceNodeId = chanInfo->getSourceNodeID();
+    uint16 subProcessorIdx = chanInfo->getSubProcessorIdx();
+    int procFullId = static_cast<int>(getProcessorFullId(sourceNodeId, subProcessorIdx));
+}
+
 std::queue<double>& PhaseCalculator::getVisPhaseBuffer(ScopedPointer<ScopedLock>& lock)
 {
     lock = new ScopedLock(visPhaseBufferLock);
@@ -651,6 +696,13 @@ void PhaseCalculator::setVisContChan(int newChan)
         visEventChannel = tempVisEventChan;
     }
     visContinuousChannel = newChan;
+    
+    // If acquisition is stopped (and thus the new channel might be from a different subprocessor),
+    // update signal chain. Sinks such as LFP Viewer should receive this information.
+    if (!CoreServices::getAcquisitionStatus())
+    {
+        CoreServices::updateSignalChain(getEditor());
+    }
 }
 
 void PhaseCalculator::updateHistoryLength()
@@ -906,15 +958,13 @@ void PhaseCalculator::updateExtraChannels()
         {
             // see GenericProcessor::createDataChannelsByType
             DataChannel* baseChan = dataChannelArray[chan];
-            uint16 sourceNodeId = baseChan->getSourceNodeID();
-            uint16 subProcessorIdx = baseChan->getSubProcessorIdx();
-            uint32 baseFullId = getProcessorFullId(sourceNodeId, subProcessorIdx);
+            int baseFullId = getFullSourceId(chan);
                         
             DataChannel* newChan = new DataChannel(
                 baseChan->getChannelType(),
                 baseChan->getSampleRate(),
                 this,
-                subProcessorMap[static_cast<int>(baseFullId)]);
+                subProcessorMap[baseFullId]);
             newChan->setBitVolts(baseChan->getBitVolts());
             newChan->addToHistoricString(getName());
             dataChannelArray.add(newChan);
@@ -993,7 +1043,19 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
             visTsBuffer.pop();
             juce::int64 delay = sdbEndTs - ts;
             std::complex<double> analyticPt = visHilbertBuffer.getAsComplex(VIS_HILBERT_LENGTH - delay);
-            visPhaseBuffer.push(std::arg(analyticPt));
+            double phaseRad = std::arg(analyticPt);
+            visPhaseBuffer.push(phaseRad);
+
+            // add to event channel
+            if (!visPhaseChannel)
+            {
+                jassertfalse; // event channel should not be null here.
+                continue;
+            }
+            double eventData = phaseRad * 180.0 / Dsp::doublePi;
+            juce::int64 eventTs = sdbEndTs - getNumSamples(visContinuousChannel);
+            BinaryEventPtr event = BinaryEvent::createBinaryEvent(visPhaseChannel, eventTs, &eventData, sizeof(double));
+            addEvent(visPhaseChannel, event, 0);
         }
     }
 }
