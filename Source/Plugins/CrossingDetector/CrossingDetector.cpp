@@ -40,7 +40,7 @@ CrossingDetector::CrossingDetector()
     , currLRDivisor         (1.0)
     , indicatorChanName     ("")
     , thresholdChannel      (-1)
-    , inputChannel          (0)
+    , inputChannel          (-1)
     , validSubProcFullID    (0)
     , eventChannel          (0)
     , posOn                 (true)
@@ -58,6 +58,7 @@ CrossingDetector::CrossingDetector()
     , futureCounter         (0)
     , inputHistory          (pastSpan + futureSpan + 2)
     , thresholdHistory      (pastSpan + futureSpan + 2)
+    , eventChannelPtr       (nullptr)
     , turnoffEvent          (nullptr)
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
@@ -69,6 +70,18 @@ CrossingDetector::CrossingDetector()
     randomThreshRange[0] = -180.0f;
     randomThreshRange[1] = 180.0f;
     thresholdVal = constantThresh;
+
+    // make the event-related metadata descriptors
+    eventMetaDataDescriptors.add(new MetaDataDescriptor(MetaDataDescriptor::INT64, 1, "Crossing Point",
+        "Time when threshold was crossed", "crossing.point"));
+    eventMetaDataDescriptors.add(new MetaDataDescriptor(MetaDataDescriptor::FLOAT, 1, "Crossing level",
+        "Voltage level at first sample after crossing", "crossing.level"));
+    eventMetaDataDescriptors.add(new MetaDataDescriptor(MetaDataDescriptor::FLOAT, 1, "Threshold",
+        "Monitored voltage threshold", "crossing.threshold"));
+    eventMetaDataDescriptors.add(new MetaDataDescriptor(MetaDataDescriptor::UINT8, 1, "Direction",
+        "Direction of crossing: 1 = rising, 0 = falling", "crossing.direction"));
+    eventMetaDataDescriptors.add(new MetaDataDescriptor(MetaDataDescriptor::DOUBLE, 1, "Learning rate",
+        "If using adaptive threshold, current threshold learning rate", "crossing.threshold.learningrate"));
 }
 
 CrossingDetector::~CrossingDetector() {}
@@ -83,60 +96,43 @@ void CrossingDetector::createEventChannels()
 {
     // add detection event channel
     const DataChannel* in = getDataChannel(inputChannel);
-    float sampleRate = in ? in->getSampleRate() : CoreServices::getGlobalSampleRate();
+
+    if (!in)
+    {
+        eventChannelPtr = nullptr;
+        return;
+    }
+
+    float sampleRate = in->getSampleRate();
     EventChannel* chan = new EventChannel(EventChannel::TTL, 8, 1, sampleRate, this);
     chan->setName("Crossing detector output");
     chan->setDescription("Triggers whenever the input signal crosses a voltage threshold.");
     chan->setIdentifier("crossing.event");
 
     // metadata storing source data channel
-    if (in)
-    {
-        MetaDataDescriptor sourceChanDesc(MetaDataDescriptor::UINT16, 3, "Source Channel",
-            "Index at its source, Source processor ID and Sub Processor index of the channel that triggers this event", "source.channel.identifier.full");
-        MetaDataValue sourceChanVal(sourceChanDesc);
-        uint16 sourceInfo[3];
-        sourceInfo[0] = in->getSourceIndex();
-        sourceInfo[1] = in->getSourceNodeID();
-        sourceInfo[2] = in->getSubProcessorIdx();
-        sourceChanVal.setValue(static_cast<const uint16*>(sourceInfo));
-        chan->addMetaData(sourceChanDesc, sourceChanVal);
-    }
+
+    MetaDataDescriptor sourceChanDesc(MetaDataDescriptor::UINT16, 3, "Source Channel",
+        "Index at its source, Source processor ID and Sub Processor index of the channel that triggers this event", "source.channel.identifier.full");
+    MetaDataValue sourceChanVal(sourceChanDesc);
+    uint16 sourceInfo[3];
+    sourceInfo[0] = in->getSourceIndex();
+    sourceInfo[1] = in->getSourceNodeID();
+    sourceInfo[2] = in->getSubProcessorIdx();
+    sourceChanVal.setValue(static_cast<const uint16*>(sourceInfo));
+    chan->addMetaData(sourceChanDesc, sourceChanVal);
 
     // event-related metadata!
-    eventMetaDataDescriptors.clearQuick();
-
-    MetaDataDescriptor* crossingPointDesc = new MetaDataDescriptor(MetaDataDescriptor::INT64, 1, "Crossing Point",
-        "Time when threshold was crossed", "crossing.point");
-    chan->addEventMetaData(crossingPointDesc);
-    eventMetaDataDescriptors.add(crossingPointDesc);
-
-    MetaDataDescriptor* crossingLevelDesc = new MetaDataDescriptor(MetaDataDescriptor::FLOAT, 1, "Crossing level",
-        "Voltage level at first sample after crossing", "crossing.level");
-    chan->addEventMetaData(crossingLevelDesc);
-    eventMetaDataDescriptors.add(crossingLevelDesc);
-
-    MetaDataDescriptor* threshDesc = new MetaDataDescriptor(MetaDataDescriptor::FLOAT, 1, "Threshold",
-        "Monitored voltage threshold", "crossing.threshold");
-    chan->addEventMetaData(threshDesc);
-    eventMetaDataDescriptors.add(threshDesc);
-
-    MetaDataDescriptor* directionDesc = new MetaDataDescriptor(MetaDataDescriptor::UINT8, 1, "Direction",
-        "Direction of crossing: 1 = rising, 0 = falling", "crossing.direction");
-    chan->addEventMetaData(directionDesc);
-    eventMetaDataDescriptors.add(directionDesc);
-
-    MetaDataDescriptor* learningRateDesc = new MetaDataDescriptor(MetaDataDescriptor::DOUBLE, 1, "Learning rate",
-        "If using adaptive threshold, current threshold learning rate", "crossing.threshold.learningrate");
-    chan->addEventMetaData(learningRateDesc);
-    eventMetaDataDescriptors.add(learningRateDesc);
+    for (auto desc : eventMetaDataDescriptors)
+    {
+        chan->addEventMetaData(desc);
+    }
 
     eventChannelPtr = eventChannelArray.add(chan);
 }
 
 void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
 {
-    if (inputChannel < 0 || inputChannel >= continuousBuffer.getNumChannels())
+    if (inputChannel < 0 || inputChannel >= continuousBuffer.getNumChannels() || !eventChannelPtr)
     {
         jassertfalse;
         return;
@@ -408,17 +404,14 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         break;
 
     case INPUT_CHAN:
-        if (newValue >= 0 && newValue < getNumInputs())
-        {
-            inputChannel = static_cast<int>(newValue);
-            validSubProcFullID = getSubProcFullID(inputChannel);
-        }
-        else
-        {
-            validSubProcFullID = 0;
-        }
+        inputChannel = static_cast<int>(newValue);
+        validSubProcFullID = getSubProcFullID(inputChannel);
+   
         // make sure available threshold channels take into account new input channel
         static_cast<CrossingDetectorEditor*>(getEditor())->updateChannelThreshBox();
+
+        // update signal chain, since the event channel metadata has to get updated
+        CoreServices::updateSignalChain(getEditor());
         break;
 
     case EVENT_CHAN:
@@ -659,6 +652,7 @@ float CrossingDetector::nextRandomThresh()
 
 juce::uint32 CrossingDetector::getSubProcFullID(int chanNum) const
 {
+    if (chanNum < 0) { return 0; }
     const DataChannel* chan = getDataChannel(chanNum);
     jassert(chan != nullptr);
     uint16 sourceNodeID = chan->getSourceNodeID();
