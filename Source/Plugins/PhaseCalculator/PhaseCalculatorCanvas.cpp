@@ -214,10 +214,13 @@ void PhaseCalculatorCanvas::update()
         cChannelBox->setSelectedId(firstChannelId, dontSendNotification);
     }
 
-    // now notify processor of update
+    // if channel changed, notify processor of update
     // subtract 1 to change from 1-based to 0-based
-    float newValue = static_cast<float>(cChannelBox->getSelectedId() - 1);
-    processor->setParameter(VIS_C_CHAN, newValue);
+    int newId = cChannelBox->getSelectedId();
+    if (newId != currSelectedId)
+    {
+        processor->setParameter(VIS_C_CHAN, static_cast<float>(newId - 1));
+    }
 }
 
 void PhaseCalculatorCanvas::refresh() 
