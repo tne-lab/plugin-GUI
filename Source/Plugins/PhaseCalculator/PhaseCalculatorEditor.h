@@ -89,6 +89,7 @@ private:
 
 	// keep track of the record status of each "extra" channel
 	Array<bool> extraChanRecordStatus;
+	int prevExtraChans;
 
     ScopedPointer<Label>    lowCutLabel;
     ScopedPointer<Label>    lowCutEditable;

@@ -22,11 +22,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PhaseCalculatorEditor.h"
 #include "PhaseCalculatorCanvas.h"
-#include "../../Processors/Editors/ChannelSelector.h"
 #include <climits> // INT_MAX
 
 PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
-    : VisualizerEditor     (parentNode, 325, useDefaultParameterEditors)
+    : VisualizerEditor  (parentNode, 325, useDefaultParameterEditors)
+	, prevExtraChans	(0)
 {
     tabText = "Event Phase Plot";
     int filterWidth = 80;
@@ -325,17 +325,30 @@ void PhaseCalculatorEditor::channelChanged(int chan, bool newState)
     auto pc = static_cast<PhaseCalculator*>(getProcessor());    
     if (chan < pc->getNumInputs())
     {
-        if (newState)
-        {
-            int numActiveChans = pc->getActiveInputs().size();
-            if (numActiveChans > pc->numActiveChansAllocated)
-            {
-                pc->addActiveChannel();
-            }
+		Array<int> activeInputs = pc->getActiveInputs();
+		int numActiveInputs = activeInputs.size();
+		if (newState && numActiveInputs > pc->numActiveChansAllocated)
+        {            
+            pc->addActiveChannel();
         }
 
         if (pc->outputMode == PH_AND_MAG)
         {
+			if (newState)
+			{
+				int newInputIndex = activeInputs.indexOf(chan);
+				jassert(newInputIndex <= extraChanRecordStatus.size());
+				extraChanRecordStatus.insert(newInputIndex, false);
+			}
+			else
+			{
+				// find # of lower-index active inputs
+				int i = 0;
+				for (; i < numActiveInputs && activeInputs[i] < chan; ++i);
+				jassert(i < extraChanRecordStatus.size());
+				extraChanRecordStatus.remove(i);
+			}
+
             // Update signal chain to add/remove output channels if necessary
             CoreServices::updateSignalChain(this);
         }
@@ -390,34 +403,40 @@ Visualizer* PhaseCalculatorEditor::createNewCanvas()
 
 void PhaseCalculatorEditor::updateSettings()
 {
-	if (channelSelector == nullptr) { return; }
-
 	auto pc = static_cast<PhaseCalculator*>(getProcessor());
+
+	// only care about any of this stuff if we have extra channels
+	// (and preserve when deselecting/reselecting PH_AND_MAG)
+	if (pc->outputMode != PH_AND_MAG || channelSelector == nullptr) { return; }
+	
 	int numChans = pc->getNumOutputs();
-	int extraChans = numChans - pc->getNumInputs();
-	int prevExtraChans = extraChanRecordStatus.size();
-	extraChanRecordStatus.resize(extraChans);
+	int numInputs = pc->getNumInputs();
+	int extraChans = numChans - numInputs;
 
 	int prevNumChans = channelSelector->getNumChannels();
+	int prevNumInputs = prevNumChans - prevExtraChans;
+	prevExtraChans = extraChans; // update for next time
+
+	extraChanRecordStatus.resize(extraChans);
 	channelSelector->setNumChannels(numChans);
 
 	// super hacky, access record buttons to add or remove listeners
-	auto audioButtonManager = dynamic_cast<ButtonGroupManager*>(
-		channelSelector->getChildComponent(5));
-	if (audioButtonManager == nullptr)
+	Component* rbmComponent = channelSelector->getChildComponent(9);
+	auto recordButtonManager = dynamic_cast<ButtonGroupManager*>(rbmComponent);
+	if (recordButtonManager == nullptr)
 	{
 		jassertfalse;
 		return;
 	}
 
-	int firstCurrExtraChan = numChans - extraChans;
-	int firstPrevExtraChan = prevNumChans - prevExtraChans;
-
 	// remove listeners on channels that are no longer "extra channels"
 	// and set their record status to false since they're actually new channels
-	for (int chan = firstPrevExtraChan; chan < firstCurrExtraChan; ++chan)
+	for (int chan = prevNumInputs; chan < jmin(prevNumChans, numInputs); ++chan)
 	{
-		audioButtonManager->getButtonAt(chan)->removeListener(this);
+		juce::Button* recordButton = recordButtonManager->getButtonAt(chan);
+		recordButton->removeListener(this);
+		// make sure listener really gets called
+		recordButton->setToggleState(true, dontSendNotification);
 		channelSelector->setRecordStatus(chan, false);
 	}
 
@@ -425,9 +444,13 @@ void PhaseCalculatorEditor::updateSettings()
 	// (it's OK if addListener gets called more than once for a button)
 	for (int eChan = 0; eChan < extraChans; ++eChan)
 	{
-		int chan = firstCurrExtraChan + eChan;
-		audioButtonManager->getButtonAt(chan)->addListener(this);
+		int chan = numInputs + eChan;
+		juce::Button* recordButton = recordButtonManager->getButtonAt(chan);
+		recordButton->removeListener(this);
+		// make sure listener really gets called
+		recordButton->setToggleState(!extraChanRecordStatus[eChan], dontSendNotification);
 		channelSelector->setRecordStatus(chan, extraChanRecordStatus[eChan]);
+		recordButton->addListener(this);
 	}
 }
 
