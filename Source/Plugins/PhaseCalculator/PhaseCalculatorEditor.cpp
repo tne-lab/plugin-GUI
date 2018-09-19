@@ -22,6 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PhaseCalculatorEditor.h"
 #include "PhaseCalculatorCanvas.h"
+#include "../../Processors/Editors/ChannelSelector.h"
 #include <climits> // INT_MAX
 
 PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
@@ -301,6 +302,24 @@ void PhaseCalculatorEditor::sliderEvent(Slider* slider)
     }
 }
 
+void PhaseCalculatorEditor::buttonEvent(Button* button)
+{
+	// if it's a ChannelSelectorButton, assume it's a record button and update record status
+	auto recordButton = dynamic_cast<ChannelSelectorButton*>(button);
+	if (recordButton != nullptr)
+	{
+		int numInputs = static_cast<PhaseCalculator*>(getProcessor())->getNumInputs();
+		int chanInd = button->getParentComponent()->getIndexOfChildComponent(button);
+		int extraChanInd = chanInd - numInputs;
+		if (extraChanInd < 0 || extraChanInd >= extraChanRecordStatus.size())
+		{
+			jassertfalse;
+			return;
+		}
+		extraChanRecordStatus.set(extraChanInd, recordButton->getToggleState());
+	}
+}
+
 void PhaseCalculatorEditor::channelChanged(int chan, bool newState)
 {
     auto pc = static_cast<PhaseCalculator*>(getProcessor());    
@@ -367,6 +386,49 @@ Visualizer* PhaseCalculatorEditor::createNewCanvas()
 {
     canvas = new PhaseCalculatorCanvas(static_cast<PhaseCalculator*>(getProcessor()));
     return canvas;
+}
+
+void PhaseCalculatorEditor::updateSettings()
+{
+	if (channelSelector == nullptr) { return; }
+
+	auto pc = static_cast<PhaseCalculator*>(getProcessor());
+	int numChans = pc->getNumOutputs();
+	int extraChans = numChans - pc->getNumInputs();
+	int prevExtraChans = extraChanRecordStatus.size();
+	extraChanRecordStatus.resize(extraChans);
+
+	int prevNumChans = channelSelector->getNumChannels();
+	channelSelector->setNumChannels(numChans);
+
+	// super hacky, access record buttons to add or remove listeners
+	auto audioButtonManager = dynamic_cast<ButtonGroupManager*>(
+		channelSelector->getChildComponent(5));
+	if (audioButtonManager == nullptr)
+	{
+		jassertfalse;
+		return;
+	}
+
+	int firstCurrExtraChan = numChans - extraChans;
+	int firstPrevExtraChan = prevNumChans - prevExtraChans;
+
+	// remove listeners on channels that are no longer "extra channels"
+	// and set their record status to false since they're actually new channels
+	for (int chan = firstPrevExtraChan; chan < firstCurrExtraChan; ++chan)
+	{
+		audioButtonManager->getButtonAt(chan)->removeListener(this);
+		channelSelector->setRecordStatus(chan, false);
+	}
+
+	// add listeners for current "extra channels" and restore record statuses
+	// (it's OK if addListener gets called more than once for a button)
+	for (int eChan = 0; eChan < extraChans; ++eChan)
+	{
+		int chan = firstCurrExtraChan + eChan;
+		audioButtonManager->getButtonAt(chan)->addListener(this);
+		channelSelector->setRecordStatus(chan, extraChanRecordStatus[eChan]);
+	}
 }
 
 void PhaseCalculatorEditor::saveCustomParameters(XmlElement* xml)
