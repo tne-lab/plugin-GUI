@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 const float PhaseCalculator::PASSBAND_EPS = 0.01F;
 
 PhaseCalculator::PhaseCalculator()
-    : GenericProcessor      ("PC Original")
+    : GenericProcessor      ("Phase Calculator")
     , Thread                ("AR Modeler")
     , calcInterval          (50)
     , lowCut                (4.0)
@@ -965,6 +965,9 @@ void PhaseCalculator::updateExtraChannels()
                 baseChan->getSampleRate(),
                 this,
                 subProcessorMap[baseFullId]);
+
+            // rename to match base channel (implies that it contains magnitude data)
+            newChan->setName(baseChan->getName() + "MAG");
             newChan->setBitVolts(baseChan->getBitVolts());
             newChan->addToHistoricString(getName());
             dataChannelArray.add(newChan);
