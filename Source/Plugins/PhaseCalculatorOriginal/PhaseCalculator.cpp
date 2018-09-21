@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 const float PhaseCalculator::PASSBAND_EPS = 0.01F;
 
 PhaseCalculator::PhaseCalculator()
-    : GenericProcessor      ("Phase Calculator")
+    : GenericProcessor      ("PC Original")
     , Thread                ("AR Modeler")
     , calcInterval          (50)
     , lowCut                (4.0)
