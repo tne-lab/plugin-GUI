@@ -349,7 +349,6 @@ bool PhaseCalculator::disable()
     editor->disable();
 
     signalThreadShouldExit();
-    notify();
 
     haveSentWarning = false;
 
@@ -400,9 +399,10 @@ void PhaseCalculator::run()
         arWriters.add(arSynchronizers[activeChan]->getWriter());
     }
 
+    uint32 startTime, endTime;
     while (!threadShouldExit())
     {
-        uint32 startTime = Time::getMillisecondCounter();
+        startTime = Time::getMillisecondCounter();
 
         for (int activeChan = 0; activeChan < numActiveChans; ++activeChan)
         {
@@ -433,9 +433,12 @@ void PhaseCalculator::run()
             arWriters[activeChan]->pushUpdate();
         }
 
-        uint32 endTime = Time::getMillisecondCounter();
+        endTime = Time::getMillisecondCounter();
         int remainingInterval = calcInterval - (endTime - startTime);
-        wait(jmax(0, remainingInterval));
+        if (remainingInterval >= 10) // avoid WaitForSingleObject
+        {
+            sleep(remainingInterval);
+        }
     }
 }
 
