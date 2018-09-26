@@ -359,6 +359,7 @@ bool PhaseCalculator::disable()
     editor->disable();
 
     signalThreadShouldExit();
+    notify();
 
     haveSentWarning = false;
 
@@ -397,18 +398,11 @@ void PhaseCalculator::run()
     Array<double> paramsTemp;
     paramsTemp.resize(arOrder);
 
-    ARTimer timer;
-    int currInterval = calcInterval;
-    timer.startTimer(currInterval);
-
     int numActiveChans = getActiveInputs().size();
 
-    while (true)
+    while (!threadShouldExit())
     {
-        if (threadShouldExit())
-        {
-            return;
-        }
+        uint32 startTime = Time::getMillisecondCounter();
 
         for (int activeChan = 0; activeChan < numActiveChans; ++activeChan)
         {
@@ -445,29 +439,9 @@ void PhaseCalculator::run()
             chanState.set(activeChan, FULL_AR);
         }
 
-        // update interval
-        if (calcInterval != currInterval)
-        {
-            currInterval = calcInterval;
-            timer.stopTimer();
-            timer.startTimer(currInterval);
-        }
-
-        while (!timer.check())
-        {
-            if (threadShouldExit())
-            {
-                return;
-            }
-
-            if (calcInterval != currInterval)
-            {
-                currInterval = calcInterval;
-                timer.stopTimer();
-                timer.startTimer(currInterval);
-            }
-            sleep(10);
-        }
+        uint32 endTime = Time::getMillisecondCounter();
+        int remainingInterval = calcInterval - (endTime - startTime);
+        wait(jmax(0, remainingInterval));
     }
 }
 
@@ -1103,25 +1077,4 @@ void PhaseCalculator::hilbertManip(FFTWArray* fftData)
 
     // set negative frequencies to 0
     FloatVectorOperations::clear(reinterpret_cast<double*>(wp + firstNegFreq), numPosNegFreqDoubles);
-}
-
-// ----------- ARTimer ---------------
-
-ARTimer::ARTimer() : Timer()
-{
-    hasRung = false;
-}
-
-ARTimer::~ARTimer() {}
-
-void ARTimer::timerCallback()
-{
-    hasRung = true;
-}
-
-bool ARTimer::check()
-{
-    bool temp = hasRung;
-    hasRung = false;
-    return temp;
 }
