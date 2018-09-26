@@ -406,10 +406,14 @@ void PhaseCalculator::run()
 
         for (int activeChan = 0; activeChan < numActiveChans; ++activeChan)
         {
+            if (chanState[activeChan] == NOT_FULL)
+            {
+                continue;
+            }
+
             // determine what param buffer to use
             int arWriteInd = arWriters[activeChan]->getIndexToUse();
-
-            if (chanState[activeChan] == NOT_FULL || arWriteInd == -1)
+            if (arWriteInd == -1)
             {
                 continue;
             }
