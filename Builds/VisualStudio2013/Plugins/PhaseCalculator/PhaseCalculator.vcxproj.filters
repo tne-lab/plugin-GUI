@@ -44,5 +44,8 @@
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\ARModeler.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\AtomicSynchronizer.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

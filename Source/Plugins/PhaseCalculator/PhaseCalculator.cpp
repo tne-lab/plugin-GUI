@@ -112,6 +112,7 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
 
     case RECALC_INTERVAL:
         calcInterval = static_cast<int>(newValue);
+        notify(); // start next thread iteration now (if applicable)
         break;
 
     case AR_ORDER:
@@ -239,41 +240,30 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             {
                 // now that dataToProcess for this channel is full,
                 // let the thread start calculating the AR model.
-                chanState.set(activeChan, FULL_NO_AR);
+                chanState.set(activeChan, FULL);
             }
         }
 
-        // calc phase and write out (only if AR model has been calculated)
-        if (chanState[activeChan] == FULL_AR) {
+        // get current AR parameters safely
+        int arReadInd = arSynchronizers[activeChan]->getReader()->pullUpdate();
 
+        // calc phase and write out (only if full and AR model has been calculated)
+        if (chanState[activeChan] == FULL && arReadInd != -1) 
+        {
             // copy data to dataToProcess
             if (hilbertPastLength > 0)
             {
                 rpBuffer = historyBuffer.getReadPointer(activeChan, historyLength - hilbertPastLength);
                 hilbertBuffer[activeChan]->copyFrom(rpBuffer, hilbertPastLength);
-            }
-
-            // read current AR parameters safely
-            Array<double> localParams;
-            localParams.resize(arOrder);
-            double* pLocalParam = localParams.getRawDataPointer();
-            const double* rpParam = arParams[activeChan]->getRawDataPointer();
-            {
-                const ScopedLock currParamLock(*arParamLock[activeChan]);
-
-                for (int i = 0; i < arOrder; ++i)
-                {
-                    pLocalParam[i] = rpParam[i];
-                }
-            }
-            
+            }            
 
             // use AR(20) model to predict upcoming data and append to dataToProcess
             // get beyond end of history buffer indirectly to avoid juce assertion failure
             rpBuffer = historyBuffer.getReadPointer(activeChan, historyLength - 1) + 1;
+            const double* rpParam = (*arParamsShared[activeChan])[arReadInd].getRawDataPointer();
             double* wpHilbert = hilbertBuffer[activeChan]->getRealPointer(hilbertPastLength);
 
-            arPredict(rpBuffer, wpHilbert, predictionLength, pLocalParam, arOrder);
+            arPredict(rpBuffer, wpHilbert, predictionLength, rpParam, arOrder);
 
             // Hilbert-transform dataToProcess
             forwardPlan[activeChan]->execute();      // reads from dataToProcess, writes to fftData
@@ -359,19 +349,9 @@ bool PhaseCalculator::disable()
     editor->disable();
 
     signalThreadShouldExit();
+    notify();
 
     haveSentWarning = false;
-
-    // reset states of active inputs
-    Array<int> activeInputs = getActiveInputs();
-    int nActiveInputs = activeInputs.size();
-    for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
-    {
-        bufferFreeSpace.set(activeChan, historyLength);
-        chanState.set(activeChan, NOT_FULL);
-        lastSample.set(activeChan, 0);
-        filters[activeChan]->reset();
-    }
 
     // clear timestamp and phase queues
     while (!visTsBuffer.empty())
@@ -385,34 +365,51 @@ bool PhaseCalculator::disable()
         visPhaseBuffer.pop();
     }
 
+    // reset states of active inputs
+    Array<int> activeInputs = getActiveInputs();
+    int nActiveInputs = activeInputs.size();
+    for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
+    {
+        bufferFreeSpace.set(activeChan, historyLength);
+        chanState.set(activeChan, NOT_FULL);
+        lastSample.set(activeChan, 0);
+        filters[activeChan]->reset();
+    }
+
+    waitForThreadToExit(-1);
+    // Once we're sure there's no more AtomicSynchronizer activity...
+    for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
+    {
+        arSynchronizers[activeChan]->reset();
+    }
+
     return true;
 }
 
-// thread routine
+// thread routine to fit AR model
 void PhaseCalculator::run()
 {
     Array<double> data;
     data.resize(historyLength);
 
-    Array<double> paramsTemp;
-    paramsTemp.resize(arOrder);
-
-    ARTimer timer;
-    int currInterval = calcInterval;
-    timer.startTimer(currInterval);
-
     int numActiveChans = getActiveInputs().size();
-
-    while (true)
+    
+    Array<AtomicWriterPtr> arWriters;
+    for (int activeChan = 0; activeChan < numActiveChans; ++activeChan)
     {
-        if (threadShouldExit())
-        {
-            return;
-        }
+        arWriters.add(arSynchronizers[activeChan]->getWriter());
+    }
+
+    while (!threadShouldExit())
+    {
+        uint32 startTime = Time::getMillisecondCounter();
 
         for (int activeChan = 0; activeChan < numActiveChans; ++activeChan)
         {
-            if (chanState[activeChan] == NOT_FULL)
+            // determine what param buffer to use
+            int arWriteInd = arWriters[activeChan]->getIndexToUse();
+
+            if (chanState[activeChan] == NOT_FULL || arWriteInd == -1)
             {
                 continue;
             }
@@ -420,54 +417,25 @@ void PhaseCalculator::run()
             // critical section for historyBuffer
             {
                 const ScopedLock myHistoryLock(*historyLock[activeChan]);
-
+                
                 for (int i = 0; i < historyLength; ++i)
                 {
                     data.set(i, historyBuffer.getSample(activeChan, i));
                 }
             }
-            // end critical section
+            // end critical section 
 
             // calculate parameters
-            arModeler.fitModel(data, paramsTemp);
+            Array<double>& params = (*arParamsShared[activeChan])[arWriteInd];
+            arModeler.fitModel(data, params);
 
-            // write params safely
-            {
-                const ScopedLock myParamLock(*arParamLock[activeChan]);
-
-                juce::Array<double>* myParams = arParams[activeChan];
-                for (int i = 0; i < arOrder; ++i)
-                {
-                    myParams->set(i, paramsTemp[i]);
-                }
-            }
-
-            chanState.set(activeChan, FULL_AR);
+            // signal that these params are ready/frozen
+            arWriters[activeChan]->pushUpdate();
         }
 
-        // update interval
-        if (calcInterval != currInterval)
-        {
-            currInterval = calcInterval;
-            timer.stopTimer();
-            timer.startTimer(currInterval);
-        }
-
-        while (!timer.check())
-        {
-            if (threadShouldExit())
-            {
-                return;
-            }
-
-            if (calcInterval != currInterval)
-            {
-                currInterval = calcInterval;
-                timer.stopTimer();
-                timer.startTimer(currInterval);
-            }
-            sleep(10);
-        }
+        uint32 endTime = Time::getMillisecondCounter();
+        int remainingInterval = calcInterval - (endTime - startTime);
+        wait(jmax(0, remainingInterval));
     }
 }
 
@@ -641,7 +609,10 @@ void PhaseCalculator::setAROrder(int newOrder)
     // update dependent per-channel objects
     for (int i = 0; i < numActiveChansAllocated; i++)
     {
-        arParams[i]->resize(arOrder);
+        for (auto& arr : *arParamsShared[i])
+        {
+            arr.resize(arOrder);
+        }
     }
 }
 
@@ -791,10 +762,13 @@ void PhaseCalculator::addActiveChannel()
     forwardPlan.add(new FFTWPlan(hilbertLength, hilbertBuffer.getLast(), FFTW_MEASURE));
     backwardPlan.add(new FFTWPlan(hilbertLength, hilbertBuffer.getLast(), FFTW_BACKWARD, FFTW_MEASURE));
     historyLock.add(new CriticalSection());
-    arParamLock.add(new CriticalSection());
-    arParams.add(new Array<double>());
-    arParams.getLast()->resize(arOrder);
     filters.add(new BandpassFilter());
+    arSynchronizers.add(new AtomicSynchronizer());
+    arParamsShared.add(new std::array<Array<double>, 3>());
+    for (auto& arr : *arParamsShared.getLast())
+    {
+        arr.resize(arOrder);
+    }
 }
 
 void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int activeChan)
@@ -1103,25 +1077,4 @@ void PhaseCalculator::hilbertManip(FFTWArray* fftData)
 
     // set negative frequencies to 0
     FloatVectorOperations::clear(reinterpret_cast<double*>(wp + firstNegFreq), numPosNegFreqDoubles);
-}
-
-// ----------- ARTimer ---------------
-
-ARTimer::ARTimer() : Timer()
-{
-    hasRung = false;
-}
-
-ARTimer::~ARTimer() {}
-
-void ARTimer::timerCallback()
-{
-    hasRung = true;
-}
-
-bool ARTimer::check()
-{
-    bool temp = hasRung;
-    hasRung = false;
-    return temp;
 }

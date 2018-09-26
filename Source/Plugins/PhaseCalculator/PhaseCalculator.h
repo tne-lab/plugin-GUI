@@ -45,8 +45,11 @@ accuracy of phase-locked stimulation in real time.
 #include <ProcessorHeaders.h>
 #include <DspLib/Dsp.h>  // Filtering
 #include <queue>
-#include "FFTWWrapper.h" // Fourier transform
-#include "ARModeler.h"   // Autoregressive modeling
+#include <array>
+
+#include "FFTWWrapper.h"        // Fourier transform
+#include "ARModeler.h"          // Autoregressive modeling
+#include "AtomicSynchronizer.h" // AR model thread safety
 
 // parameter indices
 enum Param
@@ -63,18 +66,14 @@ enum Param
     VIS_C_CHAN
 };
 
-/* each continuous channel has three possible states while acquisition is running:
+/* each continuous channel has two possible states while acquisition is running:
 
     - NOT_FULL:     Not enough samples have arrived to fill the history fifo for this channel.
                     Wait for more  samples before calculating the autoregressive model parameters.
 
-    - FULL_NO_AR:   The history fifo for this channel is now full, but AR parameters have not been calculated yet.
-                    Tells the AR thread that it can start calculating the model and the main thread that it should still output zeros.
-
-    - FULL_AR:      The history fifo is full and AR parameters have been calculated at least once.
-                    In this state, the main thread uses the parameters to predict the future signal and output and calculate the phase.
+    - FULL:         The history fifo for this channel is now full and AR model calculation can start.
 */
-enum ChannelState { NOT_FULL, FULL_NO_AR, FULL_AR };
+enum ChannelState { NOT_FULL, FULL };
 
 // Output mode - corresponds to itemIDs on the ComboBox
 enum OutputMode { PH = 1, MAG, PH_AND_MAG, IM };
@@ -271,8 +270,11 @@ private:
     Array<float> lastSample;
 
     // AR model parameters
-    OwnedArray<Array<double>> arParams;
-    OwnedArray<CriticalSection> arParamLock;
+    // Each entry of the OwnedArray is a triplet of Arrays of parameters.
+    // These are used along with an AtomicSynchronizer to exchange params between the process
+    // function and thread procedure.
+    OwnedArray<std::array<Array<double>, 3>> arParamsShared;
+    OwnedArray<AtomicSynchronizer> arSynchronizers;
 
     // so that the warning message only gets sent once per run
     bool haveSentWarning;
@@ -340,20 +342,6 @@ private:
     static const int VIS_TS_MAX_DELAY = 48000;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseCalculator);
-};
-
-// timer class for use when calculating AR parameters
-class ARTimer : public Timer
-{
-public:
-    ARTimer();
-    ~ARTimer();
-    void timerCallback();
-    // Returns whether hasRung is true and resets it to false.
-    bool check();
-private:
-    // True if timer has reached 0 since last time it was checked.
-    bool hasRung;
 };
 
 #endif // PHASE_CALCULATOR_H_INCLUDED
