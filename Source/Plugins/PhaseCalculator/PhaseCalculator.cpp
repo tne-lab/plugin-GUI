@@ -24,6 +24,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
 
+#include <iterator>  // std::reverse_iterator
+#include <algorithm> // std::copy, std::move
+
 const float PhaseCalculator::PASSBAND_EPS = 0.01F;
 
 PhaseCalculator::PhaseCalculator()
@@ -210,121 +213,109 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         // shift old data and copy new data into historyBuffer
         int nOldSamples = historyLength - nSamplesToEnqueue;
 
-        const double* rpBuffer = historyBuffer.getReadPointer(activeChan, nSamplesToEnqueue);
-        double* wpBuffer = historyBuffer.getWritePointer(activeChan);
+        double* wpBuffer = historyBuffer[activeChan]->begin();
+        const double* rpBuffer = wpBuffer + nSamplesToEnqueue;
 
-        // critical section for this channel's historyBuffer
-        // note that the floats are coerced to doubles here - this is important to avoid over/underflow when calculating the phase.
+        // shift old data
+        std::move(rpBuffer, rpBuffer + nOldSamples, wpBuffer);
+
+        // add new data (promoting floats to doubles)
+        wpIn += historyStartIndex;
+        std::move(wpIn, wpIn + nSamplesToEnqueue, wpBuffer + nOldSamples);
+
+        // if full...
+        bufferFreeSpace.set(activeChan, jmax(bufferFreeSpace[activeChan] - nSamplesToEnqueue, 0));
+        if (bufferFreeSpace[activeChan] == 0)
         {
-            const ScopedLock myHistoryLock(*historyLock[activeChan]);
+            // push history update to shared buffer
+            AtomicWriterPtr bufferWriter = historySynchronizers[activeChan]->getWriter();
+            int historyWriteInd = bufferWriter->getIndexToUse();
+            double* wpSharedBuffer = (*historyBufferShared[activeChan])[historyWriteInd].begin();
+            std::copy(wpBuffer, wpBuffer + historyLength, wpSharedBuffer);
+            bufferWriter->pushUpdate();
 
-            // shift old data
-            for (int i = 0; i < nOldSamples; ++i)
+            // get current AR parameters safely
+            int arReadInd = arSynchronizers[activeChan]->getReader()->pullUpdate();
+            if (arReadInd != -1)
             {
-                *wpBuffer++ = *rpBuffer++;
-            }
-
-            // copy new data
-            wpIn += historyStartIndex;
-            for (int i = 0; i < nSamplesToEnqueue; ++i)
-            {
-                *wpBuffer++ = *wpIn++;
-            }
-        }
-
-        if (chanState[activeChan] == NOT_FULL)
-        {
-            int newBufferFreeSpace = jmax(bufferFreeSpace[activeChan] - nSamplesToEnqueue, 0);
-            bufferFreeSpace.set(activeChan, newBufferFreeSpace);
-            if (newBufferFreeSpace == 0)
-            {
-                // now that dataToProcess for this channel is full,
-                // let the thread start calculating the AR model.
-                chanState.set(activeChan, FULL);
-            }
-        }
-
-        // get current AR parameters safely
-        int arReadInd = arSynchronizers[activeChan]->getReader()->pullUpdate();
-
-        // calc phase and write out (only if full and AR model has been calculated)
-        if (chanState[activeChan] == FULL && arReadInd != -1) 
-        {
-            // copy data to dataToProcess
-            if (hilbertPastLength > 0)
-            {
-                rpBuffer = historyBuffer.getReadPointer(activeChan, historyLength - hilbertPastLength);
-                hilbertBuffer[activeChan]->copyFrom(rpBuffer, hilbertPastLength);
-            }            
-
-            // use AR(20) model to predict upcoming data and append to dataToProcess
-            // get beyond end of history buffer indirectly to avoid juce assertion failure
-            rpBuffer = historyBuffer.getReadPointer(activeChan, historyLength - 1) + 1;
-            const double* rpParam = (*arParamsShared[activeChan])[arReadInd].getRawDataPointer();
-            double* wpHilbert = hilbertBuffer[activeChan]->getRealPointer(hilbertPastLength);
-
-            arPredict(rpBuffer, wpHilbert, predictionLength, rpParam, arOrder);
-
-            // Hilbert-transform dataToProcess
-            forwardPlan[activeChan]->execute();      // reads from dataToProcess, writes to fftData
-            hilbertManip(hilbertBuffer[activeChan]);
-            backwardPlan[activeChan]->execute();     // reads from fftData, writes to dataOut
-
-            // calculate phase and write out to buffer
-            auto rpHilbert = hilbertBuffer[activeChan]->getComplexPointer(hilbertPastLength - nSamplesToProcess);
-            float* wpOut = buffer.getWritePointer(chan);
-            float* wpOut2;
-            if (outputMode == PH_AND_MAG)
-            {
-                // second output channel
-                int outChan2 = getNumInputs() + activeChan;
-                jassert(outChan2 < buffer.getNumChannels());
-                wpOut2 = buffer.getWritePointer(outChan2);
-            }
-
-            for (int i = 0; i < nSamplesToProcess; ++i)
-            {
-                switch (outputMode)
+                // copy data to dataToProcess
+                if (hilbertPastLength > 0)
                 {
-                case MAG:
-                    wpOut[i + outputStartIndex] = static_cast<float>(std::abs(rpHilbert[i]));
-                    break;
-                
-                case PH_AND_MAG:
-                    wpOut2[i + outputStartIndex] = static_cast<float>(std::abs(rpHilbert[i]));
-                    // fall through
-                case PH:
-                    // output in degrees
-                    wpOut[i + outputStartIndex] = static_cast<float>(std::arg(rpHilbert[i]) * (180.0 / Dsp::doublePi));
-                    break;
-                    
-                case IM:
-                    wpOut[i + outputStartIndex] = static_cast<float>(std::imag(rpHilbert[i]));
-                    break;
+                    rpBuffer = historyBuffer[activeChan]->begin() + historyLength - hilbertPastLength;
+                    hilbertBuffer[activeChan]->copyFrom(rpBuffer, hilbertPastLength);
                 }
+
+                // use AR(20) model to predict upcoming data and append to dataToProcess
+                rpBuffer = historyBuffer[activeChan]->end();
+                const double* rpParam = (*arParamsShared[activeChan])[arReadInd].getRawDataPointer();
+                double* wpHilbert = hilbertBuffer[activeChan]->getRealPointer(hilbertPastLength);
+
+                arPredict(rpBuffer, wpHilbert, predictionLength, rpParam, arOrder);
+
+                // Hilbert-transform dataToProcess
+                forwardPlan[activeChan]->execute();      // reads from dataToProcess, writes to fftData
+                hilbertManip(hilbertBuffer[activeChan]);
+                backwardPlan[activeChan]->execute();     // reads from fftData, writes to dataOut
+
+                // calculate phase and write out to buffer
+                auto rpHilbert = hilbertBuffer[activeChan]->getComplexPointer(hilbertPastLength - nSamplesToProcess);
+                float* wpOut = buffer.getWritePointer(chan);
+                float* wpOut2;
+                if (outputMode == PH_AND_MAG)
+                {
+                    // second output channel
+                    int outChan2 = getNumInputs() + activeChan;
+                    jassert(outChan2 < buffer.getNumChannels());
+                    wpOut2 = buffer.getWritePointer(outChan2);
+                }
+
+                for (int i = 0; i < nSamplesToProcess; ++i)
+                {
+                    switch (outputMode)
+                    {
+                    case MAG:
+                        wpOut[i + outputStartIndex] = static_cast<float>(std::abs(rpHilbert[i]));
+                        break;
+
+                    case PH_AND_MAG:
+                        wpOut2[i + outputStartIndex] = static_cast<float>(std::abs(rpHilbert[i]));
+                        // fall through
+                    case PH:
+                        // output in degrees
+                        wpOut[i + outputStartIndex] = static_cast<float>(std::arg(rpHilbert[i]) * (180.0 / Dsp::doublePi));
+                        break;
+
+                    case IM:
+                        wpOut[i + outputStartIndex] = static_cast<float>(std::imag(rpHilbert[i]));
+                        break;
+                    }
+                }
+
+                // unwrapping / smoothing
+                if (outputMode == PH || outputMode == PH_AND_MAG)
+                {
+                    unwrapBuffer(wpOut, nSamples, activeChan);
+                    smoothBuffer(wpOut, nSamples, activeChan);
+                }
+
+
+                // if this is the monitored channel for events, check whether we can add a new phase
+                if (hasCanvas && chan == visContinuousChannel)
+                {
+                    calcVisPhases(getTimestamp(chan) + getNumSamples(chan));
+                }
+
+                // keep track of last sample
+                lastSample.set(activeChan, buffer.getSample(chan, nSamples - 1));
+
+                continue;
             }
-
-            // unwrapping / smoothing
-            if (outputMode == PH || outputMode == PH_AND_MAG)
-            {
-                unwrapBuffer(wpOut, nSamples, activeChan);
-                smoothBuffer(wpOut, nSamples, activeChan);
-            }
-        }
-        else // fifo not full or AR model not ready
-        {
-            // just output zeros
-            buffer.clear(chan, outputStartIndex, nSamplesToProcess);
         }
 
-        // if this is the monitored channel for events, check whether we can add a new phase
-        if (hasCanvas && chan == visContinuousChannel && chanState[activeChan] != NOT_FULL)
-        {
-            calcVisPhases(getTimestamp(chan) + getNumSamples(chan));
-        }
-
-        // keep track of last sample
-        lastSample.set(activeChan, buffer.getSample(chan, nSamples - 1));
+        // buffer not full or AR params not ready
+        // just output zeros
+        buffer.clear(chan, outputStartIndex, nSamplesToProcess);
+        lastSample.set(activeChan, 0);
     }
 }
 
@@ -370,7 +361,6 @@ bool PhaseCalculator::disable()
     for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
     {
         bufferFreeSpace.set(activeChan, historyLength);
-        chanState.set(activeChan, NOT_FULL);
         lastSample.set(activeChan, 0);
         filters[activeChan]->reset();
     }
@@ -380,6 +370,7 @@ bool PhaseCalculator::disable()
     for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
     {
         arSynchronizers[activeChan]->reset();
+        historySynchronizers[activeChan]->reset();
     }
 
     return true;
@@ -388,14 +379,13 @@ bool PhaseCalculator::disable()
 // thread routine to fit AR model
 void PhaseCalculator::run()
 {
-    Array<double> data;
-    data.resize(historyLength);
-
     int numActiveChans = getActiveInputs().size();
     
+    Array<AtomicReaderPtr> historyReaders;
     Array<AtomicWriterPtr> arWriters;
     for (int activeChan = 0; activeChan < numActiveChans; ++activeChan)
     {
+        historyReaders.add(historySynchronizers[activeChan]->getReader());
         arWriters.add(arSynchronizers[activeChan]->getWriter());
     }
 
@@ -406,7 +396,9 @@ void PhaseCalculator::run()
 
         for (int activeChan = 0; activeChan < numActiveChans; ++activeChan)
         {
-            if (chanState[activeChan] == NOT_FULL)
+            // try to obtain shared history buffer
+            int historyReadInd = historyReaders[activeChan]->pullUpdate();
+            if (historyReadInd == -1)
             {
                 continue;
             }
@@ -418,18 +410,8 @@ void PhaseCalculator::run()
                 continue;
             }
 
-            // critical section for historyBuffer
-            {
-                const ScopedLock myHistoryLock(*historyLock[activeChan]);
-                
-                for (int i = 0; i < historyLength; ++i)
-                {
-                    data.set(i, historyBuffer.getSample(activeChan, i));
-                }
-            }
-            // end critical section 
-
             // calculate parameters
+            const Array<double>& data = (*historyBufferShared[activeChan])[historyReadInd];
             Array<double>& params = (*arParamsShared[activeChan])[arWriteInd];
             arModeler.fitModel(data, params);
 
@@ -520,10 +502,10 @@ int PhaseCalculator::getFullSourceId(int chan)
     int procFullId = static_cast<int>(getProcessorFullId(sourceNodeId, subProcessorIdx));
 }
 
-std::queue<double>& PhaseCalculator::getVisPhaseBuffer(ScopedPointer<ScopedLock>& lock)
+std::queue<double>* PhaseCalculator::tryToGetVisPhaseBuffer(ScopedPointer<ScopedTryLock>& lock)
 {
-    lock = new ScopedLock(visPhaseBufferLock);
-    return visPhaseBuffer;
+    lock = new ScopedTryLock(visPhaseBufferLock);
+    return lock->isLocked() ? &visPhaseBuffer : nullptr;
 }
 
 void PhaseCalculator::saveCustomChannelParametersToXml(XmlElement* channelElement,
@@ -695,11 +677,14 @@ void PhaseCalculator::updateHistoryLength()
     historyLength = newHistoryLength;
 
     // update things that depend on historyLength
-    historyBuffer.setSize(numActiveChansAllocated, historyLength);
-
     for (int i = 0; i < numActiveChansAllocated; ++i)
     {
         bufferFreeSpace.set(i, historyLength);
+        historyBuffer[i]->resize(historyLength);
+        for (auto& arr : *historyBufferShared[i])
+        {
+            arr.resize(historyLength);
+        }
     }
 
     bool s = arModeler.setParams(arOrder, historyLength);
@@ -757,19 +742,25 @@ void PhaseCalculator::addActiveChannel()
 {
     numActiveChansAllocated++;
 
-    historyBuffer.setSize(numActiveChansAllocated, historyLength);
-
     // simple arrays
     bufferFreeSpace.add(historyLength);
-    chanState.add(NOT_FULL);
     lastSample.add(0);
 
     // owned arrays
+    historyBuffer.add(new Array<double>());
+    historyBuffer.getLast()->resize(historyLength);
     hilbertBuffer.add(new FFTWArray(hilbertLength));
     forwardPlan.add(new FFTWPlan(hilbertLength, hilbertBuffer.getLast(), FFTW_MEASURE));
     backwardPlan.add(new FFTWPlan(hilbertLength, hilbertBuffer.getLast(), FFTW_BACKWARD, FFTW_MEASURE));
-    historyLock.add(new CriticalSection());
     filters.add(new BandpassFilter());
+
+    // shared arrays/synchronizers
+    historySynchronizers.add(new AtomicSynchronizer());
+    historyBufferShared.add(new std::array<Array<double>, 3>());
+    for (auto& arr : *historyBufferShared.getLast())
+    {
+        arr.resize(historyLength);
+    }
     arSynchronizers.add(new AtomicSynchronizer());
     arParamsShared.add(new std::array<Array<double>, 3>());
     for (auto& arr : *arParamsShared.getLast())
@@ -1003,11 +994,10 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
         Array<int> activeInputs = getActiveInputs();
         int visActiveChan = activeInputs.indexOf(visContinuousChannel);
         jassert(visActiveChan != -1);
-        const double* rpBuffer = historyBuffer.getReadPointer(visActiveChan, historyLength - 1);
-        for (int i = 0; i < VIS_HILBERT_LENGTH; ++i)
-        {
-            visHilbertBuffer.set(i, rpBuffer[-i]);
-        }
+
+        // copy history in reverse to visHilbertBuffer
+        std::reverse_iterator<const double*> rpBuffer(historyBuffer[visActiveChan]->end());
+        std::copy(rpBuffer, rpBuffer + VIS_HILBERT_LENGTH, visHilbertBuffer.getRealPointer());
 
         double* realPtr = visHilbertBuffer.getRealPointer();
         visReverseFilter.reset();
@@ -1020,15 +1010,16 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
         hilbertManip(&visHilbertBuffer);
         visBackwardPlan.execute();
 
+        // gather the values to push onto the phase queue
+        std::queue<double> tempBuffer;
         juce::int64 ts;
-        ScopedLock phaseBufferLock(visPhaseBufferLock);
         while (!visTsBuffer.empty() && (ts = visTsBuffer.front()) <= maxTs)
         {
             visTsBuffer.pop();
             juce::int64 delay = sdbEndTs - ts;
             std::complex<double> analyticPt = visHilbertBuffer.getAsComplex(VIS_HILBERT_LENGTH - delay);
             double phaseRad = std::arg(analyticPt);
-            visPhaseBuffer.push(phaseRad);
+            tempBuffer.push(phaseRad);
 
             // add to event channel
             if (!visPhaseChannel)
@@ -1040,6 +1031,15 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
             juce::int64 eventTs = sdbEndTs - getNumSamples(visContinuousChannel);
             BinaryEventPtr event = BinaryEvent::createBinaryEvent(visPhaseChannel, eventTs, &eventData, sizeof(double));
             addEvent(visPhaseChannel, event, 0);
+        }
+
+        // now modify the phase queue
+        // this is important so we'll use a full lock, but hopefully it'll always be fast
+        ScopedLock phaseBufferLock(visPhaseBufferLock);
+        while (!tempBuffer.empty())
+        {
+            visPhaseBuffer.push(tempBuffer.front());
+            tempBuffer.pop();
         }
     }
 }

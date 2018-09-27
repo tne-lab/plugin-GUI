@@ -66,15 +66,6 @@ enum Param
     VIS_C_CHAN
 };
 
-/* each continuous channel has two possible states while acquisition is running:
-
-    - NOT_FULL:     Not enough samples have arrived to fill the history fifo for this channel.
-                    Wait for more  samples before calculating the autoregressive model parameters.
-
-    - FULL:         The history fifo for this channel is now full and AR model calculation can start.
-*/
-enum ChannelState { NOT_FULL, FULL };
-
 // Output mode - corresponds to itemIDs on the ComboBox
 enum OutputMode { PH = 1, MAG, PH_AND_MAG, IM };
 
@@ -118,7 +109,7 @@ public:
     int getFullSourceId(int chan);
 
     // for the visualizer
-    std::queue<double>& getVisPhaseBuffer(ScopedPointer<ScopedLock>& lock);
+    std::queue<double>* tryToGetVisPhaseBuffer(ScopedPointer<ScopedTryLock>& lock);
 
     // for visualizer continuous channel
     void saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType) override;
@@ -241,16 +232,16 @@ private:
 
     int numActiveChansAllocated = 0;
 
-    // Storage area for filtered data to be read by the main thread to fill hilbertBuffer,
-    // by the side thread to calculate AR model parameters, and by the visualization event
-    // handler to calculate acccurate phases at past event times.
-    AudioBuffer<double> historyBuffer;
+    // Storage area for filtered data to be read by the main thread to fill hilbertBuffer
+    // and by the visualization event handler to calculate acccurate phases at past event times.
+    OwnedArray<Array<double>> historyBuffer;
+
+    // Shared version of historyBuffer, for use for calculating AR parameters.
+    OwnedArray<std::array<Array<double>, 3>> historyBufferShared;
+    OwnedArray<AtomicSynchronizer> historySynchronizers;
 
     // Keep track of how much of the historyBuffer is empty (per channel)
     Array<int> bufferFreeSpace;
-
-    // Keeps track of each channel's state (see enum definition above)
-    Array<ChannelState> chanState;
 
     // Buffers for FFTW processing
     OwnedArray<FFTWArray> hilbertBuffer;
@@ -258,10 +249,6 @@ private:
     // Plans for the FFTW Fourier Transform library
     OwnedArray<FFTWPlan> forwardPlan;  // FFT
     OwnedArray<FFTWPlan> backwardPlan; // IFFT
-
-    // mutexes for sharedDataBuffer arrays, which are used in the side thread to calculate AR parameters.
-    // since the side thread only READS sharedDataBuffer, only needs to be locked in the main thread when it's WRITTEN to.
-    OwnedArray<CriticalSection> historyLock;
 
     // for autoregressive parameter calculation
     ARModeler arModeler;

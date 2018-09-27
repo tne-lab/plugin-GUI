@@ -24,7 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef ATOMIC_SYNCHRONIZER_H_INCLUDED
 #define ATOMIC_SYNCHRONIZER_H_INCLUDED
 
-#include "../../../JuceLibraryCode/JuceHeader.h"
+#include <atomic>
 
 /*
  * AtomicSynchronizer: Facilitates the exchange of a resource between two threads
@@ -60,9 +60,9 @@ public:
             if (index == -1)
             {
                 // Attempt to pull an index from readyToWriteIndex
-                index = owner->readyToWriteIndex.exchange(-1);
+                index = owner->readyToWriteIndex.exchange(-1, std::memory_order_relaxed);
             }
-            return index;
+            return static_cast<int>(index);
         }
 
         // Update readyToReadIndex with newly valid object index, and
@@ -71,12 +71,12 @@ public:
         {
             // If readyToReadIndex already contains something, atomic operation ensures
             // that the Reader won't get it if the Writer gets it and vice versa.
-            index = owner->readyToReadIndex.exchange(index);
+            index = owner->readyToReadIndex.exchange(index, std::memory_order_relaxed);
 
             if (index == -1)
             {
                 // Try to get a free index from readyToWriteIndex
-                index = owner->readyToWriteIndex.exchange(-1);
+                index = owner->readyToWriteIndex.exchange(-1, std::memory_order_relaxed);
             }
         }
 
@@ -102,14 +102,16 @@ public:
             // Check readyToReadIndex for newly pushed update
             // If readyToReadIndex already contains something, atomic operation ensures
             // that the Reader won't get it if the Writer gets it and vice versa.
-            int newIndex = owner->readyToReadIndex.exchange(-1);
+            int newIndex = owner->readyToReadIndex.exchange(-1, std::memory_order_relaxed);
 
             // Try to clear extraIndex if possible
             if (extraIndex != -1)
             {
                 jassert(extraIndex != index);
                 jassert(extraIndex != newIndex);
-                if (owner->readyToWriteIndex.compareAndSetBool(extraIndex, -1))
+                char expected = -1;
+                if (owner->readyToWriteIndex.compare_exchange_strong(expected, extraIndex,
+                    std::memory_order_relaxed))
                 {
                     extraIndex = -1;
                 }
@@ -130,7 +132,9 @@ public:
                     jassert(extraIndex == -1);
 
                     // Attempt to put index into readyToWriteIndex
-                    if (!owner->readyToWriteIndex.compareAndSetBool(index, -1))
+                    char expected = -1;
+                    if (!owner->readyToWriteIndex.compare_exchange_strong(expected, index,
+                        std::memory_order_relaxed))
                     {
                         // readyToWriteIndex is already occupied
                         extraIndex = index;
@@ -139,7 +143,7 @@ public:
                 index = newIndex;
             }
 
-            return index;
+            return static_cast<int>(index);
         }
 
     private:
@@ -148,8 +152,8 @@ public:
         {}
 
         AtomicSynchronizer* owner;
-        int index;
-        int extraIndex; // index of object not in use, if readyToWriteIndex is full
+        char index;
+        char extraIndex; // index of object not in use, if readyToWriteIndex is full
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Reader);
     };
@@ -188,8 +192,8 @@ private:
     Reader reader;
 
     // shared index slots
-    Atomic<int> readyToReadIndex;  // assigned by Writer; can be read by Reader
-    Atomic<int> readyToWriteIndex; // assigned by Reader; can by modified by Writer
+    std::atomic<char> readyToReadIndex;  // assigned by Writer; can be read by Reader
+    std::atomic<char> readyToWriteIndex; // assigned by Reader; can by modified by Writer
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AtomicSynchronizer)
 };

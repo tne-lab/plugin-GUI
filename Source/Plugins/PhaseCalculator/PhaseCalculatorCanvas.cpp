@@ -232,13 +232,19 @@ void PhaseCalculatorCanvas::refresh()
     }
 
     // get new angles from visualization phase buffer
-    ScopedPointer<ScopedLock> bufferLock;
-    std::queue<double>& buffer = processor->getVisPhaseBuffer(bufferLock);
-
-    while (!buffer.empty())
+    std::queue<double> tempBuffer;
     {
-        addAngle(buffer.front());
-        buffer.pop();
+        ScopedPointer<ScopedTryLock> bufferLock;
+        std::queue<double>* buffer = processor->tryToGetVisPhaseBuffer(bufferLock);
+        if (buffer == nullptr) { /* buffer is in use */ return; }
+        buffer->swap(tempBuffer);
+    }
+
+    // read off angles from swapped buffer
+    while (!tempBuffer.empty())
+    {
+        addAngle(tempBuffer.front());
+        tempBuffer.pop();
     }
 }
 
