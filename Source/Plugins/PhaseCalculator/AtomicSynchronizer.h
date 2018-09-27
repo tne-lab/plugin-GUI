@@ -81,7 +81,7 @@ public:
         }
 
     private:
-        Writer(AtomicSynchronizer* o)
+        explicit Writer(AtomicSynchronizer* o)
             : owner (o)
         {}
 
@@ -125,18 +125,15 @@ public:
                     // Great, there's a new update, first have to put current
                     // index somewhere though.
 
-                    // At this point extraIndex *must* be -1 (empty) since there can't
-                    // have been valid and distinct indices in all of newIndex, index,
-                    // extraIndex, and readyToWriteIndex when we attempted to put extraIndex
-                    // into readyToWriteIndex.
-                    jassert(extraIndex == -1);
-
                     // Attempt to put index into readyToWriteIndex
                     char expected = -1;
                     if (!owner->readyToWriteIndex.compare_exchange_strong(expected, index,
                         std::memory_order_relaxed))
                     {
                         // readyToWriteIndex is already occupied
+                        // extraIndex must be free at this point. newIndex, index, and
+                        // readyToWriteIndex all contain something.
+                        jassert(extraIndex == -1);
                         extraIndex = index;
                     }
                 }
@@ -147,7 +144,7 @@ public:
         }
 
     private:
-        Reader(AtomicSynchronizer* o)
+        explicit Reader(AtomicSynchronizer* o)
             : owner (o)
         {}
 
