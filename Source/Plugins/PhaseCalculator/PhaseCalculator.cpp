@@ -25,7 +25,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "PhaseCalculatorEditor.h"
 
 #include <iterator>  // std::reverse_iterator
-#include <algorithm> // std::copy, std::move
 
 const float PhaseCalculator::PASSBAND_EPS = 0.01F;
 
@@ -217,11 +216,17 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         const double* rpBuffer = wpBuffer + nSamplesToEnqueue;
 
         // shift old data
-        std::move(rpBuffer, rpBuffer + nOldSamples, wpBuffer);
+        for (int i = 0; i < nOldSamples; ++i)
+        {
+            *(wpBuffer++) = *(rpBuffer++);
+        }
 
         // add new data (promoting floats to doubles)
         wpIn += historyStartIndex;
-        std::move(wpIn, wpIn + nSamplesToEnqueue, wpBuffer + nOldSamples);
+        for (int i = 0; i < nSamplesToEnqueue; ++i)
+        {
+            *(wpBuffer++) = *(wpIn++);
+        }
 
         // if full...
         bufferFreeSpace.set(activeChan, jmax(bufferFreeSpace[activeChan] - nSamplesToEnqueue, 0));
@@ -230,8 +235,13 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             // push history update to shared buffer
             AtomicWriterPtr bufferWriter = historySynchronizers[activeChan]->getWriter();
             int historyWriteInd = bufferWriter->getIndexToUse();
-            double* wpSharedBuffer = (*historyBufferShared[activeChan])[historyWriteInd].begin();
-            std::copy(wpBuffer, wpBuffer + historyLength, wpSharedBuffer);
+            
+            wpBuffer = historyBuffer[activeChan]->begin();
+            for (double* wpSharedBuffer = (*historyBufferShared[activeChan])[historyWriteInd].begin(),
+                int i = 0; i < historyLength; ++i)
+            {
+                *(wpBuffer++) = *(wpSharedBuffer++);
+            }
             bufferWriter->pushUpdate();
 
             // get current AR parameters safely
@@ -412,9 +422,11 @@ void PhaseCalculator::run()
 
             // calculate parameters
             const Array<double>& data = (*historyBufferShared[activeChan])[historyReadInd];
-            Array<double>& params = (*arParamsShared[activeChan])[arWriteInd];
-            arModeler.fitModel(data, params);
-
+            {
+                // contain the reference to shared array
+                Array<double>& params = (*arParamsShared[activeChan])[arWriteInd];
+                arModeler.fitModel(data, params);
+            }
             // signal that these params are ready/frozen
             arWriters[activeChan]->pushUpdate();
         }
