@@ -46,8 +46,10 @@ accuracy of phase-locked stimulation in real time.
 #include <DspLib/Dsp.h>  // Filtering
 #include <queue>
 #include <array>
-#include "FFTWWrapper.h" // Fourier transform
-#include "ARModeler.h"   // Autoregressive modeling
+
+#include "FFTWWrapper.h"        // Fourier transform
+#include "ARModeler.h"          // Autoregressive modeling
+#include "AtomicSynchronizer.h" // AR model thread safety
 
 // parameter indices
 enum Param
@@ -60,19 +62,6 @@ enum Param
     VIS_E_CHAN,
     VIS_C_CHAN
 };
-
-/* each continuous channel has three possible states while acquisition is running:
-
-    - NOT_FULL:     Not enough samples have arrived to fill the history fifo for this channel.
-                    Wait for more  samples before calculating the autoregressive model parameters.
-
-    - FULL_NO_AR:   The history fifo for this channel is now full, but AR parameters have not been calculated yet.
-                    Tells the AR thread that it can start calculating the model and the main thread that it should still output zeros.
-
-    - FULL_AR:      The history fifo is full and AR parameters have been calculated at least once.
-                    In this state, the main thread uses the parameters to predict the future signal and output and calculate the phase.
-*/
-enum ChannelState { NOT_FULL, FULL_NO_AR, FULL_AR };
 
 // Output mode - corresponds to itemIDs on the ComboBox
 enum OutputMode { PH = 1, MAG, PH_AND_MAG, IM };
@@ -148,7 +137,7 @@ public:
     int getFullSourceId(int chan);
 
     // for the visualizer
-    std::queue<double>& getVisPhaseBuffer(ScopedPointer<ScopedLock>& lock);
+    std::queue<double>* tryToGetVisPhaseBuffer(ScopedPointer<ScopedTryLock>& lock);
 
     // for visualizer continuous channel
     void saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType) override;
@@ -282,19 +271,16 @@ private:
 
     int numActiveChansAllocated = 0;
 
-    // Storage area for filtered data to be used by the side thread to calculate AR model parameters
-    // and by the visualization event handler to calculate acccurate phases at past event times.
-    AudioBuffer<double> historyBuffer;
+    // Storage area for filtered data to be used by the visualization event handler to calculate
+    // acccurate phases at past event times, and to copy to historyBufferShared.
+    OwnedArray<Array<double>> historyBuffer;
+
+    // Shared version of historyBuffer, for use for calculating AR parameters.
+    OwnedArray<std::array<Array<double>, 3>> historyBufferShared;
+    OwnedArray<AtomicSynchronizer> historySynchronizers;
 
     // Keep track of how much of the historyBuffer is empty (per channel)
     Array<int> bufferFreeSpace;
-
-    // Keeps track of each channel's state (see enum definition above)
-    Array<ChannelState> chanState;
-
-    // mutexes for sharedDataBuffer arrays, which are used in the side thread to calculate AR parameters.
-    // since the side thread only READS sharedDataBuffer, only needs to be locked in the main thread when it's WRITTEN to.
-    OwnedArray<CriticalSection> historyLock;
 
     // for autoregressive parameter calculation
     OwnedArray<ARModeler> arModelers;
@@ -303,8 +289,11 @@ private:
     Array<int> sampleRateMultiple;
 
     // AR model parameters
-    OwnedArray<Array<double>> arParams;
-    OwnedArray<CriticalSection> arParamLock;
+    // Each entry of the OwnedArray is a triplet of Arrays of parameters.
+    // These are used along with an AtomicSynchronizer to exchange params between the process
+    // function and thread procedure.
+    OwnedArray<std::array<Array<double>, 3>> arParamsShared;
+    OwnedArray<AtomicSynchronizer> arSynchronizers;
 
     // storage area for predicted samples (to compensate for group delay)
     double predSamps[HT_DELAY + 1];

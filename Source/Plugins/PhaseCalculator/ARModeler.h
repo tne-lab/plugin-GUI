@@ -108,15 +108,15 @@ private:
     void reallocateStorage()
     {
         j_h.resize(arOrder - 1);
+        j_per.resize(inputLength);
+        j_pef.resize(inputLength);
         resetPredictionError();
     }
 
     void resetPredictionError()
     {
-        j_per.clearQuick();
-        j_per.insertMultiple(0, 0, stridedLength);
-        j_pef.clearQuick();
-        j_pef.insertMultiple(0, 0, stridedLength);
+        FloatVectorOperations::clear(j_per.begin(), inputLength);
+        FloatVectorOperations::clear(j_pef.begin(), inputLength);
     }
 
     static int calcStridedLength(int inputLength, int stride)
