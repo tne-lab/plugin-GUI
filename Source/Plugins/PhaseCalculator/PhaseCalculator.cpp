@@ -197,18 +197,22 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         // if full...
         bufferFreeSpace.set(activeChan, jmax(bufferFreeSpace[activeChan] - nSamplesToEnqueue, 0));
         if (bufferFreeSpace[activeChan] == 0)
-        {
-            // push history update to shared buffer
-            AtomicWriterPtr bufferWriter = historySynchronizers[activeChan]->getWriter();
-            int historyWriteInd = bufferWriter->getIndexToUse();
-            
-            wpBuffer = historyBuffer[activeChan]->begin();
-            for (double* wpSharedBuffer = (*historyBufferShared[activeChan])[historyWriteInd].begin(),
-                int i = 0; i < historyLength; ++i)
+        {    
+            // contain shared history buffer access 
             {
-                *(wpBuffer++) = *(wpSharedBuffer++);
+                // push history update to shared buffer
+                AtomicWriterPtr bufferWriter = historySynchronizers[activeChan]->getWriter();
+                int historyWriteInd = bufferWriter->getIndexToUse();
+                double* wpSharedBuffer = (*historyBufferShared[activeChan])[historyWriteInd].begin();
+                const double* rpBuffer = historyBuffer[activeChan]->begin();
+
+                for (int i = 0; i < historyLength; ++i)
+                {
+                    *(wpSharedBuffer++) = *(rpBuffer++);
+                }
+                bufferWriter->pushUpdate();
             }
-            bufferWriter->pushUpdate();
+            // end shared history buffer access
 
             // get current AR parameters safely
             int arReadInd = arSynchronizers[activeChan]->getReader()->pullUpdate();
