@@ -170,7 +170,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         }
 
         // filter the data
-        float* wpIn = buffer.getWritePointer(chan);
+        float* const wpIn = buffer.getWritePointer(chan);
         filters[chan]->process(nSamples, &wpIn);
 
         // shift old data and copy new data into historyBuffer (as much as can fit)
@@ -188,10 +188,10 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
         }
 
         // add new data (promoting floats to doubles)
-        wpIn += historyStartIndex;
+        const float* rpIn = wpIn + historyStartIndex;
         for (int i = 0; i < nSamplesToEnqueue; ++i)
         {
-            *(wpBuffer++) = *(wpIn++);
+            *(wpBuffer++) = *(rpIn++);
         }
 
         // if full...
