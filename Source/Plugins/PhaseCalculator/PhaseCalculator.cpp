@@ -23,7 +23,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
-#include <cstring> // memmove
 
 const float PhaseCalculator::PASSBAND_EPS = 0.01F;
 
@@ -184,12 +183,16 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             const ScopedLock myHistoryLock(*historyLock[activeChan]);
 
             // shift old data
-            memmove(wpBuffer, rpBuffer, nOldSamples * sizeof(double));
+            for (int i = 0; i < nOldSamples; ++i)
+            {
+                *(wpBuffer++) = *(rpBuffer++);
+            }
 
             // copy new data
+            const float* rpIn = wpIn + historyStartIndex;
             for (int i = 0; i < nSamplesToEnqueue; ++i)
             {
-                wpBuffer[nOldSamples + i] = wpIn[historyStartIndex + i];
+                *(wpBuffer++) = *(rpIn++);
             }
         }
 
