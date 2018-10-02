@@ -23,7 +23,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
-#include <cstring> // memmove
 
 const float PhaseCalculator::PASSBAND_EPS = 0.01F;
 
@@ -184,12 +183,16 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             const ScopedLock myHistoryLock(*historyLock[activeChan]);
 
             // shift old data
-            memmove(wpBuffer, rpBuffer, nOldSamples * sizeof(double));
+            for (int i = 0; i < nOldSamples; ++i)
+            {
+                *(wpBuffer++) = *(rpBuffer++);
+            }
 
             // copy new data
+            const float* rpIn = wpIn + historyStartIndex;
             for (int i = 0; i < nSamplesToEnqueue; ++i)
             {
-                wpBuffer[nOldSamples + i] = wpIn[historyStartIndex + i];
+                *(wpBuffer++) = *(rpIn++);
             }
         }
 
@@ -435,19 +438,13 @@ void PhaseCalculator::run()
     Array<double> paramsTemp;
     paramsTemp.resize(arOrder);
 
-    ARTimer timer;
-    int currInterval = calcInterval;
-    timer.startTimer(currInterval);
-
     Array<int> activeInputs = getActiveInputs();
     int numActiveChans = activeInputs.size();
 
-    while (true)
+    uint32 startTime, endTime;
+    while (!threadShouldExit())
     {
-        if (threadShouldExit())
-        {
-            return;
-        }
+        startTime = Time::getMillisecondCounter();
 
         for (int activeChan = 0; activeChan < numActiveChans; ++activeChan)
         {
@@ -484,28 +481,11 @@ void PhaseCalculator::run()
             chanState.set(activeChan, FULL_AR);
         }
 
-        // update interval
-        if (calcInterval != currInterval)
+        endTime = Time::getMillisecondCounter();
+        int remainingInterval = calcInterval - (endTime - startTime);
+        if (remainingInterval >= 10) // avoid WaitForSingleObject
         {
-            currInterval = calcInterval;
-            timer.stopTimer();
-            timer.startTimer(currInterval);
-        }
-
-        while (!timer.check())
-        {
-            if (threadShouldExit())
-            {
-                return;
-            }
-
-            if (calcInterval != currInterval)
-            {
-                currInterval = calcInterval;
-                timer.stopTimer();
-                timer.startTimer(currInterval);
-            }
-            sleep(10);
+            sleep(remainingInterval);
         }
     }
 }
@@ -1239,24 +1219,3 @@ const double PhaseCalculator::HT_COEF[HT_ORDER + 1] = {
     -2.76472250749945e-05,
     0.287572507836144
 };
-
-// ----------- ARTimer ---------------
-
-ARTimer::ARTimer() : Timer()
-{
-    hasRung = false;
-}
-
-ARTimer::~ARTimer() {}
-
-void ARTimer::timerCallback()
-{
-    hasRung = true;
-}
-
-bool ARTimer::check()
-{
-    bool temp = hasRung;
-    hasRung = false;
-    return temp;
-}
