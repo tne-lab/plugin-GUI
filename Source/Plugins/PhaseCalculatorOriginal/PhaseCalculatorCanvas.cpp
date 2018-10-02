@@ -491,7 +491,7 @@ void RosePlot::setReference(double newReference)
 
 void RosePlot::addAngle(double newAngle)
 {
-    newAngle = PhaseCalculator::circDist(newAngle, 0);
+    newAngle = circDist(newAngle, 0);
     angleData->insert(newAngle);
     rSum += std::exp(std::complex<double>(0, newAngle));
     repaint();
@@ -517,8 +517,12 @@ double RosePlot::getCircMean(bool usingReference)
     }
 
     double reference = usingReference ? referenceAngle : 0.0;
-    // use range of (-90, 270] for ease of use
-    double meanRad = PhaseCalculator::circDist(std::arg(rSum), reference, 3 * PI / 2);
+    double meanRad = circDist(std::arg(rSum), reference);
+    // change range to [-90, 270), for ease of use
+    if (meanRad >= 3 * PI / 2)
+    {
+        meanRad -= 2 * PI;
+    }
     return meanRad * 180 / PI;
 }
 
@@ -546,7 +550,7 @@ void RosePlot::labelTextChanged(Label* labelThatHasChanged)
         if (valid)
         {
             // convert to radians
-            double newReference = PhaseCalculator::circDist(floatInput * PI / 180.0, 0);
+            double newReference = circDist(floatInput * PI / 180.0, 0);
             labelThatHasChanged->setText(String(newReference * 180.0 / PI), dontSendNotification);
             setReference(newReference);
             canvas->updateStatLabels();
@@ -566,10 +570,8 @@ RosePlot::circularBinComparator::circularBinComparator(int numBinsIn, double ref
 
 bool RosePlot::circularBinComparator::operator() (const double& lhs, const double& rhs) const
 {
-    double lhsDist = PhaseCalculator::circDist(lhs, referenceAngle);
-    double rhsDist = PhaseCalculator::circDist(rhs, referenceAngle);
-    int lhsBin = static_cast<int>(std::floor(lhsDist * numBins / (2 * PI)));
-    int rhsBin = static_cast<int>(std::floor(rhsDist * numBins / (2 * PI)));
+    int lhsBin = static_cast<int>(std::floor(circDist(lhs, referenceAngle) * numBins / (2 * PI)));
+    int rhsBin = static_cast<int>(std::floor(circDist(rhs, referenceAngle) * numBins / (2 * PI)));
     return lhsBin < rhsBin;
 }
 
@@ -600,6 +602,12 @@ void RosePlot::reorganizeAngleData()
     angleData.swapWith(newAngleData);
 }
 
+double RosePlot::circDist(double x, double ref)
+{
+    double xMod = std::fmod(x - ref, 2 * PI);
+    return (xMod < 0 ? xMod + 2 * PI : xMod);
+}
+
 void RosePlot::updateAngles()
 {
     double step = 2 * PI / numBins;
@@ -607,7 +615,7 @@ void RosePlot::updateAngles()
     for (int i = 0; i < numBins; ++i)
     {
         binMidpoints.set(i, step * (i + 0.5));
-        float firstAngle = PhaseCalculator::circDist(PI / 2, step * (i + 1));
+        float firstAngle = circDist(PI / 2, step * (i + 1));
         segmentAngles.set(i, { firstAngle, firstAngle + step });
     }
 }
