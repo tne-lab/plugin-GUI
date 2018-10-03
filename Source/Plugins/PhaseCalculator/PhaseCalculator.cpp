@@ -23,7 +23,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
-#include <cstring> // memmove
 
 #include <iterator>  // std::reverse_iterator
 
