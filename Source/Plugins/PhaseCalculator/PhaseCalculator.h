@@ -102,8 +102,8 @@ class PhaseCalculator : public GenericProcessor, public Thread
 
     // hilbert transformer parameters
     static const int HT_FS = 500;                       // sample rate
-    static const int HT_ORDER = 18;                     // filter order, must be even
-    static const int HT_DELAY = HT_ORDER / 2;           // samples of group delay
+    static const int HT_DELAY = 9;                      // samples of group delay
+    static const int HT_ORDER = HT_DELAY * 2;           // filter order
     static const int HT_SCALE_FACTOR_QUERY_FREQS = 3;   // number of evenly-spaced frequencies
     // to query when estimating the mean
     // (nonlinear) HT magnitude response
