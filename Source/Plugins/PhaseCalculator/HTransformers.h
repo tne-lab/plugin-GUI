@@ -37,7 +37,6 @@ enum Band
     LOW_GAM,
     BETA,
     ALPHA_THETA,
-    DELTA,
     NUM_BANDS
 };
 

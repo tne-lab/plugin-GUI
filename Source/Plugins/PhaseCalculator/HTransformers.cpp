@@ -51,26 +51,33 @@ namespace Hilbert
     };
 
     const double BETA_BAND[2] = { 12, 30 };
-    const int BETA_DELAY = 5;
-    // from Matlab: firpm(10, [12 30 150 200]/250, [1 1 1 1], [5 1], 'hilbert')
+    const int BETA_DELAY = 9;
+    // from Matlab: firpm(18, [12 30 40 240]/250, [1 1 0.7 0.7], [1 1], 'hilbert')
     const double BETA_TRANSFORMER[BETA_DELAY] = {
-        -0.85384674081248679,
-        -0.12814948700306195,
-        0.017148957039109014,
-        0.82911471738264508,
-        -0.21362063139505949
+        -0.099949575596234311,
+        -0.020761484963254036,
+        -0.080803573080958854,
+        -0.027365064225587619,
+        -0.11114477443975329,
+        -0.025834076852645271,
+        -0.16664116044989324,
+        -0.015661948619847599,
+        -0.45268524264113719
     };
 
-    const double ALPHA_THETA_BAND[2] = { 4, 20 };
-    const int ALPHA_THETA_DELAY = 6;
-    // from Matlab: firpm(12, [2 20 80 200]/250, [1 1 3 3], [15 1], 'hilbert')
+    const double ALPHA_THETA_BAND[2] = { 4, 18 };
+    const int ALPHA_THETA_DELAY = 9;
+    // from Matlab: firpm(18, [4 246]/250, [1 1], 'hilbert')
     const double ALPHA_THETA_TRANSFORMER[ALPHA_THETA_DELAY] = {
-        -4.1297182760997622,
-        3.6944547866426105,
-        -1.7767647636241746,
-        3.0490068436340274,
-        -1.498179039993734,
-        0.66070854678913626
+        -0.28757250783614413,
+        0.000027647225074994485,
+        -0.094611325643268351,
+        -0.00025887439499763831,
+        -0.129436276914844,
+        -0.0001608427426424053,
+        -0.21315096860055227,
+        -0.00055322197399797961,
+        -0.63685698210351149
     };
 
     const wchar_t C_GAMMA = '\u03b3';
@@ -85,7 +92,7 @@ namespace Hilbert
         String("Mid ")  + C_GAMMA + " (40-90 H)",
         String("Low ")  + C_GAMMA + " (30-55 Hz)",
         String(C_BETA)  + " (12-30 Hz)",
-        String(C_ALPHA) + "/" + C_THETA + "+ (4-20 Hz)"
+        String(C_ALPHA) + "/" + C_THETA + "+ (4-18 Hz)"
     };
 
     const double* const VALID_BAND[NUM_BANDS] = {
