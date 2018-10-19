@@ -22,10 +22,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "HTransformers.h"
+#include <algorithm> // std::max_element
 
 namespace Hilbert
 {
-    const double HIGH_GAM_BAND[2] = { 60, 200 };
+    const Array<double> HIGH_GAM_VALID({ 60, 200 });
+    const Array<double> HIGH_GAM_DEFAULT({ 70, 150 });
+    const Array<double> HIGH_GAM_EXTREMA({ 81.6443, 123.1104, 169.3574 });
     const int HIGH_GAM_DELAY = 3;
     // from Matlab: firls(6, [60 200]/250, [1 1], 'hilbert')
     const double HIGH_GAM_TRANSFORMER[HIGH_GAM_DELAY] = {
@@ -34,15 +37,19 @@ namespace Hilbert
         -0.59258484603659545
     };
 
-    const double MID_GAM_BAND[2] = { 40, 90 };
+    const Array<double> MID_GAM_VALID({ 40, 90 });
+    const Array<double> MID_GAM_DEFAULT({ 40, 90 });
+    const Array<double> MID_GAM_EXTREMA({ 64.4559 });
     const int MID_GAM_DELAY = 2;
     // from Matlab: firls(4, [35 90]/250, [1 1], 'hilbert')
     const double MID_GAM_TRANSFORMER[MID_GAM_DELAY] = {
         -0.487176162115735,
         -0.069437334858668653
     };
-    
-    const double LOW_GAM_BAND[2] = { 30, 55 };
+
+    const Array<double> LOW_GAM_VALID({ 30, 55 });
+    const Array<double> LOW_GAM_DEFAULT({ 30, 55 });
+    const Array<double> LOW_GAM_EXTREMA({ 43.3609 });
     const int LOW_GAM_DELAY = 2;
     // from Matlab: firls(4, [30 55]/250, [1 1], 'hilbert')
     const double LOW_GAM_TRANSFORMER[LOW_GAM_DELAY] = {
@@ -50,9 +57,11 @@ namespace Hilbert
         1.7241339075391682
     };
 
-    const double BETA_BAND[2] = { 12, 30 };
+    const Array<double> BETA_VALID({ 10, 40 });
+    const Array<double> BETA_DEFAULT({ 12, 30 });
+    const Array<double> BETA_EXTREMA({ 21.5848 });
     const int BETA_DELAY = 9;
-    // from Matlab: firpm(18, [12 30 40 240]/250, [1 1 0.7 0.7], [1 1], 'hilbert')
+    // from Matlab: firpm(18, [12 30 40 240]/250, [1 1 0.7 0.7], 'hilbert')
     const double BETA_TRANSFORMER[BETA_DELAY] = {
         -0.099949575596234311,
         -0.020761484963254036,
@@ -65,7 +74,9 @@ namespace Hilbert
         -0.45268524264113719
     };
 
-    const double ALPHA_THETA_BAND[2] = { 4, 18 };
+    const Array<double> ALPHA_THETA_VALID({ 4, 18 });
+    const Array<double> ALPHA_THETA_DEFAULT({ 4, 8 });
+    const Array<double> ALPHA_THETA_EXTREMA({ /* none */ });
     const int ALPHA_THETA_DELAY = 9;
     // from Matlab: firpm(18, [4 246]/250, [1 1], 'hilbert')
     const double ALPHA_THETA_TRANSFORMER[ALPHA_THETA_DELAY] = {
@@ -80,27 +91,42 @@ namespace Hilbert
         -0.63685698210351149
     };
 
-    const wchar_t C_GAMMA = '\u03b3';
-    const wchar_t C_BETA  = '\u03b2';
-    const wchar_t C_ALPHA = '\u03b1';
-    const wchar_t C_THETA = '\u03b8';
+    const String C_GAMMA{ L"\u03b3" };
+    const String C_BETA{ L"\u03b2" };
+    const String C_ALPHA_THETA{ L"\u03b1/\u03b8" };
 
     // exported constants
 
     const String BAND_NAME[NUM_BANDS] = {
-        String("High ") + C_GAMMA + " (60-200 Hz)",
-        String("Mid ")  + C_GAMMA + " (40-90 H)",
-        String("Low ")  + C_GAMMA + " (30-55 Hz)",
-        String(C_BETA)  + " (12-30 Hz)",
-        String(C_ALPHA) + "/" + C_THETA + "+ (4-18 Hz)"
+        "High " + C_GAMMA       + " (60-200 Hz)",
+        "Mid "  + C_GAMMA       + " (40-90 Hz)",
+        "Low "  + C_GAMMA       + " (30-55 Hz)",
+                  C_BETA        + " (10-40 Hz)",
+                  C_ALPHA_THETA + " (4-18 Hz)"
     };
 
-    const double* const VALID_BAND[NUM_BANDS] = {
-        HIGH_GAM_BAND,
-        MID_GAM_BAND,
-        LOW_GAM_BAND,
-        BETA_BAND,
-        ALPHA_THETA_BAND
+    const Array<double> VALID_BAND[NUM_BANDS] = {
+        HIGH_GAM_VALID,
+        MID_GAM_VALID,
+        LOW_GAM_VALID,
+        BETA_VALID,
+        ALPHA_THETA_VALID
+    };
+
+    const Array<double> DEFAULT_BAND[NUM_BANDS] = {
+        HIGH_GAM_DEFAULT,
+        MID_GAM_DEFAULT,
+        LOW_GAM_DEFAULT,
+        BETA_DEFAULT,
+        ALPHA_THETA_DEFAULT
+    };
+
+    const Array<double> EXTREMA[NUM_BANDS] = {
+        HIGH_GAM_EXTREMA,
+        MID_GAM_EXTREMA,
+        LOW_GAM_EXTREMA,
+        BETA_EXTREMA,
+        ALPHA_THETA_EXTREMA
     };
 
     const int DELAY[NUM_BANDS] = {

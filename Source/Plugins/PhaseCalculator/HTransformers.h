@@ -28,6 +28,18 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*
 
+Defines the Hilbert transformers appropriate to use for each frequency band.
+(The actual coeficcients and other values are in the corresponding cpp file.)
+- BAND_NAME:    display name for each frequency band.
+- VALID_BAND:   range of frequencies appropriate to use with each transformer
+- DEFAULT_BAND: band filled in by default when selecting each transformer
+- EXTREMA:      locations of local extrema of the magnitude response within VALID_BAND (if any).
+-               used to find the maximum and minimum response given a band of interest.
+- DELAY:        group delay of the transformer = # of samples to predict
+                also, the number of unique nonzero coefficients.
+- TRANSFORMER:  first DELAY coefficients for each filter.
+                the remaining DELAY+1 are 0, followed by the leading coefficients
+                again, negated and in reverse order.
 */
 
 enum Band
@@ -47,7 +59,12 @@ namespace Hilbert
     const String BAND_NAME[NUM_BANDS];
 
     // each is a pair (lower limit, upper limit)
-    const double* const VALID_BAND[NUM_BANDS];
+    const Array<double> VALID_BAND[NUM_BANDS];
+
+    // each is a pair (low cut, high cut)
+    const Array<double> DEFAULT_BAND[NUM_BANDS];
+
+    const Array<double> EXTREMA[NUM_BANDS];
 
     // samples of group delay (= order of filter / 2)
     const int DELAY[NUM_BANDS];
