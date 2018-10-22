@@ -56,21 +56,21 @@ namespace Hilbert
 {
     const int FS = 500;
 
-    const String BAND_NAME[NUM_BANDS];
+    extern const String BAND_NAME[NUM_BANDS];
 
     // each is a pair (lower limit, upper limit)
-    const Array<double> VALID_BAND[NUM_BANDS];
+    extern const Array<float> VALID_BAND[NUM_BANDS];
 
     // each is a pair (low cut, high cut)
-    const Array<double> DEFAULT_BAND[NUM_BANDS];
+    extern const Array<float> DEFAULT_BAND[NUM_BANDS];
 
-    const Array<double> EXTREMA[NUM_BANDS];
+    extern const Array<float> EXTREMA[NUM_BANDS];
 
     // samples of group delay (= order of filter / 2)
-    const int DELAY[NUM_BANDS];
+    extern const int DELAY[NUM_BANDS];
     
     // contain the first delay[band] coefficients; the rest are redundant and can be inferred
-    const double* const TRANSFORMER[NUM_BANDS];
+    extern const double* const TRANSFORMER[NUM_BANDS];
 }
 
 #endif // H_TRANSFORMERS_H_INCLUDED

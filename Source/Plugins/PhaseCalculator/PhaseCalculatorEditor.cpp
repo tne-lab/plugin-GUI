@@ -22,7 +22,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PhaseCalculatorEditor.h"
 #include "PhaseCalculatorCanvas.h"
+#include "HTransformers.h"
 #include <climits> // INT_MAX
+#include <cfloat> // FLT_MAX
 
 PhaseCalculatorEditor::PhaseCalculatorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
     : VisualizerEditor  (parentNode, 190, useDefaultParameterEditors)
@@ -161,8 +163,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == lowCutEditable)
     {
         float floatInput;
-        bool valid = updateFloatControl(labelThatHasChanged, PhaseCalculator::PASSBAND_EPS,
-            processor->HT_FS / 2 - PhaseCalculator::PASSBAND_EPS, processor->lowCut, &floatInput);
+        bool valid = updateFloatControl(labelThatHasChanged, 0, FLT_MAX, processor->lowCut, &floatInput);
 
         if (valid)
         {
@@ -172,8 +173,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == highCutEditable)
     {
         float floatInput;
-        bool valid = updateFloatControl(labelThatHasChanged, 2 * PhaseCalculator::PASSBAND_EPS,
-            processor->HT_FS / 2, processor->highCut, &floatInput);
+        bool valid = updateFloatControl(labelThatHasChanged, 0, FLT_MAX, processor->highCut, &floatInput);
 
         if (valid)
         {

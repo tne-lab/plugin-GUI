@@ -146,8 +146,8 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
     {
         uint32 fullSourceID = static_cast<uint32>(it.getKey());
         int subProcessor = it.getValue();
-        uint32 sourceTimestamp = getSourceTimestamp(fullSourceID);
-        uint64 sourceSamples = getNumSourceSamples(fullSourceID);
+        uint64 sourceTimestamp = getSourceTimestamp(fullSourceID);
+        uint32 sourceSamples = getNumSourceSamples(fullSourceID);
         setTimestampAndSamples(sourceTimestamp, sourceSamples, subProcessor);
     }
 
@@ -733,7 +733,7 @@ void PhaseCalculator::setLowCut(float newLowCut)
     if (newLowCut == lowCut) { return; }
     
     auto editor = static_cast<PhaseCalculatorEditor*>(getEditor());
-    Array<double> validBand = Hilbert::VALID_BAND[band];
+    Array<float> validBand = Hilbert::VALID_BAND[band];
 
     if (newLowCut < validBand[0] || newLowCut >= validBand[1])
     {
@@ -759,7 +759,7 @@ void PhaseCalculator::setHighCut(float newHighCut)
     if (newHighCut == highCut) { return; }
 
     auto editor = static_cast<PhaseCalculatorEditor*>(getEditor());
-    Array<double> validBand = Hilbert::VALID_BAND[band];
+    Array<float> validBand = Hilbert::VALID_BAND[band];
 
     if (newHighCut <= validBand[0] || newHighCut > validBand[1])
     {
@@ -1163,7 +1163,7 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
         while (!visTsBuffer.empty() && (ts = visTsBuffer.front()) <= maxTs)
         {
             visTsBuffer.pop();
-            juce::int64 delay = sdbEndTs - ts;
+            int delay = static_cast<int>(sdbEndTs - ts);
             std::complex<double> analyticPt = visHilbertBuffer.getAsComplex(VIS_HILBERT_LENGTH - delay);
             double phaseRad = std::arg(analyticPt);
             visPhaseBuffer.push(phaseRad);
@@ -1253,11 +1253,11 @@ double PhaseCalculator::getScaleFactor(Band band, double lowCut, double highCut)
             double coef = Hilbert::TRANSFORMER[band][kCoef];
             
             // near component
-            response += coef * std::polar(1, -kCoef * normFreq);
+            response += coef * std::polar(1, -(kCoef * normFreq));
 
             // mirrored component
             // there is no term for -nCoefs because that coefficient is 0.
-            response -= coef * std::polar(1, -(2 * nCoefs - kCoef) * normFreq);
+            response -= coef * std::polar(1, -((2 * nCoefs - kCoef) * normFreq));
         }
 
         double absResponse = std::abs(response);
