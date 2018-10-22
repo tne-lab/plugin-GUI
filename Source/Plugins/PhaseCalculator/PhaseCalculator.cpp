@@ -159,8 +159,8 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
     {
         uint32 fullSourceID = static_cast<uint32>(it.getKey());
         int subProcessor = it.getValue();
-        uint32 sourceTimestamp = getSourceTimestamp(fullSourceID);
-        uint64 sourceSamples = getNumSourceSamples(fullSourceID);
+        uint64 sourceTimestamp = getSourceTimestamp(fullSourceID);
+        uint32 sourceSamples = getNumSourceSamples(fullSourceID);
         setTimestampAndSamples(sourceTimestamp, sourceSamples, subProcessor);
     }
 
@@ -515,7 +515,7 @@ int PhaseCalculator::getFullSourceId(int chan)
     }
     uint16 sourceNodeId = chanInfo->getSourceNodeID();
     uint16 subProcessorIdx = chanInfo->getSubProcessorIdx();
-    int procFullId = static_cast<int>(getProcessorFullId(sourceNodeId, subProcessorIdx));
+    return static_cast<int>(getProcessorFullId(sourceNodeId, subProcessorIdx));
 }
 
 std::queue<double>* PhaseCalculator::tryToGetVisPhaseBuffer(ScopedPointer<ScopedTryLock>& lock)
@@ -1032,7 +1032,7 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
         while (!visTsBuffer.empty() && (ts = visTsBuffer.front()) <= maxTs)
         {
             visTsBuffer.pop();
-            juce::int64 delay = sdbEndTs - ts;
+            int delay = static_cast<int>(sdbEndTs - ts);
             std::complex<double> analyticPt = visHilbertBuffer.getAsComplex(VIS_HILBERT_LENGTH - delay);
             double phaseRad = std::arg(analyticPt);
             tempBuffer.push(phaseRad);
