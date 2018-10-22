@@ -296,8 +296,8 @@ void PhaseCalculatorEditor::sliderEvent(Slider* slider)
 {
     if (slider == predLengthSlider)
     {
-        int newVal = slider->getValue();
-        int maxVal = slider->getMaximum();        
+        int newVal = static_cast<int>(slider->getValue());
+        int maxVal = static_cast<int>(slider->getMaximum());
         getProcessor()->setParameter(PRED_LENGTH, static_cast<float>(maxVal - newVal));
     }
 }
