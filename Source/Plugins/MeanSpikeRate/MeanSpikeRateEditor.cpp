@@ -23,6 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "MeanSpikeRateEditor.h"
 #include <string> // stof
+#include <cfloat> // FLT_MAX
 
 MeanSpikeRateEditor::MeanSpikeRateEditor(MeanSpikeRate* parentNode)
     : GenericEditor(parentNode, false)
