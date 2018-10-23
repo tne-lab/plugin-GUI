@@ -605,7 +605,7 @@ int PhaseCalculator::getFullSourceId(int chan)
     }
     uint16 sourceNodeId = chanInfo->getSourceNodeID();
     uint16 subProcessorIdx = chanInfo->getSubProcessorIdx();
-    int procFullId = static_cast<int>(getProcessorFullId(sourceNodeId, subProcessorIdx));
+    return static_cast<int>(getProcessorFullId(sourceNodeId, subProcessorIdx));
 }
 
 std::queue<double>& PhaseCalculator::getVisPhaseBuffer(ScopedPointer<ScopedLock>& lock)
