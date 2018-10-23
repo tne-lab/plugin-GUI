@@ -1253,11 +1253,11 @@ double PhaseCalculator::getScaleFactor(Band band, double lowCut, double highCut)
             double coef = Hilbert::TRANSFORMER[band][kCoef];
             
             // near component
-            response += coef * std::polar(1, -(kCoef * normFreq));
+            response += coef * std::polar(1.0, -(kCoef * normFreq));
 
             // mirrored component
             // there is no term for -nCoefs because that coefficient is 0.
-            response -= coef * std::polar(1, -((2 * nCoefs - kCoef) * normFreq));
+            response -= coef * std::polar(1.0, -((2 * nCoefs - kCoef) * normFreq));
         }
 
         double absResponse = std::abs(response);
