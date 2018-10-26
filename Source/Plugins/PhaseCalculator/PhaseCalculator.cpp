@@ -231,7 +231,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             }
 
             // use AR model to fill predSamps (which is downsampled) based on past data.
-            int htDelay = Hilbert::DELAY[band];
+            int htDelay = Hilbert::DELAY.at(band);
             int stride = sampleRateMultiple[chan];
 
             rpBuffer = historyBuffer.getReadPointer(activeChan, historyLength - dsOffset[chan]);
@@ -703,7 +703,7 @@ void PhaseCalculator::setBand(Band newBand, bool force)
     resetCutsToDefaults();
 
     // resize htState for each active channel, htTempState, and predSamps
-    int delay = Hilbert::DELAY[band];
+    int delay = Hilbert::DELAY.at(band);
     for (int i = 0; i < numActiveChansAllocated; ++i)
     {
         htState[i]->resize(delay * 2 + 1);
@@ -714,8 +714,9 @@ void PhaseCalculator::setBand(Band newBand, bool force)
 
 void PhaseCalculator::resetCutsToDefaults()
 {
-    lowCut = Hilbert::DEFAULT_BAND[band][0];
-    highCut = Hilbert::DEFAULT_BAND[band][1];
+    auto& defaultBand = Hilbert::DEFAULT_BAND.at(band);
+    lowCut = defaultBand[0];
+    highCut = defaultBand[1];
 
     updateScaleFactor();
     setFilterParameters();
@@ -733,7 +734,7 @@ void PhaseCalculator::setLowCut(float newLowCut)
     if (newLowCut == lowCut) { return; }
     
     auto editor = static_cast<PhaseCalculatorEditor*>(getEditor());
-    Array<float> validBand = Hilbert::VALID_BAND[band];
+    const Array<float>& validBand = Hilbert::VALID_BAND.at(band);
 
     if (newLowCut < validBand[0] || newLowCut >= validBand[1])
     {
@@ -759,7 +760,7 @@ void PhaseCalculator::setHighCut(float newHighCut)
     if (newHighCut == highCut) { return; }
 
     auto editor = static_cast<PhaseCalculatorEditor*>(getEditor());
-    Array<float> validBand = Hilbert::VALID_BAND[band];
+    const Array<float>& validBand = Hilbert::VALID_BAND.at(band);
 
     if (newHighCut <= validBand[0] || newHighCut > validBand[1])
     {
@@ -885,7 +886,7 @@ void PhaseCalculator::addActiveChannel()
     arParams.add(new Array<double>());
     arParams.getLast()->resize(arOrder);
     htState.add(new Array<double>());
-    htState.getLast()->resize(Hilbert::DELAY[band] * 2 + 1);
+    htState.getLast()->resize(Hilbert::DELAY.at(band) * 2 + 1);
 }
 
 bool PhaseCalculator::validateSampleRate(int chan)
@@ -1233,7 +1234,7 @@ double PhaseCalculator::getScaleFactor(Band band, double lowCut, double highCut)
 
     Array<double> testFreqs({ lowCut, highCut });
     // also look at any magnitude response extrema that fall within the selected band
-    for (double freq : Hilbert::EXTREMA[band])
+    for (double freq : Hilbert::EXTREMA.at(band))
     {
         if (freq > lowCut && freq < highCut)
         {
@@ -1242,15 +1243,16 @@ double PhaseCalculator::getScaleFactor(Band band, double lowCut, double highCut)
     }
 
     // at each frequency, calculate the filter response
-    int nCoefs = Hilbert::DELAY[band];
+    int nCoefs = Hilbert::DELAY.at(band);
     for (double freq : testFreqs)
     {
         double normFreq = freq * Dsp::doublePi / (Hilbert::FS / 2);
         std::complex<double> response = 0;
 
+        auto* transf = Hilbert::TRANSFORMER.at(band);
         for (int kCoef = 0; kCoef < nCoefs; ++kCoef)
         {
-            double coef = Hilbert::TRANSFORMER[band][kCoef];
+            double coef = transf[kCoef];
             
             // near component
             response += coef * std::polar(1.0, -(kCoef * normFreq));
@@ -1274,15 +1276,16 @@ double PhaseCalculator::htFilterSamp(double input, Band band, Array<double>& sta
     double* state_p = state.getRawDataPointer();
 
     // initialize new state entry
-    int nCoefs = Hilbert::DELAY[band];
+    int nCoefs = Hilbert::DELAY.at(band);
     int order = nCoefs * 2;
     jassert(order == state.size() - 1);
     state_p[order] = 0;
 
     // incorporate new input
+    auto& transf = Hilbert::TRANSFORMER.at(band);
     for (int kCoef = 0; kCoef < nCoefs; ++kCoef)
     {
-        double val = input * Hilbert::TRANSFORMER[band][kCoef];
+        double val = input * transf[kCoef];
         state_p[kCoef] += val;          // near component
         state_p[order - kCoef] -= val;  // mirrored component
     }

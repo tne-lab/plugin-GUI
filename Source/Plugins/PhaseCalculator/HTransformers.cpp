@@ -22,7 +22,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "HTransformers.h"
-#include <algorithm> // std::max_element
 
 namespace Hilbert
 {
@@ -97,54 +96,60 @@ namespace Hilbert
         const String C_BETA{ L"\u03b2" };
         const String C_ALPHA_THETA{ L"\u03b1/\u03b8" };
     }
+
+    String validBandToString(const Array<float>& band)
+    {
+        jassert(band.size() == 2);
+        return " (" + String(band[0]) + "-" + String(band[1]) + " Hz)";
+    }
     
     // exported constants
 
-    extern const String BAND_NAME[NUM_BANDS] = {
-        "High " + C_GAMMA       + " (60-200 Hz)",
-        "Mid "  + C_GAMMA       + " (40-90 Hz)",
-        "Low "  + C_GAMMA       + " (30-55 Hz)",
-                  C_BETA        + " (10-40 Hz)",
-                  C_ALPHA_THETA + " (4-18 Hz)"
+    extern const std::map<int, String> BAND_NAME = {
+        { HIGH_GAM, "Hi "  + C_GAMMA       + validBandToString(HIGH_GAM_VALID)    },
+        { MID_GAM,  "Mid " + C_GAMMA       + validBandToString(MID_GAM_VALID)     },
+        { LOW_GAM,  "Lo "  + C_GAMMA       + validBandToString(LOW_GAM_VALID)     },
+        { BETA,              C_BETA        + validBandToString(BETA_VALID)        },
+        { ALPHA_THETA,       C_ALPHA_THETA + validBandToString(ALPHA_THETA_VALID) }
     };
 
-    extern const Array<float> VALID_BAND[NUM_BANDS] = {
-        HIGH_GAM_VALID,
-        MID_GAM_VALID,
-        LOW_GAM_VALID,
-        BETA_VALID,
-        ALPHA_THETA_VALID
+    extern const std::map<int, Array<float>> VALID_BAND = {
+        { HIGH_GAM,    HIGH_GAM_VALID    },
+        { MID_GAM,     MID_GAM_VALID     },
+        { LOW_GAM,     LOW_GAM_VALID     },
+        { BETA,        BETA_VALID        },
+        { ALPHA_THETA, ALPHA_THETA_VALID }
     };
 
-    extern const Array<float> DEFAULT_BAND[NUM_BANDS] = {
-        HIGH_GAM_DEFAULT,
-        MID_GAM_DEFAULT,
-        LOW_GAM_DEFAULT,
-        BETA_DEFAULT,
-        ALPHA_THETA_DEFAULT
+    extern const std::map<int, Array<float>> DEFAULT_BAND = {
+        { HIGH_GAM,    HIGH_GAM_DEFAULT    },
+        { MID_GAM,     MID_GAM_DEFAULT     },
+        { LOW_GAM,     LOW_GAM_DEFAULT     },
+        { BETA,        BETA_DEFAULT        },
+        { ALPHA_THETA, ALPHA_THETA_DEFAULT }
     };
 
-    extern const Array<float> EXTREMA[NUM_BANDS] = {
-        HIGH_GAM_EXTREMA,
-        MID_GAM_EXTREMA,
-        LOW_GAM_EXTREMA,
-        BETA_EXTREMA,
-        ALPHA_THETA_EXTREMA
+    extern const std::map<int, Array<float>> EXTREMA = {
+        { HIGH_GAM,    HIGH_GAM_EXTREMA    },
+        { MID_GAM,     MID_GAM_EXTREMA     },
+        { LOW_GAM,     LOW_GAM_EXTREMA     },
+        { BETA,        BETA_EXTREMA        },
+        { ALPHA_THETA, ALPHA_THETA_EXTREMA }
     };
 
-    extern const int DELAY[NUM_BANDS] = {
-        HIGH_GAM_DELAY,
-        MID_GAM_DELAY,
-        LOW_GAM_DELAY,
-        BETA_DELAY,
-        ALPHA_THETA_DELAY
+    extern const std::map<int, int> DELAY = {
+        { HIGH_GAM,    HIGH_GAM_DELAY    },
+        { MID_GAM,     MID_GAM_DELAY     },
+        { LOW_GAM,     LOW_GAM_DELAY     },
+        { BETA,        BETA_DELAY        },
+        { ALPHA_THETA, ALPHA_THETA_DELAY }
     };
 
-    extern const double* const TRANSFORMER[NUM_BANDS] = {
-        HIGH_GAM_TRANSFORMER,
-        MID_GAM_TRANSFORMER,
-        LOW_GAM_TRANSFORMER,
-        BETA_TRANSFORMER,
-        ALPHA_THETA_TRANSFORMER
+    extern const std::map<int, const double*> TRANSFORMER = {
+        { HIGH_GAM,    HIGH_GAM_TRANSFORMER    },
+        { MID_GAM,     MID_GAM_TRANSFORMER     },
+        { LOW_GAM,     LOW_GAM_TRANSFORMER     },
+        { BETA,        BETA_TRANSFORMER        },
+        { ALPHA_THETA, ALPHA_THETA_TRANSFORMER }
     };
 }

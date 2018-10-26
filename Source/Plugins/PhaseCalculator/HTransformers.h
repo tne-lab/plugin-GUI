@@ -24,6 +24,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef H_TRANSFORMERS_H_INCLUDED
 #define H_TRANSFORMERS_H_INCLUDED
 
+#include <map>
+
 #include "../../../JuceLibraryCode/JuceHeader.h"
 
 /*
@@ -44,11 +46,11 @@ Defines the Hilbert transformers appropriate to use for each frequency band.
 
 enum Band
 {
-    HIGH_GAM = 0,
-    MID_GAM,
-    LOW_GAM,
+    ALPHA_THETA = 0,
     BETA,
-    ALPHA_THETA,
+    LOW_GAM,
+    MID_GAM,
+    HIGH_GAM,
     NUM_BANDS
 };
 
@@ -56,21 +58,21 @@ namespace Hilbert
 {
     const int FS = 500;
 
-    extern const String BAND_NAME[NUM_BANDS];
+    extern const std::map<int, String> BAND_NAME;
 
     // each is a pair (lower limit, upper limit)
-    extern const Array<float> VALID_BAND[NUM_BANDS];
+    extern const std::map<int, Array<float>> VALID_BAND;
 
     // each is a pair (low cut, high cut)
-    extern const Array<float> DEFAULT_BAND[NUM_BANDS];
+    extern const std::map<int, Array<float>> DEFAULT_BAND;
 
-    extern const Array<float> EXTREMA[NUM_BANDS];
+    extern const std::map<int, Array<float>> EXTREMA;
 
     // samples of group delay (= order of filter / 2)
-    extern const int DELAY[NUM_BANDS];
+    extern const std::map<int, int> DELAY;
     
     // contain the first delay[band] coefficients; the rest are redundant and can be inferred
-    extern const double* const TRANSFORMER[NUM_BANDS];
+    extern const std::map<int, const double*> TRANSFORMER;
 }
 
 #endif // H_TRANSFORMERS_H_INCLUDED
