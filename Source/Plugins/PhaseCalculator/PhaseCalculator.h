@@ -50,12 +50,14 @@ accuracy of phase-locked stimulation in real time.
 #include "FFTWWrapper.h"        // Fourier transform
 #include "ARModeler.h"          // Autoregressive modeling
 #include "AtomicSynchronizer.h" // AR model thread safety
+#include "HTransformers.h"      // Hilbert transformers & frequency bands
 
 // parameter indices
 enum Param
 {
     RECALC_INTERVAL,
     AR_ORDER,
+    BAND,
     LOWCUT,
     HIGHCUT,
     OUTPUT_MODE,
@@ -88,17 +90,6 @@ class PhaseCalculator : public GenericProcessor, public Thread
     static const int VIS_HILBERT_LENGTH = 65536;
     static const int VIS_TS_MIN_DELAY = 40000;
     static const int VIS_TS_MAX_DELAY = 48000;
-
-    // hilbert transformer parameters
-    static const int HT_FS = 500;                       // sample rate
-    static const int HT_ORDER = 18;                     // filter order, must be even
-    static const int HT_DELAY = HT_ORDER / 2;           // samples of group delay
-    static const int HT_SCALE_FACTOR_QUERY_FREQS = 3;   // number of evenly-spaced frequencies
-    // to query when estimating the mean
-    // (nonlinear) HT magnitude response
-
-    // hilbert transformer
-    static const double HT_COEF[HT_ORDER + 1];
 
 public:
 
@@ -160,6 +151,12 @@ private:
 
     // Sets arOrder (which in turn influences historyLength and the arModeler)
     void setAROrder(int newOrder);
+
+    // Sets frequency band (which resets lowCut and highCut to defaults for this band)
+    void setBand(Band newBand, bool force = false);
+
+    // Resets lowCut and highCut to defaults for the current band
+    void resetCutsToDefaults();
 
     // Sets lowCut (which in turn influences highCut)
     void setLowCut(float newLowCut);
@@ -226,10 +223,10 @@ private:
      * 
      * Input params is an array of coefficients of an AR model of length 'order'.
      *
-     * Writes HT_DELAY + 1 future data values to prediction.
+     * Writes samps future data values to prediction.
      */
     static void arPredict(const double* lastSample, double* prediction,
-        const double* params, int stride, int order);
+        const double* params, int samps, int stride, int order);
 
     /*
      * hilbertManip: Hilbert transforms data in the frequency domain (including normalization by length of data).
@@ -237,12 +234,13 @@ private:
      */
     static void hilbertManip(FFTWArray* fftData);
 
-    // Get the htScaleFactor for the given filter band (with sample rate HT_FS). Currently uses
-    // a mean over three points to approximate the magnitude response over the band.
-    static double getScaleFactor(double lowCut, double highCut);
+    // Get the htScaleFactor for the given band's Hilbert transformer,
+    // over the range from lowCut and highCut. This is the reciprocal of the geometric
+    // mean (i.e. mean in decibels) of the maximum and minimum magnitude responses over the range.
+    static double getScaleFactor(Band band, double lowCut, double highCut);
 
     // Execute the hilbert transformer on one sample and update the state.
-    static double htFilterSamp(double input, std::array<double, HT_ORDER + 1>& state);
+    static double htFilterSamp(double input, Band band, Array<double>& state);
 
     // ---- customizable parameters ------
 
@@ -256,6 +254,9 @@ private:
     int arOrder;
 
     OutputMode outputMode;
+
+    // frequency band (determines which Hilbert transformer to use)
+    Band band;
 
     // filter passband
     float highCut;
@@ -296,11 +297,11 @@ private:
     OwnedArray<AtomicSynchronizer> arSynchronizers;
 
     // storage area for predicted samples (to compensate for group delay)
-    double predSamps[HT_DELAY + 1];
+    Array<double> predSamps;
 
     // state of each hilbert transformer (persistent and temporary)
-    OwnedArray<std::array<double, HT_ORDER + 1>> htState;
-    std::array<double, HT_ORDER + 1> htTempState;
+    OwnedArray<Array<double>> htState;
+    Array<double> htTempState;
 
     // store indices of current buffer to feed into transformer
     Array<int> htInds;
