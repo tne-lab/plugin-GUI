@@ -35,7 +35,7 @@ class PhaseCalculatorEditor
 {
     friend class RosePlot;  // to access label updating method
 public:
-    PhaseCalculatorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors = false);
+    PhaseCalculatorEditor(PhaseCalculator* parentNode, bool useDefaultParameterEditors = false);
     ~PhaseCalculatorEditor();
 
     // implements ComboBox::Listener
@@ -46,9 +46,6 @@ public:
 
     // overrides GenericEditor
     void sliderEvent(Slider* slider) override;
-
-    // overrides GenericEditor. Deal with record buttons for extra channels.
-    void buttonEvent(Button* button) override;
 
     // update display based on current channel
     void channelChanged(int chan, bool newState) override;
@@ -73,23 +70,66 @@ public:
 
 private:
 
-    /* Utilities for parsing entered values
-    *  Ouput whether the label contained a valid input; if so, it is stored in *out
-    *  and the control is updated with the parsed input. Otherwise, the control is reset
-    *  to defaultValue.
-    */
+    // Utilities for parsing entered values
 
-    template<typename Ctrl>
-    static bool updateIntControl(Ctrl* c, const int min, const int max,
-        const int defaultValue, int* out);
+    template<typename T>
+    static T fromString(const char* in);
 
-    template<typename Ctrl>
-    static bool updateFloatControl(Ctrl* c, const float min, const float max,
-        const float defaultValue, float* out);
+    /* 
+     * Return whether the control contained a valid input between min and max, inclusive.
+     * If so, it is stored in *out and the control is updated with the parsed input.
+     * Otherwise, the control is reset to defaultValue.
+     *
+     * In header to make sure specializations not used in PhaseCalculatorEditor.cpp
+     * are still available to other translation units.
+     */
+
+    template<typename Ctrl, typename T>
+    static bool updateControl(Ctrl* c, const T min, const T max,
+        const T defaultValue, T* out)
+    {
+        T parsedVal;
+        try
+        {
+            parsedVal = fromString<T>(c->getText().toRawUTF8());
+        }
+        catch (const std::logic_error&)
+        {
+            c->setText(String(defaultValue), dontSendNotification);
+            return false;
+        }
+
+        *out = jmax(min, jmin(max, parsedVal));
+
+        c->setText(String(*out), dontSendNotification);
+        return true;
+    }
 
     // keep track of the record status of each "extra" channel
-    Array<bool> extraChanRecordStatus;
+    // this is all a bit kludgy, but also temporary until creating continuous
+    // channels in non-source processors is officially implemented.
+    class ExtraChanManager : public Button::Listener
+    {
+    public:
+        ExtraChanManager(const PhaseCalculator* processor);
+
+        // keeps recordStatus in sync with extra channel record buttons.
+        void buttonClicked(Button* button) override;
+
+        // adds or removes recordStatus entry for extra chan
+        // corresponding to given input chan.
+        void addExtraChan(int inputChan, const Array<int>& activeInputs);
+        void removeExtraChan(int inputChan, const Array<int>& activeInputs);
+        void resize(int numExtraChans);
+
+        bool getRecordStatus(int extraChan) const;
+    private:
+        const PhaseCalculator* p;
+        Array<bool> recordStatus;
+    };
+
     int prevExtraChans;
+    ExtraChanManager extraChanManager;
 
     ScopedPointer<Label>    lowCutLabel;
     ScopedPointer<Label>    lowCutEditable;
