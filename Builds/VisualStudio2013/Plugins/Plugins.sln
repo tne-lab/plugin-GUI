@@ -79,6 +79,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SampleMath", "SampleMath\Sa
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MeanSpikeRate", "MeanSpikeRate\MeanSpikeRate.vcxproj", "{5E0953B0-FEC7-4158-BB1D-841E63847379}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "NetComLib", "CommonLibs\NetComLib\NetComLib.vcxproj", "{8A2BF9D1-5ED4-41CF-96B9-8F7586524218}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Mixed Platforms = Debug|Mixed Platforms
@@ -437,6 +439,18 @@ Global
 		{5E0953B0-FEC7-4158-BB1D-841E63847379}.Release|Win32.Build.0 = Release|Win32
 		{5E0953B0-FEC7-4158-BB1D-841E63847379}.Release|x64.ActiveCfg = Release|x64
 		{5E0953B0-FEC7-4158-BB1D-841E63847379}.Release|x64.Build.0 = Release|x64
+		{8A2BF9D1-5ED4-41CF-96B9-8F7586524218}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
+		{8A2BF9D1-5ED4-41CF-96B9-8F7586524218}.Debug|Mixed Platforms.Build.0 = Debug|Win32
+		{8A2BF9D1-5ED4-41CF-96B9-8F7586524218}.Debug|Win32.ActiveCfg = Debug|Win32
+		{8A2BF9D1-5ED4-41CF-96B9-8F7586524218}.Debug|Win32.Build.0 = Debug|Win32
+		{8A2BF9D1-5ED4-41CF-96B9-8F7586524218}.Debug|x64.ActiveCfg = Debug|x64
+		{8A2BF9D1-5ED4-41CF-96B9-8F7586524218}.Debug|x64.Build.0 = Debug|x64
+		{8A2BF9D1-5ED4-41CF-96B9-8F7586524218}.Release|Mixed Platforms.ActiveCfg = Release|Win32
+		{8A2BF9D1-5ED4-41CF-96B9-8F7586524218}.Release|Mixed Platforms.Build.0 = Release|Win32
+		{8A2BF9D1-5ED4-41CF-96B9-8F7586524218}.Release|Win32.ActiveCfg = Release|Win32
+		{8A2BF9D1-5ED4-41CF-96B9-8F7586524218}.Release|Win32.Build.0 = Release|Win32
+		{8A2BF9D1-5ED4-41CF-96B9-8F7586524218}.Release|x64.ActiveCfg = Release|x64
+		{8A2BF9D1-5ED4-41CF-96B9-8F7586524218}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -444,5 +458,6 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{F250DB70-6E3E-408C-BD9E-1483D574499D} = {B49D0C12-70A8-4762-A4FE-74FA3D16FFDD}
 		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B} = {B49D0C12-70A8-4762-A4FE-74FA3D16FFDD}
+		{8A2BF9D1-5ED4-41CF-96B9-8F7586524218} = {B49D0C12-70A8-4762-A4FE-74FA3D16FFDD}
 	EndGlobalSection
 EndGlobal
