@@ -1,0 +1,66 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\NetComData">
+      <UniqueIdentifier>{a03ff926-e754-491f-90fe-034457b5e2d2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\NetComControl">
+      <UniqueIdentifier>{2780433d-cdf0-4241-ad35-81370f45f156}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComInterface.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataEditor.cpp">
+      <Filter>Source Files\NetComData</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComControl\NetComControl.cpp">
+      <Filter>Source Files\NetComControl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComControl\NetComControlEditor.cpp">
+      <Filter>Source Files\NetComControl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\OpenEphysLib.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\ClientHandle.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataThread.cpp">
+      <Filter>Source Files\NetComData</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComInterface.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataEditor.h">
+      <Filter>Source Files\NetComData</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComControl\NetComControl.h">
+      <Filter>Source Files\NetComControl</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComControl\NetComControlEditor.h">
+      <Filter>Source Files\NetComControl</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\ClientHandle.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataThread.h">
+      <Filter>Source Files\NetComData</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

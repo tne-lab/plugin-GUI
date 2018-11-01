@@ -19,8 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{8A2BF9D1-5ED4-41CF-96B9-8F7586524218}</ProjectGuid>
-    <RootNamespace>NetComLib</RootNamespace>
+    <ProjectGuid>{F3408D40-37AF-4675-AF72-CAF5CE08A5FF}</ProjectGuid>
+    <RootNamespace>NetCom</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -54,19 +54,19 @@
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\..\PluginCommonLib_Debug32.props" />
+    <Import Project="..\Plugin_Debug32.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\..\PluginCommonLib_Debug64.props" />
+    <Import Project="..\Plugin_Debug64.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\..\PluginCommonLib_Release32.props" />
+    <Import Project="..\Plugin_Release32.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\..\PluginCommonLib_Release64.props" />
+    <Import Project="..\Plugin_Release64.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup />
@@ -74,24 +74,24 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>D:\ClosedLoop\OEPRepos\plugin-GUI\Resources\windows-libs\NetCom\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\Resources\windows-libs\NetCom\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>D:\ClosedLoop\OEPRepos\plugin-GUI\Resources\windows-libs\NetCom\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>NetComClient3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\..\..\Resources\windows-libs\NetCom\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>D:\ClosedLoop\OEPRepos\plugin-GUI\Resources\windows-libs\NetCom\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\Resources\windows-libs\NetCom\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>D:\ClosedLoop\OEPRepos\plugin-GUI\Resources\windows-libs\NetCom\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>NetComClient3_x64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\..\..\Resources\windows-libs\NetCom\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -100,14 +100,14 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>D:\ClosedLoop\OEPRepos\plugin-GUI\Resources\windows-libs\NetCom\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\Resources\windows-libs\NetCom\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>D:\ClosedLoop\OEPRepos\plugin-GUI\Resources\windows-libs\NetCom\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>NetComClient3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\..\..\Resources\windows-libs\NetCom\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -116,21 +116,32 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>D:\ClosedLoop\OEPRepos\plugin-GUI\Resources\windows-libs\NetCom\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\Resources\windows-libs\NetCom\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>D:\ClosedLoop\OEPRepos\plugin-GUI\Resources\windows-libs\NetCom\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>NetComClient3_x64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\..\..\Resources\windows-libs\NetCom\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\..\..\Source\Plugins\CommonLibs\NetComLib\NetComInterface.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\ClientHandle.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComControl\NetComControl.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComControl\NetComControlEditor.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataEditor.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataThread.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComInterface.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\OpenEphysLib.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\..\..\Source\Plugins\CommonLibs\NetComLib\NetComInterface.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\ClientHandle.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComControl\NetComControl.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComControl\NetComControlEditor.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataEditor.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataThread.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComInterface.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
