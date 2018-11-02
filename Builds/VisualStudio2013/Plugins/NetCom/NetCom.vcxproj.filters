@@ -21,9 +21,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComInterface.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataEditor.cpp">
       <Filter>Source Files\NetComData</Filter>
     </ClCompile>
@@ -36,17 +33,14 @@
     <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\OpenEphysLib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\ClientHandle.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataThread.cpp">
       <Filter>Source Files\NetComData</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetCom.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComInterface.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataEditor.h">
       <Filter>Source Files\NetComData</Filter>
     </ClInclude>
@@ -56,11 +50,11 @@
     <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComControl\NetComControlEditor.h">
       <Filter>Source Files\NetComControl</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\ClientHandle.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataThread.h">
       <Filter>Source Files\NetComData</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetCom.h">
+      <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

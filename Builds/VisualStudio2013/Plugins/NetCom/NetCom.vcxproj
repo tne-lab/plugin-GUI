@@ -127,21 +127,19 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\ClientHandle.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetCom.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComControl\NetComControl.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComControl\NetComControlEditor.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataEditor.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataThread.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\NetComInterface.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\NetCom\OpenEphysLib.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\ClientHandle.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetCom.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComControl\NetComControl.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComControl\NetComControlEditor.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataEditor.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComData\NetComDataThread.h" />
-    <ClInclude Include="..\..\..\..\Source\Plugins\NetCom\NetComInterface.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

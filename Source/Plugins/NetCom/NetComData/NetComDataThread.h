@@ -25,18 +25,38 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define NETCOM_DATA_H_INCLUDED
 
 #include <DataThreadHeaders.h>
-#include "../ClientHandle.h"
+#include "../NetCom.h"
 
 class NetComDataThread : public DataThread, public NetComListener
 {
 public:
-    NetComDataThread();
+    NetComDataThread(SourceNode* sn);
     ~NetComDataThread();
 
+    /* Doesn't use updateBuffer to actually update the buffer, since that's handled by
+     * the NetComListener callbacks. But this is responsible for stopping acquisition if
+     * something unexpected happens.
+     */
+    bool updateBuffer() override;
+
+    bool foundInputSource() override;
+
+    bool startAcquisition() override;
+    bool stopAcquisition() override;
+
+    /* ------ NetComListener callbacks ------- */
+    
+    /* Update connectedToServer based on the connection status.
+     * If this gets called while acquisition is active, also stop acquisition with error.
+     */
+    void netComConnectionChanged(const String& status) override;
+
+    void netComDataReceived(NlxDataTypes::CRRec* records, int numRecords, const String& objectName) override;
+    void netComEventsReceived(NlxDataTypes::EventRec* records, int numRecords, const String& objectName) override;
 
 private:
 
-    
+    bool connectedToServer;
 };
 
 #endif // NETCOM_DATA_H_INCLUDED

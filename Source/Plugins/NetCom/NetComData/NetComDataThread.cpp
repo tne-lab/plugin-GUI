@@ -22,3 +22,59 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "NetComDataThread.h"
+
+NetComDataThread::NetComDataThread(SourceNode* sn)
+    : DataThread        (sn)
+    , connectedToServer (false)
+{}
+
+NetComDataThread::~NetComDataThread() {}
+
+bool NetComDataThread::updateBuffer()
+{
+    // sleep indefinitely...
+    wait(-1);
+
+    // Could either be notified due to acquisition stopping (normal) or
+    // a connection change (abnormal). Check whether thread has been signaled to exit
+    // to tell which is the case. If so, acquisition is stopping normally.
+    return threadShouldExit();
+}
+
+bool NetComDataThread::foundInputSource()
+{
+    return connectedToServer;
+}
+
+bool NetComDataThread::startAcquisition()
+{
+    startThread();
+}
+
+bool NetComDataThread::stopAcquisition()
+{
+    signalThreadShouldExit();
+    notify();
+}
+
+void NetComDataThread::netComConnectionChanged(const String& status)
+{
+    connectedToServer = !(status == "");
+    if (isThreadRunning())
+    {
+        // waking the thead up without signaling that it should exit indicates acquisition error.
+        notify();
+    }
+}
+
+void NetComDataThread::netComDataReceived(NlxDataTypes::CRRec* records,
+    int numRecords, const String& objectName)
+{
+
+}
+
+void NetComDataThread::netComEventsReceived(NlxDataTypes::EventRec* records,
+    int numRecords, const String& objectName)
+{
+
+}
