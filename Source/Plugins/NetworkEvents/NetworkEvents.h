@@ -137,6 +137,7 @@ private:
     bool state;
     bool shutdown;
     bool firstTime;
+	EventChannel* eventChannelPtr;
 
     Time timer;
 

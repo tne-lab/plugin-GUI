@@ -163,6 +163,7 @@ NetworkEvents::NetworkEvents()
     , threshold         (200.0)
     , bufferZone        (5.0f)
     , state             (false)
+	, eventChannelPtr	(nullptr)
 {
     setProcessorType (PROCESSOR_TYPE_SOURCE);
 
@@ -527,7 +528,7 @@ String NetworkEvents::handleSpecialMessages (StringTS msg)
         return status;
     }
 
-    return String ("NotHandled");
+    return String (cmd);
 }
 
 

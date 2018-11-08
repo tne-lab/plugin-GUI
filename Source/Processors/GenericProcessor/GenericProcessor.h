@@ -190,7 +190,7 @@ public:
     // =====================================================================
     // =====================================================================
     // =====================================================================
-
+	
     //<DEPRECATED>
     /** Returns the name of the input channel with a given index.*/
     virtual const String getInputChannelName (int channelIndex) const;
@@ -217,7 +217,7 @@ public:
     //<DEPRECATED>
     /** JUCE method. Not used.*/
     bool silenceInProducesSilenceOut() const;
-
+	
     /*
     ------------------------------------------------------------------------
     ---------------------------- CUSTOM METHODS ----------------------------

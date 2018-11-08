@@ -1,0 +1,182 @@
+\hypertarget{namespace_core_services}{}\section{Core\+Services Namespace Reference}
+\label{namespace_core_services}\index{Core\+Services@{Core\+Services}}
+\subsection*{Namespaces}
+\begin{DoxyCompactItemize}
+\item 
+ \mbox{\hyperlink{namespace_core_services_1_1_record_node}{Record\+Node}}
+\end{DoxyCompactItemize}
+\subsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{namespace_core_services_a2e53c32783c6caa3d66afb7172dc61fd}{update\+Signal\+Chain}} (Generic\+Editor $\ast$source)
+\item 
+bool \mbox{\hyperlink{namespace_core_services_a877cdc8ef0b6ea0dce61575de663c6f3}{get\+Recording\+Status}} ()
+\item 
+void \mbox{\hyperlink{namespace_core_services_a70b56adbc7be044f913f088a162a69fd}{set\+Recording\+Status}} (bool enable)
+\item 
+bool \mbox{\hyperlink{namespace_core_services_afe3e006d8ad41f122bd0d68b9d5976b0}{get\+Acquisition\+Status}} ()
+\item 
+void \mbox{\hyperlink{namespace_core_services_a93b4f6a705bead14ce6caa04355b03ba}{set\+Acquisition\+Status}} (bool enable)
+\item 
+void \mbox{\hyperlink{namespace_core_services_a78fdbd1d2b88cc908e60559b47d8a77e}{send\+Status\+Message}} (const String \&text)
+\item 
+void \mbox{\hyperlink{namespace_core_services_aafd9eeb68c631f37fa234eee4eb8fbca}{send\+Status\+Message}} (const char $\ast$text)
+\item 
+void \mbox{\hyperlink{namespace_core_services_a3b017a18a0a09b6c4e2fa4af4c5df11e}{highlight\+Editor}} (Generic\+Editor $\ast$ed)
+\item 
+juce\+::int64 \mbox{\hyperlink{namespace_core_services_a79defb96087c3bddcb388a29a38d6952}{get\+Global\+Timestamp}} ()
+\item 
+juce\+::int64 \mbox{\hyperlink{namespace_core_services_ad1083e5525ad9ebd19afd9364f122059}{get\+Software\+Timestamp}} ()
+\item 
+float \mbox{\hyperlink{namespace_core_services_ac9fb78e241aa3805b05d206c78ecfca1}{get\+Global\+Sample\+Rate}} ()
+\item 
+float \mbox{\hyperlink{namespace_core_services_a1ce836de202979c7c8a8e4f4d42c87f4}{get\+Software\+Sample\+Rate}} ()
+\item 
+void \mbox{\hyperlink{namespace_core_services_a5b804cf3cba68340baeb3b7c7173b530}{set\+Recording\+Directory}} (String dir)
+\item 
+void \mbox{\hyperlink{namespace_core_services_a450d2d9574435570b5e4e38caaeb05d7}{create\+New\+Recording\+Dir}} ()
+\item 
+void \mbox{\hyperlink{namespace_core_services_a2ea8b92387e1ae7ce51180a3861e528c}{set\+Prepend\+Text\+To\+Recording\+Dir}} (String text)
+\item 
+void \mbox{\hyperlink{namespace_core_services_a75af2d5d3262b95e16bd51fe28a7e26d}{set\+Append\+Text\+To\+Recording\+Dir}} (String text)
+\item 
+String \mbox{\hyperlink{namespace_core_services_a03eb76579ab53edf169064232a0e2b62}{get\+Selected\+Record\+Engine\+Id}} ()
+\item 
+bool \mbox{\hyperlink{namespace_core_services_a5c4ad031dbb70b1ca2824a12e65dec86}{set\+Selected\+Record\+Engine\+Id}} (String id)
+\item 
+const char $\ast$ \mbox{\hyperlink{namespace_core_services_a40705adde6940ed1b94cf880a0cc54a0}{get\+Application\+Resource}} (const char $\ast$name, int \&size)
+\item 
+File \mbox{\hyperlink{namespace_core_services_a25f9182255aa7c83144c5f65819493bc}{get\+Default\+User\+Save\+Directory}} ()
+\item 
+String \mbox{\hyperlink{namespace_core_services_a93a10ea82325f2a1baf74ee22e5dbd23}{get\+G\+U\+I\+Version}} ()
+\end{DoxyCompactItemize}
+
+
+\subsection{Function Documentation}
+\mbox{\Hypertarget{namespace_core_services_a450d2d9574435570b5e4e38caaeb05d7}\label{namespace_core_services_a450d2d9574435570b5e4e38caaeb05d7}} 
+\index{Core\+Services@{Core\+Services}!create\+New\+Recording\+Dir@{create\+New\+Recording\+Dir}}
+\index{create\+New\+Recording\+Dir@{create\+New\+Recording\+Dir}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{create\+New\+Recording\+Dir()}{createNewRecordingDir()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI void Core\+Services\+::create\+New\+Recording\+Dir (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+Create new recording directory \mbox{\Hypertarget{namespace_core_services_afe3e006d8ad41f122bd0d68b9d5976b0}\label{namespace_core_services_afe3e006d8ad41f122bd0d68b9d5976b0}} 
+\index{Core\+Services@{Core\+Services}!get\+Acquisition\+Status@{get\+Acquisition\+Status}}
+\index{get\+Acquisition\+Status@{get\+Acquisition\+Status}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{get\+Acquisition\+Status()}{getAcquisitionStatus()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI bool Core\+Services\+::get\+Acquisition\+Status (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+Returns true if the G\+UI is acquiring data \mbox{\Hypertarget{namespace_core_services_a40705adde6940ed1b94cf880a0cc54a0}\label{namespace_core_services_a40705adde6940ed1b94cf880a0cc54a0}} 
+\index{Core\+Services@{Core\+Services}!get\+Application\+Resource@{get\+Application\+Resource}}
+\index{get\+Application\+Resource@{get\+Application\+Resource}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{get\+Application\+Resource()}{getApplicationResource()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI const char $\ast$ Core\+Services\+::get\+Application\+Resource (\begin{DoxyParamCaption}\item[{const char $\ast$}]{name,  }\item[{int \&}]{size }\end{DoxyParamCaption})}
+
+\mbox{\Hypertarget{namespace_core_services_a25f9182255aa7c83144c5f65819493bc}\label{namespace_core_services_a25f9182255aa7c83144c5f65819493bc}} 
+\index{Core\+Services@{Core\+Services}!get\+Default\+User\+Save\+Directory@{get\+Default\+User\+Save\+Directory}}
+\index{get\+Default\+User\+Save\+Directory@{get\+Default\+User\+Save\+Directory}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{get\+Default\+User\+Save\+Directory()}{getDefaultUserSaveDirectory()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI File Core\+Services\+::get\+Default\+User\+Save\+Directory (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+Gets the default directory for user-\/initiated file saving/loading \mbox{\Hypertarget{namespace_core_services_ac9fb78e241aa3805b05d206c78ecfca1}\label{namespace_core_services_ac9fb78e241aa3805b05d206c78ecfca1}} 
+\index{Core\+Services@{Core\+Services}!get\+Global\+Sample\+Rate@{get\+Global\+Sample\+Rate}}
+\index{get\+Global\+Sample\+Rate@{get\+Global\+Sample\+Rate}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{get\+Global\+Sample\+Rate()}{getGlobalSampleRate()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI float Core\+Services\+::get\+Global\+Sample\+Rate (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+Gets the sample rate selected on the Message\+Center interface Defaults to the dample rate of the first hardware source or the software high resolution timer if no hardware source is present \mbox{\Hypertarget{namespace_core_services_a79defb96087c3bddcb388a29a38d6952}\label{namespace_core_services_a79defb96087c3bddcb388a29a38d6952}} 
+\index{Core\+Services@{Core\+Services}!get\+Global\+Timestamp@{get\+Global\+Timestamp}}
+\index{get\+Global\+Timestamp@{get\+Global\+Timestamp}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{get\+Global\+Timestamp()}{getGlobalTimestamp()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI juce\+::int64 Core\+Services\+::get\+Global\+Timestamp (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+Gets the timestamp selected on the Message\+Center interface Defaults to the first hardware timestamp source or the software one if no hardware timestamping is present \mbox{\Hypertarget{namespace_core_services_a93a10ea82325f2a1baf74ee22e5dbd23}\label{namespace_core_services_a93a10ea82325f2a1baf74ee22e5dbd23}} 
+\index{Core\+Services@{Core\+Services}!get\+G\+U\+I\+Version@{get\+G\+U\+I\+Version}}
+\index{get\+G\+U\+I\+Version@{get\+G\+U\+I\+Version}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{get\+G\+U\+I\+Version()}{getGUIVersion()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI String Core\+Services\+::get\+G\+U\+I\+Version (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+Gets the G\+UI version \mbox{\Hypertarget{namespace_core_services_a877cdc8ef0b6ea0dce61575de663c6f3}\label{namespace_core_services_a877cdc8ef0b6ea0dce61575de663c6f3}} 
+\index{Core\+Services@{Core\+Services}!get\+Recording\+Status@{get\+Recording\+Status}}
+\index{get\+Recording\+Status@{get\+Recording\+Status}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{get\+Recording\+Status()}{getRecordingStatus()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI bool Core\+Services\+::get\+Recording\+Status (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+Returns true is the G\+UI is recording \mbox{\Hypertarget{namespace_core_services_a03eb76579ab53edf169064232a0e2b62}\label{namespace_core_services_a03eb76579ab53edf169064232a0e2b62}} 
+\index{Core\+Services@{Core\+Services}!get\+Selected\+Record\+Engine\+Id@{get\+Selected\+Record\+Engine\+Id}}
+\index{get\+Selected\+Record\+Engine\+Id@{get\+Selected\+Record\+Engine\+Id}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{get\+Selected\+Record\+Engine\+Id()}{getSelectedRecordEngineId()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI String Core\+Services\+::get\+Selected\+Record\+Engine\+Id (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+Gets the ID fo the selected Record Engine \mbox{\Hypertarget{namespace_core_services_a1ce836de202979c7c8a8e4f4d42c87f4}\label{namespace_core_services_a1ce836de202979c7c8a8e4f4d42c87f4}} 
+\index{Core\+Services@{Core\+Services}!get\+Software\+Sample\+Rate@{get\+Software\+Sample\+Rate}}
+\index{get\+Software\+Sample\+Rate@{get\+Software\+Sample\+Rate}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{get\+Software\+Sample\+Rate()}{getSoftwareSampleRate()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI float Core\+Services\+::get\+Software\+Sample\+Rate (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+Gets the ticker frequency of the software timestamp clock \mbox{\Hypertarget{namespace_core_services_ad1083e5525ad9ebd19afd9364f122059}\label{namespace_core_services_ad1083e5525ad9ebd19afd9364f122059}} 
+\index{Core\+Services@{Core\+Services}!get\+Software\+Timestamp@{get\+Software\+Timestamp}}
+\index{get\+Software\+Timestamp@{get\+Software\+Timestamp}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{get\+Software\+Timestamp()}{getSoftwareTimestamp()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI juce\+::int64 Core\+Services\+::get\+Software\+Timestamp (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+Gets the software timestamp based on a high resolution timer aligned to the start of each processing block \mbox{\Hypertarget{namespace_core_services_a3b017a18a0a09b6c4e2fa4af4c5df11e}\label{namespace_core_services_a3b017a18a0a09b6c4e2fa4af4c5df11e}} 
+\index{Core\+Services@{Core\+Services}!highlight\+Editor@{highlight\+Editor}}
+\index{highlight\+Editor@{highlight\+Editor}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{highlight\+Editor()}{highlightEditor()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI void Core\+Services\+::highlight\+Editor (\begin{DoxyParamCaption}\item[{Generic\+Editor $\ast$}]{ed }\end{DoxyParamCaption})}
+
+Highlights an editor \mbox{\Hypertarget{namespace_core_services_a78fdbd1d2b88cc908e60559b47d8a77e}\label{namespace_core_services_a78fdbd1d2b88cc908e60559b47d8a77e}} 
+\index{Core\+Services@{Core\+Services}!send\+Status\+Message@{send\+Status\+Message}}
+\index{send\+Status\+Message@{send\+Status\+Message}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{send\+Status\+Message()}{sendStatusMessage()}\hspace{0.1cm}{\footnotesize\ttfamily [1/2]}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI void Core\+Services\+::send\+Status\+Message (\begin{DoxyParamCaption}\item[{const String \&}]{text }\end{DoxyParamCaption})}
+
+Sends a string to the message bar \mbox{\Hypertarget{namespace_core_services_aafd9eeb68c631f37fa234eee4eb8fbca}\label{namespace_core_services_aafd9eeb68c631f37fa234eee4eb8fbca}} 
+\index{Core\+Services@{Core\+Services}!send\+Status\+Message@{send\+Status\+Message}}
+\index{send\+Status\+Message@{send\+Status\+Message}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{send\+Status\+Message()}{sendStatusMessage()}\hspace{0.1cm}{\footnotesize\ttfamily [2/2]}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI void Core\+Services\+::send\+Status\+Message (\begin{DoxyParamCaption}\item[{const char $\ast$}]{text }\end{DoxyParamCaption})}
+
+Sends a string to the message bar \mbox{\Hypertarget{namespace_core_services_a93b4f6a705bead14ce6caa04355b03ba}\label{namespace_core_services_a93b4f6a705bead14ce6caa04355b03ba}} 
+\index{Core\+Services@{Core\+Services}!set\+Acquisition\+Status@{set\+Acquisition\+Status}}
+\index{set\+Acquisition\+Status@{set\+Acquisition\+Status}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{set\+Acquisition\+Status()}{setAcquisitionStatus()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI void Core\+Services\+::set\+Acquisition\+Status (\begin{DoxyParamCaption}\item[{bool}]{enable }\end{DoxyParamCaption})}
+
+Activates or deactivates data acquisition \mbox{\Hypertarget{namespace_core_services_a75af2d5d3262b95e16bd51fe28a7e26d}\label{namespace_core_services_a75af2d5d3262b95e16bd51fe28a7e26d}} 
+\index{Core\+Services@{Core\+Services}!set\+Append\+Text\+To\+Recording\+Dir@{set\+Append\+Text\+To\+Recording\+Dir}}
+\index{set\+Append\+Text\+To\+Recording\+Dir@{set\+Append\+Text\+To\+Recording\+Dir}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{set\+Append\+Text\+To\+Recording\+Dir()}{setAppendTextToRecordingDir()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI void Core\+Services\+::set\+Append\+Text\+To\+Recording\+Dir (\begin{DoxyParamCaption}\item[{String}]{text }\end{DoxyParamCaption})}
+
+Manually set the text to be appended to the recording directory \mbox{\Hypertarget{namespace_core_services_a2ea8b92387e1ae7ce51180a3861e528c}\label{namespace_core_services_a2ea8b92387e1ae7ce51180a3861e528c}} 
+\index{Core\+Services@{Core\+Services}!set\+Prepend\+Text\+To\+Recording\+Dir@{set\+Prepend\+Text\+To\+Recording\+Dir}}
+\index{set\+Prepend\+Text\+To\+Recording\+Dir@{set\+Prepend\+Text\+To\+Recording\+Dir}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{set\+Prepend\+Text\+To\+Recording\+Dir()}{setPrependTextToRecordingDir()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI void Core\+Services\+::set\+Prepend\+Text\+To\+Recording\+Dir (\begin{DoxyParamCaption}\item[{String}]{text }\end{DoxyParamCaption})}
+
+Manually set the text to be prepended to the recording directory \mbox{\Hypertarget{namespace_core_services_a5b804cf3cba68340baeb3b7c7173b530}\label{namespace_core_services_a5b804cf3cba68340baeb3b7c7173b530}} 
+\index{Core\+Services@{Core\+Services}!set\+Recording\+Directory@{set\+Recording\+Directory}}
+\index{set\+Recording\+Directory@{set\+Recording\+Directory}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{set\+Recording\+Directory()}{setRecordingDirectory()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI void Core\+Services\+::set\+Recording\+Directory (\begin{DoxyParamCaption}\item[{String}]{dir }\end{DoxyParamCaption})}
+
+Set new recording directory \mbox{\Hypertarget{namespace_core_services_a70b56adbc7be044f913f088a162a69fd}\label{namespace_core_services_a70b56adbc7be044f913f088a162a69fd}} 
+\index{Core\+Services@{Core\+Services}!set\+Recording\+Status@{set\+Recording\+Status}}
+\index{set\+Recording\+Status@{set\+Recording\+Status}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{set\+Recording\+Status()}{setRecordingStatus()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI void Core\+Services\+::set\+Recording\+Status (\begin{DoxyParamCaption}\item[{bool}]{enable }\end{DoxyParamCaption})}
+
+Activated or deactivates recording \mbox{\Hypertarget{namespace_core_services_a5c4ad031dbb70b1ca2824a12e65dec86}\label{namespace_core_services_a5c4ad031dbb70b1ca2824a12e65dec86}} 
+\index{Core\+Services@{Core\+Services}!set\+Selected\+Record\+Engine\+Id@{set\+Selected\+Record\+Engine\+Id}}
+\index{set\+Selected\+Record\+Engine\+Id@{set\+Selected\+Record\+Engine\+Id}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{set\+Selected\+Record\+Engine\+Id()}{setSelectedRecordEngineId()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI bool Core\+Services\+::set\+Selected\+Record\+Engine\+Id (\begin{DoxyParamCaption}\item[{String}]{id }\end{DoxyParamCaption})}
+
+Sets a specific Record\+Engine to be used based on its id. Return true if there is an engine with the specified ID and it\textquotesingle{}s possible to change the current engine or false otherwise. \mbox{\Hypertarget{namespace_core_services_a2e53c32783c6caa3d66afb7172dc61fd}\label{namespace_core_services_a2e53c32783c6caa3d66afb7172dc61fd}} 
+\index{Core\+Services@{Core\+Services}!update\+Signal\+Chain@{update\+Signal\+Chain}}
+\index{update\+Signal\+Chain@{update\+Signal\+Chain}!Core\+Services@{Core\+Services}}
+\subsubsection{\texorpdfstring{update\+Signal\+Chain()}{updateSignalChain()}}
+{\footnotesize\ttfamily P\+L\+U\+G\+I\+N\+\_\+\+A\+PI void Core\+Services\+::update\+Signal\+Chain (\begin{DoxyParamCaption}\item[{Generic\+Editor $\ast$}]{source }\end{DoxyParamCaption})}
+
+Issues a signal chain update, useful for propagating new channel settings 

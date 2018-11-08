@@ -1,0 +1,83 @@
+\hypertarget{class_main_window}{}\section{Main\+Window Class Reference}
+\label{class_main_window}\index{Main\+Window@{Main\+Window}}
+
+
+{\ttfamily \#include $<$Main\+Window.\+h$>$}
+
+Inheritance diagram for Main\+Window\+:\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[height=2.000000cm]{class_main_window}
+\end{center}
+\end{figure}
+\subsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{class_main_window_a34c4b4207b46d11a4100c9b19f0e81bb}{Main\+Window}} ()
+\item 
+\mbox{\hyperlink{class_main_window_ae98d00a93bc118200eeef9f9bba1dba7}{$\sim$\+Main\+Window}} ()
+\item 
+void \mbox{\hyperlink{class_main_window_ac422fd3f1931a97b30d5efc8b6fc3123}{close\+Button\+Pressed}} ()
+\end{DoxyCompactItemize}
+\subsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+Application\+Command\+Manager \mbox{\hyperlink{class_main_window_ae36bb0085b5650e00bca6bab107dc691}{command\+Manager}}
+\item 
+bool \mbox{\hyperlink{class_main_window_a1aa5cb4cc46f2ac7f90f8889f1347387}{should\+Reload\+On\+Startup}}
+\end{DoxyCompactItemize}
+
+
+\subsection{Detailed Description}
+The main window for the G\+UI application.
+
+This object creates and destroys the Audio\+Component, the Processor\+Graph, and the U\+I\+Component (which exists as the Content\+Component of this window).
+
+\begin{DoxySeeAlso}{See also}
+Audio\+Component, Processor\+Graph, U\+I\+Component 
+\end{DoxySeeAlso}
+
+
+\subsection{Constructor \& Destructor Documentation}
+\mbox{\Hypertarget{class_main_window_a34c4b4207b46d11a4100c9b19f0e81bb}\label{class_main_window_a34c4b4207b46d11a4100c9b19f0e81bb}} 
+\index{Main\+Window@{Main\+Window}!Main\+Window@{Main\+Window}}
+\index{Main\+Window@{Main\+Window}!Main\+Window@{Main\+Window}}
+\subsubsection{\texorpdfstring{Main\+Window()}{MainWindow()}}
+{\footnotesize\ttfamily Main\+Window\+::\+Main\+Window (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+Initializes the \mbox{\hyperlink{class_main_window}{Main\+Window}}, creates the Audio\+Component, Processor\+Graph, and U\+I\+Component, and sets the window boundaries. \mbox{\Hypertarget{class_main_window_ae98d00a93bc118200eeef9f9bba1dba7}\label{class_main_window_ae98d00a93bc118200eeef9f9bba1dba7}} 
+\index{Main\+Window@{Main\+Window}!````~Main\+Window@{$\sim$\+Main\+Window}}
+\index{````~Main\+Window@{$\sim$\+Main\+Window}!Main\+Window@{Main\+Window}}
+\subsubsection{\texorpdfstring{$\sim$\+Main\+Window()}{~MainWindow()}}
+{\footnotesize\ttfamily Main\+Window\+::$\sim$\+Main\+Window (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+Destroys the Audio\+Component, Processor\+Graph, and U\+I\+Component, and saves the window boundaries. 
+
+\subsection{Member Function Documentation}
+\mbox{\Hypertarget{class_main_window_ac422fd3f1931a97b30d5efc8b6fc3123}\label{class_main_window_ac422fd3f1931a97b30d5efc8b6fc3123}} 
+\index{Main\+Window@{Main\+Window}!close\+Button\+Pressed@{close\+Button\+Pressed}}
+\index{close\+Button\+Pressed@{close\+Button\+Pressed}!Main\+Window@{Main\+Window}}
+\subsubsection{\texorpdfstring{close\+Button\+Pressed()}{closeButtonPressed()}}
+{\footnotesize\ttfamily void Main\+Window\+::close\+Button\+Pressed (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+Called when the user hits the close button of the \mbox{\hyperlink{class_main_window}{Main\+Window}}. This destroys the \mbox{\hyperlink{class_main_window}{Main\+Window}} and closes the application. 
+
+\subsection{Member Data Documentation}
+\mbox{\Hypertarget{class_main_window_ae36bb0085b5650e00bca6bab107dc691}\label{class_main_window_ae36bb0085b5650e00bca6bab107dc691}} 
+\index{Main\+Window@{Main\+Window}!command\+Manager@{command\+Manager}}
+\index{command\+Manager@{command\+Manager}!Main\+Window@{Main\+Window}}
+\subsubsection{\texorpdfstring{command\+Manager}{commandManager}}
+{\footnotesize\ttfamily Application\+Command\+Manager Main\+Window\+::command\+Manager}
+
+A J\+U\+CE class that allows the \mbox{\hyperlink{class_main_window}{Main\+Window}} to respond to keyboard and menubar commands. \mbox{\Hypertarget{class_main_window_a1aa5cb4cc46f2ac7f90f8889f1347387}\label{class_main_window_a1aa5cb4cc46f2ac7f90f8889f1347387}} 
+\index{Main\+Window@{Main\+Window}!should\+Reload\+On\+Startup@{should\+Reload\+On\+Startup}}
+\index{should\+Reload\+On\+Startup@{should\+Reload\+On\+Startup}!Main\+Window@{Main\+Window}}
+\subsubsection{\texorpdfstring{should\+Reload\+On\+Startup}{shouldReloadOnStartup}}
+{\footnotesize\ttfamily bool Main\+Window\+::should\+Reload\+On\+Startup}
+
+Determines whether the last used configuration reloads upon startup. 
+
+The documentation for this class was generated from the following files\+:\begin{DoxyCompactItemize}
+\item 
+Source/\mbox{\hyperlink{_main_window_8h}{Main\+Window.\+h}}\item 
+Source/\mbox{\hyperlink{_main_window_8cpp}{Main\+Window.\+cpp}}\end{DoxyCompactItemize}

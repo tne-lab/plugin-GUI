@@ -94,7 +94,8 @@ void EventBroadcaster::sendEvent(const MidiMessage& event, float eventSampleRate
 	uint16 type = Event::getBaseType(event);
 
 #ifdef ZEROMQ
-	if (-1 == zmq_send(zmqSocket.get(), &type, sizeof(type), ZMQ_SNDMORE) ||
+	if (//-1 == zmq_send(zmqSocket.get(), "hello", sizeof("hello"), ZMQ_SNDMORE) ||
+		-1 == zmq_send(zmqSocket.get(), &type, sizeof(type), ZMQ_SNDMORE) ||
 		-1 == zmq_send(zmqSocket.get(), &timestampSeconds, sizeof(timestampSeconds), ZMQ_SNDMORE) ||
 		-1 == zmq_send(zmqSocket.get(), event.getRawData(), event.getRawDataSize(), 0))
 	{

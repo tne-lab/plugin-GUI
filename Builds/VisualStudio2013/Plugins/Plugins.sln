@@ -79,6 +79,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SampleMath", "SampleMath\Sa
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MeanSpikeRate", "MeanSpikeRate\MeanSpikeRate.vcxproj", "{5E0953B0-FEC7-4158-BB1D-841E63847379}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PythonPlugin", "Python\Python.vcxproj", "{03F9F201-3F09-48C1-B4EC-73C5904632F6}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SpikeDetectorDynamic", "SpikeDetectorDynamic\SpikeDetectorDynamic.vcxproj", "{0D4CC0EC-D451-46D7-ABBB-D5A38A2E1E94}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Mixed Platforms = Debug|Mixed Platforms
@@ -437,6 +441,27 @@ Global
 		{5E0953B0-FEC7-4158-BB1D-841E63847379}.Release|Win32.Build.0 = Release|Win32
 		{5E0953B0-FEC7-4158-BB1D-841E63847379}.Release|x64.ActiveCfg = Release|x64
 		{5E0953B0-FEC7-4158-BB1D-841E63847379}.Release|x64.Build.0 = Release|x64
+		{03F9F201-3F09-48C1-B4EC-73C5904632F6}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
+		{03F9F201-3F09-48C1-B4EC-73C5904632F6}.Debug|Mixed Platforms.Build.0 = Debug|Win32
+		{03F9F201-3F09-48C1-B4EC-73C5904632F6}.Debug|Win32.ActiveCfg = Debug|Win32
+		{03F9F201-3F09-48C1-B4EC-73C5904632F6}.Debug|Win32.Build.0 = Debug|Win32
+		{03F9F201-3F09-48C1-B4EC-73C5904632F6}.Debug|x64.ActiveCfg = Debug|Win32
+		{03F9F201-3F09-48C1-B4EC-73C5904632F6}.Release|Mixed Platforms.ActiveCfg = Release|Win32
+		{03F9F201-3F09-48C1-B4EC-73C5904632F6}.Release|Mixed Platforms.Build.0 = Release|Win32
+		{03F9F201-3F09-48C1-B4EC-73C5904632F6}.Release|Win32.ActiveCfg = Release|Win32
+		{03F9F201-3F09-48C1-B4EC-73C5904632F6}.Release|Win32.Build.0 = Release|Win32
+		{03F9F201-3F09-48C1-B4EC-73C5904632F6}.Release|x64.ActiveCfg = Release|x64
+		{03F9F201-3F09-48C1-B4EC-73C5904632F6}.Release|x64.Build.0 = Release|x64
+		{0D4CC0EC-D451-46D7-ABBB-D5A38A2E1E94}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
+		{0D4CC0EC-D451-46D7-ABBB-D5A38A2E1E94}.Debug|Mixed Platforms.Build.0 = Debug|Win32
+		{0D4CC0EC-D451-46D7-ABBB-D5A38A2E1E94}.Debug|Win32.ActiveCfg = Debug|Win32
+		{0D4CC0EC-D451-46D7-ABBB-D5A38A2E1E94}.Debug|Win32.Build.0 = Debug|Win32
+		{0D4CC0EC-D451-46D7-ABBB-D5A38A2E1E94}.Debug|x64.ActiveCfg = Debug|Win32
+		{0D4CC0EC-D451-46D7-ABBB-D5A38A2E1E94}.Release|Mixed Platforms.ActiveCfg = Release|Win32
+		{0D4CC0EC-D451-46D7-ABBB-D5A38A2E1E94}.Release|Mixed Platforms.Build.0 = Release|Win32
+		{0D4CC0EC-D451-46D7-ABBB-D5A38A2E1E94}.Release|Win32.ActiveCfg = Release|Win32
+		{0D4CC0EC-D451-46D7-ABBB-D5A38A2E1E94}.Release|x64.ActiveCfg = Release|x64
+		{0D4CC0EC-D451-46D7-ABBB-D5A38A2E1E94}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

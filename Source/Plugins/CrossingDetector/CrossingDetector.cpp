@@ -726,7 +726,6 @@ void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
     // Construct metadata array
     // The order has to match the order the descriptors are stored in createEventChannels.
     MetaDataValueArray mdArray;
-
     int mdInd = 0;
     MetaDataValue* crossingPointVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
     crossingPointVal->setValue(bufferTs + crossingOffset);
@@ -736,9 +735,11 @@ void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
     crossingLevelVal->setValue(crossingLevel);
     mdArray.add(crossingLevelVal);
 
+
     MetaDataValue* threshVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
     threshVal->setValue(threshold);
     mdArray.add(threshVal);
+
 
     MetaDataValue* directionVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
     directionVal->setValue(static_cast<juce::uint8>(crossingLevel > threshold));
