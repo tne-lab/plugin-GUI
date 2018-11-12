@@ -112,11 +112,9 @@ void EventBroadcaster::sendEvent(const MidiMessage& event, float eventSampleRate
 
 	//Doesn't line up with anything(that I know of), but might be useful for someone.
 	int channelNumber = event.getChannel();
+	// TODO !!! Find the actual channel number that corresponds to spike/events not just the first one.
 	
-	
-	// TODO !!! Iterate through all channels, not just the first (if more event channels used). 
-	//Probably build a function to do for loop sending data values
-	
+	//Is it a spike event?
 	if (getTotalSpikeChannels() > 0) {
 		//Only one channel of spikes, so grab the first one
 		const SpikeChannel * spikeChannelPtr = getSpikeChannel(0);
@@ -169,7 +167,7 @@ void EventBroadcaster::sendEvent(const MidiMessage& event, float eventSampleRate
 			fprintf(stdout, "Error sending threshold \n");
 		}
 	}
-	//Or event event...?
+	//Or event...? 
 	else if (getTotalEventChannels() > 0)
 	{
 		//Get first channel, should only be one unless sending multiple types of events
