@@ -39,27 +39,13 @@
 #ifndef __PYTHONPLUGIN_H
 #define __PYTHONPLUGIN_H
 
-
-/**
- change __PYTHONPATH if using different version of python or python installed in different location relative to open ephys
- for example, if anaconda is in a different dirrectory, should do
- #define __PYTHONPATH <../../directory_name/anaconda3/include/python3.6m/Python.h>
-
- **/
-//#define __PYTHONPATH <../../anaconda3/include/python3.6m/Python.h>
-//#include __PYTHONPATH
-
 //Hack to get around python37_d.lib not exisiting on Windows (at least on my system)
-#ifdef _WIN32
-#ifdef _DEBUG
+#if defined(_WIN32) && defined(_DEBUG)
 #undef _DEBUG
-#include <python.h>
+#include <Python.h>
 #define _DEBUG
 #else
-#include <python.h>
-#endif
-#else
-#include <python.h>
+#include <Python.h>
 #endif
 
 #if PY_MAJOR_VERSION>=3
