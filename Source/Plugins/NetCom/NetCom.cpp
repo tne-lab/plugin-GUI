@@ -23,21 +23,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "NetCom.h"
 #include <Nlx_DataTypes.h>
-#include <string>  // to interact with NetCom API
-#include <cstring> // also to interact with NetCom API
+
+// headers to interact with NetCom API:
+#include <string>
+#include <cstring>
 
 #ifdef WIN32
-#include <processthreadsapi.h>
+#include <processthreadsapi.h> // get running process ID
 #endif
-
-// NetCom constants
-const static String CSC_TYPE(NlxDataTypes::NetComCSCDataType);
-const static String EVT_TYPE(NlxDataTypes::NetComEventDataType);
-const static short EVT_ID_ACQ(NlxDataTypes::EventRecID::DataAcquisitionSoftware);
-const static char* EVT_ACQ_START("Starting Acquisition");
-const static char* EVT_ACQ_STOP("Stopping Acquisition");
-const static char* EVT_REC_START("Starting Recording");
-const static char* EVT_REC_STOP("Stopping Recording");
 
 /* ------- NetComListener ----- */
 
@@ -115,20 +108,24 @@ const Value& ClientHandle::Client::getAcquisitionStatusValue()
 
 bool ClientHandle::Client::connectToServer(const String& nameOrAddress)
 {
+    // 1. reset to disconnected state
     disconnect();
+
+    // 2. connect
     bool success = i_client->ConnectToServer(nameOrAddress.toWideCharPointer());
     if (!success)
     {
         return false;
     }
 
+    // 3. check whether we're acquiring and/or recording
     if (!updateAcquisitionStatus())
     {
         disconnect();
         return false;
     }    
 
-    // subscribe to all continuous channels and events
+    // 4. subscribe to all continuous channels and events
     
 
     connectionStatus = nameOrAddress;
@@ -138,11 +135,70 @@ bool ClientHandle::Client::connectToServer(const String& nameOrAddress)
 void ClientHandle::Client::disconnect()
 {
     connectionStatus = "";
+    openEventChannels.clearQuick();
+    openCSCChannels.clearQuick();
+    knownDIODevices.clear();
+
     if (i_client->AreWeConnected() && !i_client->DisconnectFromServer())
     {
         // undetermined state - make new client object
         reallocateClient();
     }
+}
+
+bool ClientHandle::Client::refreshChannels()
+{
+    std::vector<std::wstring> dasObjects;
+    std::vector<std::wstring> dasTypes;
+    if (!i_client->GetDASObjectsAndTypes(dasObjects, dasTypes))
+    {
+        return false;
+    }
+
+    StringArray eventChannels;
+    StringArray cscChannels;
+    for (int i = 0; i < dasObjects.size(); ++i)
+    {
+        const String type(dasTypes[i].c_str());
+        const wchar_t* object(dasObjects[i].c_str());
+        if (type == NlxDataTypes::NetComEventDataType)
+        {
+            eventChannels.add(object);
+            // if it's a new event channel, open a stream to it.
+            if (!openEventChannels.contains(String(object)) &&
+                !i_client->OpenStream(object))
+            {
+                return false;
+            }
+        }
+        else if (type == NlxDataTypes::NetComCSCDataType)
+        {
+            cscChannels.add(object);
+            // if it's a new CSC channel, open a stream to it
+            if (!openCSCChannels.contains(String(object)) &&
+                !i_client->OpenStream(object))
+            {
+                return false;
+            }
+        }
+    }
+    eventChannels.sort(false);
+    openEventChannels.swapWith(eventChannels);
+
+    cscChannels.sort(false);
+    openCSCChannels.swapWith(cscChannels);
+
+
+}
+
+bool ClientHandle::Client::sendCommand(const Array<var>& args, StringArray* reply, bool hasErrCode)
+{
+    StringArray stringArgs;
+    for (auto arg : args)
+    {
+        stringArgs.add(arg.toString());
+    }
+    return sendCommand(stringArgs, reply, hasErrCode);
 }
 
 bool ClientHandle::Client::sendCommand(const StringArray& args, StringArray* reply, bool hasErrCode)
@@ -244,7 +300,7 @@ void ClientHandle::Client::handleConnectionLost(void* client)
 {
     auto thisClient = static_cast<Client*>(client);
     ScopedLock statusLock(criticalSection);
-    thisClient->connectionStatus = "";
+    thisClient->disconnect(); // have to make client object aware of the disconnection
 }
 
 void ClientHandle::Client::handleData(void* client, NlxDataTypes::CRRec* records,
@@ -263,20 +319,20 @@ void ClientHandle::Client::handleEvents(void* client, NlxDataTypes::EventRec* re
     int latestStatus = thisClient->acquisitionStatus.getValue();
     for (int i = 0; i < numRecords; ++i)
     {
-        if (records[i].nevent_id == EVT_ID_ACQ)
+        if (records[i].nevent_id == NlxDataTypes::EventRecID::DataAcquisitionSoftware)
         {
             if ((latestStatus != RECORDING &&
-                strcmp(records[i].EventString, EVT_ACQ_START) == 0) ||
+                strcmp(records[i].EventString, "Starting Acquisition") == 0) ||
                 (latestStatus == RECORDING &&
-                strcmp(records[i].EventString, EVT_REC_STOP) == 0))
+                strcmp(records[i].EventString, "Stopping Recording") == 0))
             {
                 latestStatus = ACQUIRING;
             }
-            else if (strcmp(records[i].EventString, EVT_ACQ_STOP) == 0)
+            else if (strcmp(records[i].EventString, "Stopping Acquisition") == 0)
             {
                 latestStatus = IDLE;
             }
-            else if (strcmp(records[i].EventString, EVT_REC_START) == 0)
+            else if (strcmp(records[i].EventString, "Starting Recording") == 0)
             {
                 latestStatus = RECORDING;
             }

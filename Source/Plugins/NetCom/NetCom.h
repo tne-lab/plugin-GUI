@@ -33,6 +33,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "../../../JuceLibraryCode/JuceHeader.h"
+#include <vector>
 #include <NetComClient.h>
 
 enum AcqStatus : int
@@ -41,6 +42,19 @@ enum AcqStatus : int
     IDLE,
     ACQUIRING,
     RECORDING
+};
+
+struct DIODeviceInfo
+{
+    enum Direction : bool { IN, OUT };
+    int numPorts;
+    int bitsPerPort;
+    std::vector<bool> portDirection; // size == numPorts
+};
+
+struct DataChannelInfo
+{
+
 };
 
 class NetComListener : public Value::Listener
@@ -55,7 +69,8 @@ public:
     /* status is an empty string if disconnected, else the connected name/address. */
     virtual void netComConnectionChanged(const String& status);
     virtual void netComAcquisitionChanged(int status);
-    virtual void netComChannelsChanged();
+    virtual void netComDataChannelsChanged(const StringArray& dataChannels);
+    virtual void netComDIODevicesChanged(const HashMap<String, DIODeviceInfo>& deviceInfo);
 
     virtual void netComDataReceived(NlxDataTypes::CRRec* records, int numRecords, const String& objectName);
     virtual void netComEventsReceived(NlxDataTypes::EventRec* records, int numRecords, const String& objectName);
@@ -96,8 +111,9 @@ private:
         // makes sure the client is disconnected, creating a new client if necessary.
         void disconnect();
 
-        /* Queries NetCom for aquisition entities. If any change in continuous or event channels is
-         * detected, calls netComChannelsChanged on any callbacks. If the check fails, returns false.
+        /* Queries NetCom for continuous channels and digital IO devices. If any change is
+         * detected, calls netComDataChannelsChanged and/or netComDIODevicesChanged on any callbacks.
+         * If the check fails, returns false. Called on connection, and can be called again by manual request.
          */
         bool refreshChannels();
 
@@ -111,6 +127,7 @@ private:
          * as an error code where 0 indicates success and -1 indicates error, and incorporates
          * this into the return value rather than the reply array.
          */
+        bool sendCommand(const Array<var>& args, StringArray* reply = nullptr, bool hasErrCode = false);
         bool sendCommand(const StringArray& args, StringArray* reply = nullptr, bool hasErrCode = false);
         bool sendCommand(const String& command, StringArray* reply = nullptr, bool hasErrCode = false);
     private:
@@ -134,6 +151,10 @@ private:
         Value acquisitionStatus;
 
         ListenerList<NetComListener, Array<NetComListener*, CriticalSection>> listeners;
+        
+        StringArray openEventChannels;
+        StringArray openCSCChannels;
+        HashMap<String, DIODeviceInfo> knownDIODevices;
 
         // NetCom callbacks
         static void handleConnectionLost(void* client);
