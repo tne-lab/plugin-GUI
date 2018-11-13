@@ -22,52 +22,83 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PhaseCalculatorEditor.h"
 #include "PhaseCalculatorCanvas.h"
+#include "HTransformers.h"
 #include <climits> // INT_MAX
-#include <string>  // stoi, stof, stod
+#include <cfloat>  // FLT_MAX
+#include <cmath>   // abs
 
 PhaseCalculatorEditor::PhaseCalculatorEditor(PhaseCalculator* parentNode, bool useDefaultParameterEditors)
-    : VisualizerEditor  (parentNode, 190, useDefaultParameterEditors)
+    : VisualizerEditor  (parentNode, 220, useDefaultParameterEditors)
     , extraChanManager  (parentNode)
     , prevExtraChans    (0)
 {
     tabText = "Event Phase Plot";
-    int filterWidth = 85;
+    int filterWidth = 120;
 
     PhaseCalculator* processor = static_cast<PhaseCalculator*>(parentNode);
 
-    lowCutLabel = new Label("lowCutL", "Low cut");
-    lowCutLabel->setBounds(10, 30, 80, 20);
-    lowCutLabel->setFont(Font("Small Text", 12, Font::plain));
+    bandLabel = new Label("bandL", "Freq range:");
+    bandLabel->setBounds(5, 25, 100, 20);
+    bandLabel->setFont({ "Small Text", 12, Font::plain });
+    bandLabel->setColour(Label::textColourId, Colours::darkgrey);
+    addAndMakeVisible(bandLabel);
+
+    bandBox = new ComboBox("bandB");
+    for (int b = 0; b < NUM_BANDS; ++b)
+    {
+        bandBox->addItem(Hilbert::BAND_NAME.at(b), b + 1);
+    }
+    bandBox->setSelectedId(processor->band + 1);
+    bandBox->setTooltip(FREQ_RANGE_TOOLTIP);
+    bandBox->setBounds(7, 42, 110, 20);
+    bandBox->addListener(this);
+    addAndMakeVisible(bandBox);
+
+    lowCutLabel = new Label("lowCutL", "Low:");
+    lowCutLabel->setBounds(5, 70, 50, 20);
+    lowCutLabel->setFont({ "Small Text", 12, Font::plain });
     lowCutLabel->setColour(Label::textColourId, Colours::darkgrey);
     addAndMakeVisible(lowCutLabel);
 
     lowCutEditable = new Label("lowCutE");
     lowCutEditable->setEditable(true);
     lowCutEditable->addListener(this);
-    lowCutEditable->setBounds(15, 47, 60, 18);
+    lowCutEditable->setBounds(50, 70, 35, 18);
     lowCutEditable->setText(String(processor->lowCut), dontSendNotification);
     lowCutEditable->setColour(Label::backgroundColourId, Colours::grey);
     lowCutEditable->setColour(Label::textColourId, Colours::white);
     addAndMakeVisible(lowCutEditable);
 
-    highCutLabel = new Label("highCutL", "High cut");
-    highCutLabel->setBounds(10, 70, 80, 20);
-    highCutLabel->setFont(Font("Small Text", 12, Font::plain));
+    lowCutUnit = new Label("lowCutU", "Hz");
+    lowCutUnit->setBounds(85, 70, 25, 18);
+    lowCutUnit->setFont({ "Small Text", 12, Font::plain });
+    lowCutUnit->setColour(Label::textColourId, Colours::darkgrey);
+    addAndMakeVisible(lowCutUnit);
+
+    highCutLabel = new Label("highCutL", "High:");
+    highCutLabel->setBounds(5, 100, 50, 20);
+    highCutLabel->setFont({ "Small Text", 12, Font::plain });
     highCutLabel->setColour(Label::textColourId, Colours::darkgrey);
     addAndMakeVisible(highCutLabel);
 
     highCutEditable = new Label("highCutE");
     highCutEditable->setEditable(true);
     highCutEditable->addListener(this);
-    highCutEditable->setBounds(15, 87, 60, 18);
+    highCutEditable->setBounds(50, 100, 35, 18);
     highCutEditable->setText(String(processor->highCut), dontSendNotification);
     highCutEditable->setColour(Label::backgroundColourId, Colours::grey);
     highCutEditable->setColour(Label::textColourId, Colours::white);
     addAndMakeVisible(highCutEditable);
 
+    highCutUnit = new Label("highCutU", "Hz");
+    highCutUnit->setBounds(85, 100, 25, 18);
+    highCutUnit->setFont({ "Small Text", 12, Font::plain });
+    highCutUnit->setColour(Label::textColourId, Colours::darkgrey);
+    addAndMakeVisible(highCutUnit);
+
     recalcIntervalLabel = new Label("recalcL", "AR Refresh:");
     recalcIntervalLabel->setBounds(filterWidth, 25, 100, 20);
-    recalcIntervalLabel->setFont(Font("Small Text", 12, Font::plain));
+    recalcIntervalLabel->setFont({ "Small Text", 12, Font::plain });
     recalcIntervalLabel->setColour(Label::textColourId, Colours::darkgrey);
     addAndMakeVisible(recalcIntervalLabel);
 
@@ -83,13 +114,13 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(PhaseCalculator* parentNode, bool u
 
     recalcIntervalUnit = new Label("recalcU", "ms");
     recalcIntervalUnit->setBounds(filterWidth + 60, 47, 25, 15);
-    recalcIntervalUnit->setFont(Font("Small Text", 12, Font::plain));
+    recalcIntervalUnit->setFont({ "Small Text", 12, Font::plain });
     recalcIntervalUnit->setColour(Label::textColourId, Colours::darkgrey);
     addAndMakeVisible(recalcIntervalUnit);
 
     arOrderLabel = new Label("arOrderL", "Order:");
     arOrderLabel->setBounds(filterWidth, 65, 60, 20);
-    arOrderLabel->setFont(Font("Small Text", 12, Font::plain));
+    arOrderLabel->setFont({ "Small Text", 12, Font::plain });
     arOrderLabel->setColour(Label::textColourId, Colours::darkgrey);
     addAndMakeVisible(arOrderLabel);
 
@@ -105,7 +136,7 @@ PhaseCalculatorEditor::PhaseCalculatorEditor(PhaseCalculator* parentNode, bool u
 
     outputModeLabel = new Label("outputModeL", "Output:");
     outputModeLabel->setBounds(filterWidth, 87, 70, 20);
-    outputModeLabel->setFont(Font("Small Text", 12, Font::plain));
+    outputModeLabel->setFont({ "Small Text", 12, Font::plain });
     outputModeLabel->setColour(Label::textColourId, Colours::darkgrey);
     addAndMakeVisible(outputModeLabel);
 
@@ -130,7 +161,11 @@ void PhaseCalculatorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
 {
     PhaseCalculator* processor = static_cast<PhaseCalculator*>(getProcessor());
 
-    if (comboBoxThatHasChanged == outputModeBox)
+    if (comboBoxThatHasChanged == bandBox)
+    {
+        processor->setParameter(BAND, static_cast<float>(bandBox->getSelectedId() - 1));
+    }
+    else if (comboBoxThatHasChanged == outputModeBox)
     {
         processor->setParameter(OUTPUT_MODE, static_cast<float>(outputModeBox->getSelectedId()));
     }
@@ -143,7 +178,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     if (labelThatHasChanged == recalcIntervalEditable)
     {
         int intInput;
-        bool valid = updateControl(labelThatHasChanged, 0, INT_MAX, processor->calcInterval, &intInput);
+        bool valid = updateControl(labelThatHasChanged, 0, INT_MAX, processor->calcInterval, intInput);
 
         if (valid)
         {
@@ -153,7 +188,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == arOrderEditable)
     {
         int intInput;
-        bool valid = updateControl(labelThatHasChanged, 1, INT_MAX, processor->arOrder, &intInput);
+        bool valid = updateControl(labelThatHasChanged, 1, INT_MAX, processor->arOrder, intInput);
 
         if (valid)
         {
@@ -163,8 +198,7 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == lowCutEditable)
     {
         float floatInput;
-        bool valid = updateControl(labelThatHasChanged, PhaseCalculator::PASSBAND_EPS,
-            processor->HT_FS / 2.0f - PhaseCalculator::PASSBAND_EPS, processor->lowCut, &floatInput);
+        bool valid = updateControl(labelThatHasChanged, 0.0f, FLT_MAX, processor->lowCut, floatInput);
 
         if (valid)
         {
@@ -174,9 +208,8 @@ void PhaseCalculatorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == highCutEditable)
     {
         float floatInput;
-        bool valid = updateControl(labelThatHasChanged, 2 * PhaseCalculator::PASSBAND_EPS,
-            processor->HT_FS / 2.0f, processor->highCut, &floatInput);
-
+        bool valid = updateControl(labelThatHasChanged, 0.0f, FLT_MAX, processor->highCut, floatInput);
+        
         if (valid)
         {
             processor->setParameter(HIGHCUT, floatInput);
@@ -225,6 +258,7 @@ void PhaseCalculatorEditor::channelChanged(int chan, bool newState)
 
 void PhaseCalculatorEditor::startAcquisition()
 {
+    bandBox->setEnabled(false);
     lowCutEditable->setEnabled(false);
     highCutEditable->setEnabled(false);
     arOrderEditable->setEnabled(false);
@@ -234,6 +268,7 @@ void PhaseCalculatorEditor::startAcquisition()
 
 void PhaseCalculatorEditor::stopAcquisition()
 {
+    bandBox->setEnabled(true);
     lowCutEditable->setEnabled(true);
     highCutEditable->setEnabled(true);
     arOrderEditable->setEnabled(true);
@@ -314,6 +349,10 @@ void PhaseCalculatorEditor::saveCustomParameters(XmlElement* xml)
     paramValues->setAttribute("lowCut", processor->lowCut);
     paramValues->setAttribute("highCut", processor->highCut);
     paramValues->setAttribute("outputMode", processor->outputMode);
+
+    const Array<float>& validBand = Hilbert::VALID_BAND.at(processor->band);
+    paramValues->setAttribute("rangeMin", validBand[0]);
+    paramValues->setAttribute("rangeMax", validBand[1]);
 }
 
 void PhaseCalculatorEditor::loadCustomParameters(XmlElement* xml)
@@ -325,6 +364,7 @@ void PhaseCalculatorEditor::loadCustomParameters(XmlElement* xml)
         // some parameters have two fallbacks for backwards compatability
         recalcIntervalEditable->setText(xmlNode->getStringAttribute("calcInterval", recalcIntervalEditable->getText()), sendNotificationSync);
         arOrderEditable->setText(xmlNode->getStringAttribute("arOrder", arOrderEditable->getText()), sendNotificationSync);
+        bandBox->setSelectedId(selectBandFromSavedParams(xmlNode) + 1, sendNotificationSync);
         lowCutEditable->setText(xmlNode->getStringAttribute("lowCut", lowCutEditable->getText()), sendNotificationSync);
         highCutEditable->setText(xmlNode->getStringAttribute("highCut", highCutEditable->getText()), sendNotificationSync);
         outputModeBox->setSelectedId(xmlNode->getIntAttribute("outputMode", outputModeBox->getSelectedId()), sendNotificationSync);
@@ -355,24 +395,61 @@ void PhaseCalculatorEditor::refreshVisContinuousChan()
 
 // static utilities
 
-template<>
-int PhaseCalculatorEditor::fromString<int>(const char* in)
+int PhaseCalculatorEditor::selectBandFromSavedParams(const XmlElement* xmlNode)
 {
-    return std::stoi(in);
-}
+    if (xmlNode->hasAttribute("rangeMin") && xmlNode->hasAttribute("rangeMax"))
+    {
+        // I don't trust JUCE's string parsing functionality (doesn't indicate failure, etc...)
+        float rangeMin, rangeMax;
+        if (readNumber(xmlNode->getStringAttribute("rangeMin"), rangeMin) &&
+            readNumber(xmlNode->getStringAttribute("rangeMax"), rangeMax))
+        {
+            // try to find a matching band.
+            for (auto keyVal : Hilbert::VALID_BAND)
+            {
+                int b = keyVal.first;
+                const Array<float>& validRange = keyVal.second;
 
-template<>
-float PhaseCalculatorEditor::fromString<float>(const char* in)
-{
-    return std::stof(in);
-}
+                if (validRange[0] == rangeMin && validRange[1] == rangeMax)
+                {
+                    return b;
+                }
+            }
+        }
+    }
 
-template<>
-double PhaseCalculatorEditor::fromString<double>(const char* in)
-{
-    return std::stod(in);
-}
+    // no match, or rangeMin and rangeMax were invalid
+    // try to find a good fit for lowCut and highCut
+    if (xmlNode->hasAttribute("lowCut") && xmlNode->hasAttribute("highCut"))
+    {
+        float lowCut, highCut;
+        if (readNumber(xmlNode->getStringAttribute("lowCut"), lowCut) && lowCut >= 0 &&
+            readNumber(xmlNode->getStringAttribute("highCut"), highCut) && highCut > lowCut)
+        {
+            float midCut = (lowCut + highCut) / 2;
+            int bestBand = 0;
+            float bestBandDist = FLT_MAX;
+            
+            for (auto keyVal : Hilbert::VALID_BAND)
+            {
+                int b = keyVal.first;
+                const Array<float>& validRange = keyVal.second;
 
+                float midBand = (validRange[0] + validRange[1]) / 2;
+                float midDist = std::abs(midBand - midCut);
+                if (validRange[0] <= lowCut && validRange[1] >= highCut && midDist < bestBandDist)
+                {
+                    bestBand = b;
+                    bestBandDist = midDist;
+                }
+            }
+            return bestBand;
+        }
+    }
+
+    // just fallback to first band
+    return 0;
+}
 
 // -------- ExtraChanManager ---------
 

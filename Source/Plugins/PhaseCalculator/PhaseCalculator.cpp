@@ -21,6 +21,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+#include <cfloat> // DBL_MAX
+#include <cmath>  // sqrt
+
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
 
@@ -30,9 +33,6 @@ PhaseCalculator::PhaseCalculator()
     : GenericProcessor      ("Phase Calculator")
     , Thread                ("AR Modeler")
     , calcInterval          (50)
-    , lowCut                (4.0)
-    , highCut               (8.0)
-    , htScaleFactor         (getScaleFactor(lowCut, highCut))
     , outputMode            (PH)
     , visEventChannel       (-1)
     , visContinuousChannel  (-1)
@@ -42,6 +42,7 @@ PhaseCalculator::PhaseCalculator()
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
     setAROrder(20);
+    setBand(ALPHA_THETA, true);
 }
 
 PhaseCalculator::~PhaseCalculator() {}
@@ -101,6 +102,10 @@ void PhaseCalculator::setParameter(int parameterIndex, float newValue)
 
     case AR_ORDER:
         setAROrder(static_cast<int>(newValue));
+        break;
+
+    case BAND:
+        setBand(static_cast<Band>(static_cast<int>(newValue)));
         break;
 
     case LOWCUT:
@@ -226,12 +231,16 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
             }
 
             // use AR model to fill predSamps (which is downsampled) based on past data.
+            int htDelay = Hilbert::DELAY.at(band);
+            int stride = sampleRateMultiple[chan];
+
             rpBuffer = historyBuffer.getReadPointer(activeChan, historyLength - dsOffset[chan]);
-            arPredict(rpBuffer, predSamps, pLocalParam, sampleRateMultiple[chan], arOrder);
+            double* pPredSamps = predSamps.getRawDataPointer();
+            arPredict(rpBuffer, pPredSamps, pLocalParam, htDelay + 1, stride, arOrder);
 
             // identify indices of current buffer to execute HT
             htInds.clearQuick();
-            for (int i = sampleRateMultiple[chan] - dsOffset[chan]; i < nSamples; i += sampleRateMultiple[chan])
+            for (int i = stride - dsOffset[chan]; i < nSamples; i += stride)
             {
                 htInds.add(i);
             }
@@ -242,10 +251,11 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                 htOutput.resize(htOutputSamps);
             }
 
-            int kOut = -HT_DELAY;
+            // execute tranformer on current buffer
+            int kOut = -htDelay;
             for (int kIn = 0; kIn < htInds.size(); ++kIn, ++kOut)
             {
-                double samp = htFilterSamp(wpIn[htInds[kIn]], *htState[activeChan]);
+                double samp = htFilterSamp(wpIn[htInds[kIn]], band, *htState[activeChan]);
                 if (kOut >= 0)
                 {
                     double rc = wpIn[htInds[kOut]];
@@ -254,16 +264,16 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                 }
             }
 
-            // copy state to tranform prediction without changing the end-of-buffer state
+            // copy state to transform prediction without changing the end-of-buffer state
             htTempState = *htState[activeChan];
             
             // execute transformer on prediction
-            for (int i = 0; i <= HT_DELAY; ++i, ++kOut)
+            for (int i = 0; i <= htDelay; ++i, ++kOut)
             {
-                double samp = htFilterSamp(predSamps[i], htTempState);
+                double samp = htFilterSamp(predSamps[i], band, htTempState);
                 if (kOut >= 0)
                 {
-                    double rc = i == HT_DELAY ? predSamps[0] : wpIn[htInds[kOut]];
+                    double rc = i == htDelay ? predSamps[0] : wpIn[htInds[kOut]];
                     double ic = htScaleFactor * samp;
                     htOutput.set(kOut, std::complex<double>(rc, ic));
                 }
@@ -300,9 +310,9 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                 nextMag = std::abs(nextCS);
                 magSpan = nextMag - prevMag;
             }
-            int subSample = dsOffset[chan] % sampleRateMultiple[chan];
+            int subSample = dsOffset[chan] % stride;
 
-            for (int i = 0; i < nSamples; ++i, subSample = (subSample + 1) % sampleRateMultiple[chan])
+            for (int i = 0; i < nSamples; ++i, subSample = (subSample + 1) % stride)
             {
                 if (subSample == 0)
                 {
@@ -326,12 +336,12 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
 
                 if (needPhase)
                 {
-                    thisPhase = prevPhase + phaseSpan * subSample / sampleRateMultiple[chan];
+                    thisPhase = prevPhase + phaseSpan * subSample / stride;
                     thisPhase = circDist(thisPhase, 0, Dsp::doublePi);
                 }
                 if (needMag)
                 {
-                    thisMag = prevMag + magSpan * subSample / sampleRateMultiple[chan];
+                    thisMag = prevMag + magSpan * subSample / stride;
                 }
 
                 switch (outputMode)
@@ -354,7 +364,7 @@ void PhaseCalculator::process(AudioSampleBuffer& buffer)
                 }
             }
             lastComputedSample.set(activeChan, prevCS);
-            dsOffset.set(chan, ((dsOffset[chan] + nSamples - 1) % sampleRateMultiple[chan]) + 1);
+            dsOffset.set(chan, ((dsOffset[chan] + nSamples - 1) % stride) + 1);
 
             // unwrapping / smoothing
             if (outputMode == PH || outputMode == PH_AND_MAG)
@@ -407,7 +417,7 @@ bool PhaseCalculator::disable()
     {
         bufferFreeSpace.set(activeChan, historyLength);
         chanState.set(activeChan, NOT_FULL);
-        htState[activeChan]->fill(0);
+        FloatVectorOperations::clear(htState[activeChan]->begin(), htState[activeChan]->size());
         lastPhase.set(activeChan, 0);
         lastComputedSample.set(activeChan, 0);
         dsOffset.set(activeChan, sampleRateMultiple[activeChan]);
@@ -678,16 +688,68 @@ void PhaseCalculator::setAROrder(int newOrder)
     }
 }
 
+void PhaseCalculator::setBand(Band newBand, bool force)
+{
+    if (!force && newBand == band) { return; }
+    if (newBand < 0 || newBand >= NUM_BANDS)
+    {
+        jassertfalse;
+        return;
+    }
+
+    band = newBand;
+
+    // set low and high cut to the defaults for this band, making sure to notify the editor
+    resetCutsToDefaults();
+
+    // resize htState for each active channel, htTempState, and predSamps
+    int delay = Hilbert::DELAY.at(band);
+    for (int i = 0; i < numActiveChansAllocated; ++i)
+    {
+        htState[i]->resize(delay * 2 + 1);
+    }
+    htTempState.resize(delay * 2 + 1);
+    predSamps.resize(delay + 1);
+}
+
+void PhaseCalculator::resetCutsToDefaults()
+{
+    auto& defaultBand = Hilbert::DEFAULT_BAND.at(band);
+    lowCut = defaultBand[0];
+    highCut = defaultBand[1];
+
+    updateScaleFactor();
+    setFilterParameters();
+
+    auto editor = static_cast<PhaseCalculatorEditor*>(getEditor());
+    if (editor)
+    {
+        editor->refreshLowCut();
+        editor->refreshHighCut();
+    }
+}
+
 void PhaseCalculator::setLowCut(float newLowCut)
 {
     if (newLowCut == lowCut) { return; }
+    
+    auto editor = static_cast<PhaseCalculatorEditor*>(getEditor());
+    const Array<float>& validBand = Hilbert::VALID_BAND.at(band);
 
+    if (newLowCut < validBand[0] || newLowCut >= validBand[1])
+    {
+        // invalid; don't set parameter and reset editor
+        editor->refreshLowCut();
+        CoreServices::sendStatusMessage("Low cut outside valid band of selected filter.");
+        return;
+    }
+        
     lowCut = newLowCut;
     if (lowCut >= highCut)
     {
         // push highCut up
-        highCut = lowCut + PASSBAND_EPS;
-        static_cast<PhaseCalculatorEditor*>(getEditor())->refreshHighCut();
+        highCut = jmin(lowCut + PASSBAND_EPS, validBand[1]);
+        editor->refreshHighCut();
     }
     updateScaleFactor();
     setFilterParameters();
@@ -697,12 +759,23 @@ void PhaseCalculator::setHighCut(float newHighCut)
 {
     if (newHighCut == highCut) { return; }
 
+    auto editor = static_cast<PhaseCalculatorEditor*>(getEditor());
+    const Array<float>& validBand = Hilbert::VALID_BAND.at(band);
+
+    if (newHighCut <= validBand[0] || newHighCut > validBand[1])
+    {
+        // invalid; don't set parameter and reset editor
+        editor->refreshHighCut();
+        CoreServices::sendStatusMessage("High cut outside valid band of selected filter.");
+        return;
+    }
+
     highCut = newHighCut;
     if (highCut <= lowCut)
     {
         // push lowCut down
-        lowCut = highCut - PASSBAND_EPS;
-        static_cast<PhaseCalculatorEditor*>(getEditor())->refreshLowCut();
+        lowCut = jmax(highCut - PASSBAND_EPS, validBand[0]);
+        editor->refreshLowCut();
     }
     updateScaleFactor();
     setFilterParameters();
@@ -748,8 +821,8 @@ void PhaseCalculator::updateHistoryLength()
     for (int chan : activeInputs)
     {
         newHistoryLength = jmax(newHistoryLength,
-            arOrder * sampleRateMultiple[chan] + 1, // minimum to train AR model
-            HT_FS * sampleRateMultiple[chan]);      // use @ least 1 second to train model
+            arOrder * sampleRateMultiple[chan] + 1,  // minimum to train AR model
+            Hilbert::FS * sampleRateMultiple[chan]); // use @ least 1 second to train model
     }
 
     if (newHistoryLength == historyLength) { return; }
@@ -773,7 +846,7 @@ void PhaseCalculator::updateHistoryLength()
 
 void PhaseCalculator::updateScaleFactor()
 {
-    htScaleFactor = getScaleFactor(lowCut, highCut);
+    htScaleFactor = getScaleFactor(band, lowCut, highCut);
 }
 
 void PhaseCalculator::setFilterParameters()
@@ -812,8 +885,8 @@ void PhaseCalculator::addActiveChannel()
     arParamLock.add(new CriticalSection());
     arParams.add(new Array<double>());
     arParams.getLast()->resize(arOrder);
-    htState.add(new std::array<double, HT_ORDER + 1>());
-    htState.getLast()->fill(0);
+    htState.add(new Array<double>());
+    htState.getLast()->resize(Hilbert::DELAY.at(band) * 2 + 1);
 }
 
 bool PhaseCalculator::validateSampleRate(int chan)
@@ -824,7 +897,7 @@ bool PhaseCalculator::validateSampleRate(int chan)
     if (!p) { return false; }
 
     // test whether sample rate is a multiple of HT_FS
-    float fsMult = getDataChannel(chan)->getSampleRate() / HT_FS;
+    float fsMult = getDataChannel(chan)->getSampleRate() / Hilbert::FS;
     float fsMultRound = std::round(fsMult);
     if (std::abs(fsMult - fsMultRound) < FLT_EPSILON)
     {
@@ -840,7 +913,7 @@ bool PhaseCalculator::validateSampleRate(int chan)
     // deselect and send warning
     deselectChannel(chan);
     CoreServices::sendStatusMessage("Channel " + String(chan + 1) + " was deselected because" +
-        " its sample rate is not a multiple of " + String(HT_FS));
+        " its sample rate is not a multiple of " + String(Hilbert::FS));
     return false;
 }
 
@@ -1111,9 +1184,9 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
 }
 
 void PhaseCalculator::arPredict(const double* lastSample, double* prediction,
-    const double* params, int stride, int order)
+    const double* params, int samps, int stride, int order)
 {
-    for (int s = 0; s <= HT_DELAY; ++s)
+    for (int s = 0; s < samps; ++s)
     {
         // s = index to write output
         prediction[s] = 0;
@@ -1154,68 +1227,71 @@ void PhaseCalculator::hilbertManip(FFTWArray* fftData)
     FloatVectorOperations::clear(reinterpret_cast<double*>(wp + firstNegFreq), numPosNegFreqDoubles);
 }
 
-double PhaseCalculator::getScaleFactor(double lowCut, double highCut)
+double PhaseCalculator::getScaleFactor(Band band, double lowCut, double highCut)
 {
-    jassert(HT_SCALE_FACTOR_QUERY_FREQS >= 2);
-    int numFreqs = HT_SCALE_FACTOR_QUERY_FREQS;
+    double maxResponse = -DBL_MAX;
+    double minResponse = DBL_MAX;
 
-    double meanAbsResponse = 0;
-
-    // at each frequency, calculate the filter response
-    for (int kFreq = 0; kFreq < numFreqs; ++kFreq)
+    Array<double> testFreqs({ lowCut, highCut });
+    // also look at any magnitude response extrema that fall within the selected band
+    for (double freq : Hilbert::EXTREMA.at(band))
     {
-        double freq = lowCut + kFreq * (highCut - lowCut) / (numFreqs - 1);
-        double normFreq = freq / (HT_FS / 2);
-        std::complex<double> response = 0;
-
-        for (int kCoef = 0; kCoef <= HT_ORDER; ++kCoef)
+        if (freq > lowCut && freq < highCut)
         {
-            response += std::polar(HT_COEF[kCoef], -kCoef * normFreq * Dsp::doublePi);
+            testFreqs.add(freq);
         }
-
-        meanAbsResponse += std::abs(response) / numFreqs;
     }
 
-    return 1 / meanAbsResponse;
+    // at each frequency, calculate the filter response
+    int nCoefs = Hilbert::DELAY.at(band);
+    for (double freq : testFreqs)
+    {
+        double normFreq = freq * Dsp::doublePi / (Hilbert::FS / 2);
+        std::complex<double> response = 0;
+
+        auto* transf = Hilbert::TRANSFORMER.at(band);
+        for (int kCoef = 0; kCoef < nCoefs; ++kCoef)
+        {
+            double coef = transf[kCoef];
+            
+            // near component
+            response += coef * std::polar(1.0, -(kCoef * normFreq));
+
+            // mirrored component
+            // there is no term for -nCoefs because that coefficient is 0.
+            response -= coef * std::polar(1.0, -((2 * nCoefs - kCoef) * normFreq));
+        }
+
+        double absResponse = std::abs(response);
+        maxResponse = jmax(maxResponse, absResponse);
+        minResponse = jmin(minResponse, absResponse);
+    }
+
+    // scale factor is reciprocal of geometric mean of max and min
+    return 1 / std::sqrt(minResponse * maxResponse);
 }
 
-double PhaseCalculator::htFilterSamp(double input, std::array<double, HT_ORDER + 1>& state)
+double PhaseCalculator::htFilterSamp(double input, Band band, Array<double>& state)
 {
-    double* state_p = state.data();
+    double* state_p = state.getRawDataPointer();
 
     // initialize new state entry
-    state[HT_ORDER] = 0;
+    int nCoefs = Hilbert::DELAY.at(band);
+    int order = nCoefs * 2;
+    jassert(order == state.size() - 1);
+    state_p[order] = 0;
 
     // incorporate new input
-    FloatVectorOperations::addWithMultiply(state_p, HT_COEF, input, HT_ORDER + 1);
+    auto& transf = Hilbert::TRANSFORMER.at(band);
+    for (int kCoef = 0; kCoef < nCoefs; ++kCoef)
+    {
+        double val = input * transf[kCoef];
+        state_p[kCoef] += val;          // near component
+        state_p[order - kCoef] -= val;  // mirrored component
+    }
 
-    // shift state
-    double sampOut = state[0];
-    memmove(state_p, state_p + 1, HT_ORDER * sizeof(double));
+    // output and shift state
+    double sampOut = state_p[0];
+    memmove(state_p, state_p + 1, order * sizeof(double));
     return sampOut;
 }
-
-// Hilbert transformer coefficients (FIR filter)
-// Obtained by matlab call "firpm(HT_ORDER, [4 HT_FS/2-4]/(HT_FS/2), [1 1], 'hilbert')"
-// Should be modified if HT_ORDER or HT_FS are changed, or if targeting frequencies lower than 4 Hz.
-const double PhaseCalculator::HT_COEF[HT_ORDER + 1] = {
-    -0.287572507836144,
-    2.76472250749945e-05,
-    -0.0946113256432684,
-    -0.000258874394997638,
-    -0.129436276914844,
-    -0.000160842742642405,
-    -0.213150968600552,
-    -0.00055322197399798,
-    -0.636856982103511,
-    0,
-    0.636856982103511,
-    0.00055322197399798,
-    0.213150968600552,
-    0.000160842742642405,
-    0.129436276914844,
-    0.000258874394997638,
-    0.0946113256432684,
-    -2.76472250749945e-05,
-    0.287572507836144
-};

@@ -541,7 +541,7 @@ void RosePlot::labelTextChanged(Label* labelThatHasChanged)
         double doubleInput;
         double currReferenceDeg = referenceAngle * 180.0 / PI;
         bool valid = PhaseCalculatorEditor::updateControl(labelThatHasChanged,
-            -DBL_MAX, DBL_MAX, currReferenceDeg, &doubleInput);
+            -DBL_MAX, DBL_MAX, currReferenceDeg, doubleInput);
 
         if (valid)
         {
