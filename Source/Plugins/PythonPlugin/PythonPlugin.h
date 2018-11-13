@@ -41,9 +41,11 @@
 
 //Hack to get around python37_d.lib not exisiting on Windows (at least on my system)
 #if defined(_WIN32) && defined(_DEBUG)
+#define _DEBUG_TEMP _DEBUG
 #undef _DEBUG
 #include <Python.h>
-#define _DEBUG
+#define _DEBUG _DEBUG_TEMP
+#undef _DEBUG_TEMP
 #else
 #include <Python.h>
 #endif

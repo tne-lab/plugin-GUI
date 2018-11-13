@@ -35,11 +35,6 @@ v
 */
 
 #include "PythonPlugin.h"
-
-
-
-
-#include "PythonPlugin.h"
 #include "PythonEditor.h"
 
 #ifdef _WIN32
@@ -59,13 +54,10 @@ v
 #if defined(__linux__)
 #include <sys/syscall.h>
 #include <unistd.h>
-#elif _WIN32
-#else
+#elif !defined(_WIN32)
 #include <pthread.h> 
 #endif
 #endif
-
-
 
 
 PythonPlugin::PythonPlugin(const String &processorName)
@@ -77,33 +69,27 @@ PythonPlugin::PythonPlugin(const String &processorName)
     filePath = "";
     plugin = 0;
 
+    char * old_python_home = getenv("PYTHONHOME");
+    if (old_python_home == NULL)
+    {
+#ifdef PYTHON_DEBUG
+        std::cout << "setting PYTHONHOME" << std::endl;
+#endif
+
 #ifdef _WIN32
-	//Hard coded for now, not sure how to change this in a .sln
-	char* old_python_home = "C:\\Users\\Ephys\\Anaconda3";
-	_putenv_s("PYTHONHOME", old_python_home);
+        _putenv_s("PYTHONHOME", PYTHONHOME_DEFAULT); // set to default PYTHONHOME by PythonEnv.props
 #else
 #define QUOTE(name) #name
 #define STR(macro) QUOTE(macro)
 #define PYTHON_HOME_NAME STR(PYTHON_HOME)
-    char * old_python_home = getenv("PYTHONHOME");
-#endif
 
-    if (old_python_home == NULL)
-				{
-#ifdef _WIN32
-					std::cout << "Python Path Enviroment Error" << std::endl;
-#else
-#ifdef PYTHON_DEBUG
-					std::cout << "setting PYTHONHOME" << std::endl;
+        //setenv("PYTHONHOME", "/anaconda3/bin/", 1); // FIXME hardcoded PYTHONHOME!
+        setenv("PYTHONHOME", PYTHON_HOME_NAME, 1);
+        //setenv("PYTHONHOME", "/anaconda3/bin/python.app", 1); // FIXME hardcoded PYTHONHOME!
 #endif
-            //setenv("PYTHONHOME", "/anaconda3/bin/", 1); // FIXME hardcoded PYTHONHOME!
-        	setenv("PYTHONHOME", PYTHON_HOME_NAME, 1);
-            //setenv("PYTHONHOME", "/anaconda3/bin/python.app", 1); // FIXME hardcoded PYTHONHOME!
-#endif
-                }
+    }
     // setenv("PYTHONHOME", "/usr/local/anaconda", 1); // FIXME hardcoded PYTHONHOME!
-#ifdef _Win32
-#else
+
 #ifdef PYTHON_DEBUG
     std::cout << "PYTHONHOME: " << getenv("PYTHONHOME") << std::endl;
 #endif
@@ -112,12 +98,13 @@ PythonPlugin::PythonPlugin(const String &processorName)
 #if defined(__linux__)
     pid_t tid;
     tid = syscall(SYS_gettid);
+#elif defined(_WIN32)
+    DWORD tid = GetCurrentThreadId();
 #else
     uint64_t tid;
     pthread_threadid_np(NULL, &tid);
 #endif
     std::cout << "in constructor pthread_threadid_np()=" << tid << std::endl;
-#endif
 #endif
 
 #if PY_MAJOR_VERSION==3
@@ -181,17 +168,17 @@ AudioProcessorEditor* PythonPlugin::createEditor()
 
 bool PythonPlugin::isReady()
 {
-#ifdef _WIN32
 #ifdef PYTHON_DEBUG
 #if defined(__linux__)
     pid_t tid;
     tid = syscall(SYS_gettid);
+#elif defined(_WIN32)
+    DWORD tid = GetCurrentThreadId();
 #else
     uint64_t tid;
     pthread_threadid_np(NULL, &tid);
 #endif
     std::cout << "in isReady pthread_threadid_np()=" << tid << std::endl;
-#endif
 #endif
 
     bool ret;
@@ -231,27 +218,25 @@ void PythonPlugin::setParameter(int parameterIndex, float newValue)
 
 void PythonPlugin::resetConnections()
 {
-#ifdef _WIN32
 #ifdef PYTHON_DEBUG
 #if defined(__linux__)
     pid_t tid;
     tid = syscall(SYS_gettid);
+#elif defined(_WIN32)
+    DWORD tid = GetCurrentThreadId();
 #else
     uint64_t tid;
     pthread_threadid_np(NULL, &tid);
 #endif
     std::cout << "in resetConnection pthread_threadid_np()=" << tid << std::endl;
 #endif
-#endif
 
     nextAvailableChannel = 0;
     
     wasConnected = false;
 
-#ifdef _WIN32
 #ifdef PYTHON_DEBUG
     std::cout << "resetting ThreadState, which was "  << processThreadState << std::endl;
-#endif
 #endif
     processThreadState = 0;
 }
@@ -260,17 +245,17 @@ void PythonPlugin::process(AudioSampleBuffer& buffer)
 {
     checkForEvents(true);
 
-#ifdef _WIN32
 #ifdef PYTHON_DEBUG
 #if defined(__linux__)
     pid_t tid;
     tid = syscall(SYS_gettid);
+#elif defined(_WIN32)
+    DWORD tid = GetCurrentThreadId();
 #else
     uint64_t tid;
     pthread_threadid_np(NULL, &tid);
 #endif
     // std::cout << "in process pthread_threadid_np()=" << tid << std::endl;
-#endif
 #endif
     
     
@@ -505,17 +490,17 @@ void PythonPlugin::handleEvent(const EventChannel* eventInfo, const MidiMessage&
 }
 
 void PythonPlugin::sendEventPlugin(int eventType, int sourceID, int subProcessorIdx, double timestamp, int sourceIndex){
-#ifdef _WIN32
 #ifdef PYTHON_DEBUG
 #if defined(__linux__)
     pid_t tid;
     tid = syscall(SYS_gettid);
+#elif defined(_WIN32)
+    DWORD tid = GetCurrentThreadId();
 #else
     uint64_t tid;
     pthread_threadid_np(NULL, &tid);
 #endif
     std::cout << "in sendEventPlugin pthread_threadid_np()=" << tid << std::endl;
-#endif
 #endif
     
     PyEval_RestoreThread(GUIThreadState);
@@ -550,18 +535,18 @@ void PythonPlugin::handleSpike(const SpikeChannel* spikeInfo, const MidiMessage&
     //juce::uint16
     int sortedID = int(newSpike->getSortedID());
     
-#ifdef _WIN32
-#else
+
 #ifdef PYTHON_DEBUG
 #if defined(__linux__)
     pid_t tid;
     tid = syscall(SYS_gettid);
+#elif defined(_WIN32)
+    DWORD tid = GetCurrentThreadId();
 #else
     uint64_t tid;
     pthread_threadid_np(NULL, &tid);
 #endif
     std::cout << "in handleSpike pthread_threadid_np()=" << tid << std::endl;
-#endif
 #endif
      
     /*
@@ -654,17 +639,17 @@ void PythonPlugin::handleSpike(const SpikeChannel* spikeInfo, const MidiMessage&
  */
 void PythonPlugin::setFile(String fullpath)
 {
-#ifdef _WIN32
 #ifdef PYTHON_DEBUG
 #if defined(__linux__)
     pid_t tid;
     tid = syscall(SYS_gettid);
+#elif defined(_WIN32)
+    DWORD tid = GetCurrentThreadId();
 #else
     uint64_t tid;
     pthread_threadid_np(NULL, &tid);
 #endif
     std::cout << "in setFile pthread_threadid_np()=" << tid << std::endl;
-#endif
 #endif
     
 #ifdef _WIN32

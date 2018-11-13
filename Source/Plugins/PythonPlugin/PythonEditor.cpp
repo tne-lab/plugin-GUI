@@ -34,9 +34,8 @@
   ==============================================================================
 */
 
-#include "PythonEditor.h"
-
 #include "PythonPlugin.h"
+#include "PythonEditor.h"
 
 #include <stdio.h>
 
