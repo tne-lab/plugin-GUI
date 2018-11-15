@@ -39,6 +39,9 @@ void* EventBroadcaster::ZMQContext::createZMQSocket()
 #ifdef ZEROMQ
     jassert(context != nullptr);
     return zmq_socket(context, ZMQ_PUB);
+#else
+    jassertfalse; // should never be called in this case
+    return nullptr;
 #endif
 }
 
