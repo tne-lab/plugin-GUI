@@ -209,11 +209,14 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
     void* socket = zmqSocket.get();
 	
 	//Init json struct
+	//Add infomration by message[key] = value; NEEDS TO BE std::string
 	Json::Value message;
+
     // deserialize the event
     EventType baseType = Event::getBaseType(msg);
     const String& identifier = channel->getIdentifier();
     
+	// ****** Get Basic Info ******
     EventBasePtr baseEvent;
     const MetaDataEventObject* metaDataChannel; // for later...
     String envelope;
@@ -240,41 +243,12 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
         return;
     }
 
-    //***** Send basic info ******
-	/*
-    const char* envelopeStr = envelope.toUTF8();
-    if (-1 == zmq_send(socket, envelopeStr, strlen(envelopeStr), ZMQ_SNDMORE))
-    {
-        std::cout << "Error sending envelope: " << zmq_strerror(zmq_errno()) << std::endl;
-    }
-
-	Json::Value test;
-	test["subtree"]["subsubtree"] = "hello";
-	test["subtree"]["subsubsubtree"] = "world";
-	String JSONStr = test.toStyledString();
-	const char * JSONPtr = JSONStr.toUTF8();
-	if (-1 == zmq_send(socket, JSONPtr, strlen(JSONPtr), ZMQ_SNDMORE))
-	{
-		std::cout << "Error sending envelope: " << zmq_strerror(zmq_errno()) << std::endl;
-	}
-	*/
-    // TODO from here down maybe we can package up into a JSON string or something similar?
-
     float eventSampleRate = channel->getSampleRate();
 	message["timing"]["sample rate"] = eventSampleRate;
 	double timestampSeconds = double(Event::getTimestamp(msg)) / eventSampleRate;
 	message["timing"]["timestamp"] = timestampSeconds;
-	/*
-	const char* timeStr = String(timestampSeconds).toUTF8();
-	
-	if (-1 == zmq_send(socket, timeStr, strlen(timeStr), ZMQ_SNDMORE)) 
-	{
-        std::cout << "Error sending timestamp: " << zmq_strerror(zmq_errno()) << std::endl;
-        return;
-	}
-	*/
 
-    // ****** Send data payload *******
+    // ****** Get data payload *******
     switch (baseType)
     {
     case SPIKE_EVENT:
@@ -289,22 +263,10 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
 			float threshold = spike->getThreshold(i);
 			message["threshold"][std::to_string(i)] = threshold;
 			const char* threshStr = String(threshold).toUTF8();
-			/*
-            const char* thresholdDesc = ("threshold " + String(i + 1)).toUTF8();
-            if (-1 == zmq_send(socket, thresholdDesc, strlen(thresholdDesc), ZMQ_SNDMORE))
-            {
-                std::cout << "Error sending threshold desc: " << zmq_strerror(zmq_errno()) << std::endl;
-                return;
-            }
-            if (-1 == zmq_send(socket, threshStr, strlen(threshStr), ZMQ_SNDMORE))
-            {
-                std::cout << "Error sending threshold: " << zmq_strerror(zmq_errno()) << std::endl;
-                return;
-            }
-			*/
         }
 
         // send spike data here maybe?
+		//How?
     }
     break;
 
@@ -322,12 +284,18 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
         {
             // data we want to send:
             bool state = static_cast<TTLEvent*>(event)->getState();
+			message["state"] = state;
+			//Anything else?
             break;
         }
         case EventChannel::EventChannelTypes::TEXT:
         {
             // data we want to send:
             const String& text = static_cast<TextEvent*>(event)->getText();
+			//Will the reference on string from ^^ break line below??
+			//Not sure how to send one...
+			message["text"] = text.toStdString();
+			//Anything else?
             break;
         }
         default:
@@ -364,13 +332,14 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
     {
         //Get event data descriptor
         const MetaDataDescriptor * metaDescPtr = metaDataChannel->getEventMetaDataDescriptor(i);
-        std::string metaDesc = (metaDescPtr->getName()).toStdString();
+        //Did not like Juce::String for referencing items
+		std::string metaDesc = (metaDescPtr->getName()).toStdString();
 		
         //Get event data value
         const MetaDataValue* valuePtr = baseEvent->getMetaDataValue(i);
         //get data type returns a int corresponding to data type
         //getValue() needs an initalized variable of that type
-        bool success = true;
+        bool success;
 		switch (valuePtr->getDataType())
 		{
 		case MetaDataDescriptor::MetaDataTypes::CHAR:
@@ -378,48 +347,49 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
 			String value;
 			valuePtr->getValue(value);
 			message[metaDesc] = value.toStdString();
+			success = true;
 			break;
 		}
 
 		case MetaDataDescriptor::MetaDataTypes::INT8:
 			//success = sendMetaDataValue<int8>(valuePtr);
-			message = appendToJSON<int8>(valuePtr, metaDesc, message);
+			success = appendMetaToJSON<int8>(valuePtr, metaDesc, message);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::UINT8:
-			message = appendToJSON<uint8>(valuePtr, metaDesc, message);
+			success = appendMetaToJSON<uint8>(valuePtr, metaDesc, message);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::INT16:
-			message = appendToJSON<int16>(valuePtr, metaDesc, message);
+			success = appendMetaToJSON<int16>(valuePtr, metaDesc, message);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::UINT16:
-			message = appendToJSON<uint16>(valuePtr, metaDesc, message);
+			success = appendMetaToJSON<uint16>(valuePtr, metaDesc, message);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::INT32:
-			message = appendToJSON<int32>(valuePtr, metaDesc, message);
+			success = appendMetaToJSON<int32>(valuePtr, metaDesc, message);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::UINT32:
-			message = appendToJSON<uint32>(valuePtr, metaDesc, message);
+			success = appendMetaToJSON<uint32>(valuePtr, metaDesc, message);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::INT64:
-			message = appendToJSON<int64>(valuePtr, metaDesc, message);
+			success = appendMetaToJSON<int64>(valuePtr, metaDesc, message);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::UINT64:
-			message = appendToJSON<uint64>(valuePtr, metaDesc, message);
+			success = appendMetaToJSON<uint64>(valuePtr, metaDesc, message);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::FLOAT:
-			message = appendToJSON<float>(valuePtr, metaDesc, message);
+			success = appendMetaToJSON<float>(valuePtr, metaDesc, message);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::DOUBLE:
-			message = appendToJSON<double>(valuePtr, metaDesc, message);
+			success = appendMetaToJSON<double>(valuePtr, metaDesc, message);
 			break;
 
 		default:
@@ -432,25 +402,19 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
     }
 
 	String JSONStr = message.toStyledString();
+	//Our JSON String!!
+	//std::cout << JSONStr << std::endl;
+
 	const char * JSONPtr = JSONStr.toUTF8();
 	if (-1 == zmq_send(socket, JSONPtr, strlen(JSONPtr), 0))
 	{
 		std::cout << "Error sending json: " << zmq_strerror(zmq_errno()) << std::endl;
 	}
-	
-	//Send all raw data and actually flushes the multipart message out
-    // TODO probably want to get rid of this eventually since it's redundant
-	/*
-	if (-1 == zmq_send(socket, msg.getRawData(), msg.getRawDataSize(), 0))
-	{
-		std::cout << "Failed to send message: " << zmq_strerror(zmq_errno()) << std::endl;
-	}
-	*/
 #endif
 }
 
 template <typename T>
-Json::Value EventBroadcaster::appendToJSON(const MetaDataValue* valuePtr, std::string metaDesc, Json::Value message) const
+bool EventBroadcaster::appendMetaToJSON(const MetaDataValue* valuePtr, std::string metaDesc, Json::Value& message) const
 {
 	Array<T> data;
 	valuePtr->getValue(data);
@@ -469,7 +433,7 @@ Json::Value EventBroadcaster::appendToJSON(const MetaDataValue* valuePtr, std::s
 	}
 	
 
-	return message;
+	return true;
 }
 
 template <typename T>

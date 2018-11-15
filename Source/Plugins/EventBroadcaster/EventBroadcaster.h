@@ -76,7 +76,7 @@ private:
 	bool sendMetaDataValue(const MetaDataValue* valuePtr) const;
 
 	template <typename T>
-	Json::Value appendToJSON(const MetaDataValue* valuePtr, std::string metaDesc, Json::Value message) const;
+	bool appendMetaToJSON(const MetaDataValue* valuePtr, std::string metaDesc, Json::Value& message) const;
     // special specialization for strings
     bool sendStringMetaData(const String& valueString) const;
 
