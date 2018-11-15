@@ -198,16 +198,6 @@ void EventBroadcaster::process(AudioSampleBuffer& continuousBuffer)
     checkForEvents(true);
 }
 
-EventBroadcaster::Envelope::Envelope(uint8 baseType, uint16 index, const String& identifier)
-{
-    const auto identifierPtr = identifier.toUTF8();
-    size_t identifierSz = identifierPtr.sizeInBytes() - 1;
-    
-    append(&baseType, sizeof(baseType));
-    append(&index,    sizeof(index));
-    append(identifierPtr, identifierSz);
-}
-
 void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMessage& msg) const
 {
 #ifdef ZEROMQ
@@ -216,22 +206,25 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
     // deserialize the event
     EventType baseType = Event::getBaseType(msg);
     const String& identifier = channel->getIdentifier();
-    uint16 index;
     
     EventBasePtr baseEvent;
     const MetaDataEventObject* metaDataChannel; // for later...
+    String envelope;
     switch (baseType)
     {
+        uint16 index;
     case SPIKE_EVENT:
         baseEvent = SpikeEvent::deserializeFromMessage(msg, static_cast<const SpikeChannel*>(channel));
         index = static_cast<SpikeEvent*>(baseEvent.get())->getSortedID();
         metaDataChannel = static_cast<const MetaDataEventObject*>(static_cast<const SpikeChannel*>(channel));
+        envelope = "spike/type:" + identifier + "/sortedID:" + String(index);
         break;
 
     case PROCESSOR_EVENT:
         baseEvent = Event::deserializeFromMessage(msg, static_cast<const EventChannel*>(channel));
         index = static_cast<Event*>(baseEvent.get())->getChannel();
         metaDataChannel = static_cast<const MetaDataEventObject*>(static_cast<const EventChannel*>(channel));
+        envelope = "event/channel:" + String(index) + "/type:" + identifier;
         break;
 
     default:
@@ -240,8 +233,9 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
     }
 
     // ***** Send basic info ******
-    Envelope envelope(baseType, index, identifier);
-    if (-1 == zmq_send(socket, envelope.getData(), envelope.getSize(), ZMQ_SNDMORE))
+
+    const char* envelopeStr = envelope.toUTF8();
+    if (-1 == zmq_send(socket, envelopeStr, strlen(envelopeStr), ZMQ_SNDMORE))
     {
         std::cout << "Error sending envelope: " << zmq_strerror(zmq_errno()) << std::endl;
     }
