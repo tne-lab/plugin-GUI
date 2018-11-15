@@ -144,52 +144,54 @@ int EventBroadcaster::getListeningPort() const
 
 int EventBroadcaster::setListeningPort(int port, bool forceRestart)
 {
-    if ((listeningPort != port) || forceRestart)
+    if (listeningPort == port && !forceRestart)
     {
-#ifdef ZEROMQ
-        // unbind current socket (if any) to free up port
-        unbindZMQSocket();
-        ZMQSocketPtr newSocket;
-        auto editor = static_cast<EventBroadcasterEditor*>(getEditor());
-        int status = 0;
+        return 0;
+    }
 
-        if (!newSocket.get())
+#ifdef ZEROMQ
+    // unbind current socket (if any) to free up port
+    unbindZMQSocket();
+    ZMQSocketPtr newSocket;
+    auto editor = static_cast<EventBroadcasterEditor*>(getEditor());
+    int status = 0;
+
+    if (!newSocket.get())
+    {
+        status = zmq_errno();
+        std::cout << "Failed to create socket: " << zmq_strerror(status) << std::endl;
+    }
+    else
+    {
+        if (0 != zmq_bind(newSocket.get(), getEndpoint(port).toRawUTF8()))
         {
             status = zmq_errno();
-            std::cout << "Failed to create socket: " << zmq_strerror(status) << std::endl;
+            std::cout << "Failed to open socket: " << zmq_strerror(status) << std::endl;
         }
         else
         {
-            if (0 != zmq_bind(newSocket.get(), getEndpoint(port).toRawUTF8()))
-            {
-                status = zmq_errno();
-                std::cout << "Failed to open socket: " << zmq_strerror(status) << std::endl;
-            }
-            else
-            {
-                // success
-                zmqSocket.swap(newSocket);
-                reportActualListeningPort(port);
-                return status;
-            }
+            // success
+            zmqSocket.swap(newSocket);
+            reportActualListeningPort(port);
+            return status;
         }
+    }
 
-        // failure, try to rebind current socket to previous port
-        if (0 == rebindZMQSocket())
-        {
-            reportActualListeningPort(listeningPort);
-        }
-        else
-        {
-            reportActualListeningPort(0);
-        }
-        return status;
+    // failure, try to rebind current socket to previous port
+    if (0 == rebindZMQSocket())
+    {
+        reportActualListeningPort(listeningPort);
+    }
+    else
+    {
+        reportActualListeningPort(0);
+    }
+    return status;
 
 #else
-        reportActualListeningPort(port);
-        return 0;
+    reportActualListeningPort(port);
+    return 0;
 #endif
-    }
 }
 
 
@@ -289,7 +291,8 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
         auto spike = static_cast<SpikeEvent*>(baseEvent.get());
 
         // Send the thresholds
-        for (int i = 0; i < spikeChannel->getNumChannels(); ++i)
+        int spikeChannels = spikeChannel->getNumChannels();
+        for (int i = 0; i < spikeChannels; ++i)
         {
             const char* thresholdDesc = ("threshold " + String(i + 1)).toUTF8();
             if (-1 == zmq_send(socket, thresholdDesc, strlen(thresholdDesc), ZMQ_SNDMORE))
@@ -468,7 +471,7 @@ bool EventBroadcaster::sendMetaDataValue(const MetaDataValue* valuePtr) const
     int dataLength = data.size();
     if (dataLength == 1)
     {
-        valueString = String(sendValue);
+        valueString = String(data[0]);
     }
     else
     {
@@ -476,7 +479,7 @@ bool EventBroadcaster::sendMetaDataValue(const MetaDataValue* valuePtr) const
         for (int i = 0; i < dataLength; ++i)
         {
             if (i > 0) { valueString += ", "; }
-            valueString += data[i];
+            valueString += String(data[i]);
         }
         valueString += "]";
     }
@@ -486,12 +489,16 @@ bool EventBroadcaster::sendMetaDataValue(const MetaDataValue* valuePtr) const
 
 bool EventBroadcaster::sendStringMetaData(const String& valueString) const
 {
+#ifdef ZEROMQ
+    void* socket = zmqSocket.get();
+
     const char* valueUTF8 = valueString.toUTF8();
     if (-1 == zmq_send(socket, valueUTF8, strlen(valueUTF8), ZMQ_SNDMORE))
     {
         std::cout << "Error sending metadata" << std::endl;
         return false;
     }
+#endif
     return true;
 }
 
