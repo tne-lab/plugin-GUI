@@ -42,7 +42,6 @@ public:
     void saveCustomParametersToXml (XmlElement* parentElement) override;
     void loadCustomParametersFromXml() override;
 
-
 private:
     class ZMQContext : public ReferenceCountedObject
     {
@@ -68,7 +67,32 @@ private:
     int unbindZMQSocket();
     int rebindZMQSocket();
 
-	void sendEvent(const MidiMessage& event, float eventSampleRate) const;
+    /*
+    * First part of message("envelope") is important b/c subscribers can't use any later parts for filtering.
+    * Should include information relevant for subscribers to decide whether they need this event.
+    * See: http://zguide.zeromq.org/page:all#Pub-Sub-Message-Envelopes
+    * 
+    * Structure (as a *packed* byte array, i.e. no alignment):
+    * - baseType   (uint8)        - either PROCESSOR_EVENT (1) or SPIKE_EVENT (2)).
+    * - index      (uint16)       - corresponds to TTL channel for TTL events, whatever was assigned
+    *                               to "channel" for other processor events, and the sorted ID for spikes.
+    * - identifier (utf-8 string) - the channel's "machine-readable data identifier" (no null terminator).
+    */
+    class Envelope : public MemoryBlock
+    {
+    public:
+        Envelope(uint8 baseType, uint16 index, const String& identifier);
+    };
+
+	void sendEvent(const InfoObjectCommon* channel, const MidiMessage& event) const;
+    
+    // returns true on success, false on failure
+    template <typename T>
+    bool sendMetaDataValue(const MetaDataValue* valuePtr) const;
+
+    // special specialization for strings
+    bool sendStringMetaData(const String& valueString) const;
+
     static String getEndpoint(int port);
     // called from getListeningPort() depending on success/failure of ZMQ operations
     void reportActualListeningPort(int port);

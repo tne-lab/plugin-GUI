@@ -198,289 +198,317 @@ void EventBroadcaster::process(AudioSampleBuffer& continuousBuffer)
     checkForEvents(true);
 }
 
-
-//IMPORTANT: The structure of the event buffers has changed drastically, so we need to find a better way of doing this
-void EventBroadcaster::sendEvent(const MidiMessage& event, float eventSampleRate) const
+EventBroadcaster::Envelope::Envelope(uint8 baseType, uint16 index, const String& identifier)
 {
-	
-	
+    const auto identifierPtr = identifier.toUTF8();
+    size_t identifierSz = identifierPtr.sizeInBytes() - 1;
+    
+    append(&baseType, sizeof(baseType));
+    append(&index,    sizeof(index));
+    append(identifierPtr, identifierSz);
+}
+
+void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMessage& msg) const
+{
 #ifdef ZEROMQ
-	//Send Event
-	uint16 type = Event::getBaseType(event);
-	if (-1 == zmq_send(zmqSocket.get(), &type, sizeof(type), ZMQ_SNDMORE)) 
-	{
-		fprintf(stdout, "Error sending event \n");
-	}
-	//Send timestamp
-	double timestampSeconds = double(Event::getTimestamp(event)) / eventSampleRate;
-	juce::String newTime = juce::String(timestampSeconds);
-	const char * finalTime = newTime.toUTF8();
+    void* socket = zmqSocket.get();
+
+    // deserialize the event
+    EventType baseType = Event::getBaseType(msg);
+    const String& identifier = channel->getIdentifier();
+    uint16 index;
+    
+    EventBasePtr baseEvent;
+    const MetaDataEventObject* metaDataChannel; // for later...
+    switch (baseType)
+    {
+    case SPIKE_EVENT:
+        baseEvent = SpikeEvent::deserializeFromMessage(msg, static_cast<const SpikeChannel*>(channel));
+        index = static_cast<SpikeEvent*>(baseEvent.get())->getSortedID();
+        metaDataChannel = static_cast<const MetaDataEventObject*>(static_cast<const SpikeChannel*>(channel));
+        break;
+
+    case PROCESSOR_EVENT:
+        baseEvent = Event::deserializeFromMessage(msg, static_cast<const EventChannel*>(channel));
+        index = static_cast<Event*>(baseEvent.get())->getChannel();
+        metaDataChannel = static_cast<const MetaDataEventObject*>(static_cast<const EventChannel*>(channel));
+        break;
+
+    default:
+        jassertfalse; // should never happen
+        return;
+    }
+
+    // ***** Send basic info ******
+    Envelope envelope(baseType, index, identifier);
+    if (-1 == zmq_send(socket, envelope.getData(), envelope.getSize(), ZMQ_SNDMORE))
+    {
+        std::cout << "Error sending envelope: " << zmq_strerror(zmq_errno()) << std::endl;
+    }
+
+    // TODO from here down maybe we can package up into a JSON string or something similar?
+
+    float eventSampleRate = channel->getSampleRate();
+	double timestampSeconds = double(Event::getTimestamp(msg)) / eventSampleRate;
+	const char* timeStr = String(timestampSeconds).toUTF8();
 	
-	if (-1 == zmq_send(zmqSocket.get(), finalTime, strlen(finalTime), ZMQ_SNDMORE)) 
+	if (-1 == zmq_send(socket, timeStr, strlen(timeStr), ZMQ_SNDMORE)) 
 	{
-		fprintf(stdout, "Error sending timestamp \n");
+        std::cout << "Error sending timestamp: " << zmq_strerror(zmq_errno()) << std::endl;
+        return;
 	}
-
-	//Doesn't line up with anything(that I know of), but might be useful for someone.
-	int channelNumber = event.getChannel();
-	// TODO !!! Find the actual channel number that corresponds to spike/events not just the first one.
 	
-	//Is it a spike event?
-	if (getTotalSpikeChannels() > 0) {
-		//Only one channel of spikes, so grab the first one
-		const SpikeChannel * spikeChannelPtr = getSpikeChannel(0);
 
-		//Gets the data from the event
-		SpikeEventPtr spikeEventPtr = SpikeEvent::deserializeFromMessage(event, spikeChannelPtr);
-		SpikeEvent * spike = spikeEventPtr.get();
-		
-		/*
-		//Using spike sorter this gets the color. Awkward to use that info unless 
-		//we find a way to send box information as well.
-		//Send event data descriptor
-		const MetaDataDescriptor * metaDescPtr = eventChan->getEventMetaDataDescriptor(0);
-		juce::String metaDesc = metaDescPtr->getName();
-		const char * metaString = metaDesc.toUTF8();
-		if (-1 == zmq_send(zmqSocket.get(), metaString, strlen(metaString), ZMQ_SNDMORE))
-		{
-			fprintf(stdout, "Error sending description \n");
-		
-		}
+    // ****** Send data payload *******
+    switch (baseType)
+    {
+    case SPIKE_EVENT:
+    {
+        /*
+        //Using spike sorter this gets the color. Awkward to use that info unless
+        //we find a way to send box information as well.
+        //Send event data descriptor
+        const MetaDataDescriptor * metaDescPtr = eventChan->getEventMetaDataDescriptor(0);
+        juce::String metaDesc = metaDescPtr->getName();
+        const char * metaString = metaDesc.toUTF8();
+        if (-1 == zmq_send(socket, metaString, strlen(metaString), ZMQ_SNDMORE))
+        {
+        fprintf(stdout, "Error sending description \n");
 
-		//Send meta data
-		const MetaDataValue * metaSpikePtr = spike->getMetaDataValue(0);
-		///HARD CODED FOR SPIKE SORTER (uint8)
-		uint8 spikeData;
-		metaSpikePtr->getValue(spikeData);
-		juce::String metaValue = juce::String(spikeData);
-		const char * metaValueStr = metaValue.toUTF8();
-		if (-1 == zmq_send(zmqSocket.get(), metaValueStr, strlen(metaValueStr), ZMQ_SNDMORE))
-		{
-		fprintf(stdout, "Error sending description \n");
+        }
 
-		}
-		*/
+        //Send meta data
+        const MetaDataValue * metaSpikePtr = spike->getMetaDataValue(0);
+        ///HARD CODED FOR SPIKE SORTER (uint8)
+        uint8 spikeData;
+        metaSpikePtr->getValue(spikeData);
+        juce::String metaValue = juce::String(spikeData);
+        const char * metaValueStr = metaValue.toUTF8();
+        if (-1 == zmq_send(socket, metaValueStr, strlen(metaValueStr), ZMQ_SNDMORE))
+        {
+        fprintf(stdout, "Error sending description \n");
 
-		//Send the threshold
-		const char * thresholdDesc = "threshold";
-		if (-1 == zmq_send(zmqSocket.get(), thresholdDesc, strlen(thresholdDesc), ZMQ_SNDMORE))
-		{
-			fprintf(stdout, "Error sending threshold desc \n");
-		}
-		
+        }
+        */
 
-		float threshold = spike->getThreshold(0);
-		juce::String threshStr = juce::String(threshold);
-		const char * threshStrPtr = threshStr.toUTF8();
+        auto spikeChannel = static_cast<const SpikeChannel*>(channel);
+        auto spike = static_cast<SpikeEvent*>(baseEvent.get());
 
-		if (-1 == zmq_send(zmqSocket.get(), threshStrPtr, strlen(threshStrPtr), ZMQ_SNDMORE))
-		{
-			fprintf(stdout, "Error sending threshold \n");
-		}
-	}
-	//Or event...? 
-	else if (getTotalEventChannels() > 0)
-	{
-		//Get first channel, should only be one unless sending multiple types of events
-		const EventChannel * eventChannelPtr = getEventChannel(0);
-		if (eventChannelPtr->getInfoObjectType() == 1)
-		{
-			//Parse message
-			TTLEventPtr metaEventPtr = TTLEvent::deserializeFromMessage(event, eventChannelPtr);
+        // Send the thresholds
+        for (int i = 0; i < spikeChannel->getNumChannels(); ++i)
+        {
+            const char* thresholdDesc = ("threshold " + String(i + 1)).toUTF8();
+            if (-1 == zmq_send(socket, thresholdDesc, strlen(thresholdDesc), ZMQ_SNDMORE))
+            {
+                std::cout << "Error sending threshold desc: " << zmq_strerror(zmq_errno()) << std::endl;
+                return;
+            }
 
-			TTLEvent *meta = metaEventPtr.get();
-			int numMetaData = meta->getMetadataValueCount();
-			const EventChannel * eventChan = metaEventPtr->getChannelInfo();
+            float threshold = spike->getThreshold(i);
+            const char* threshStr = String(threshold).toUTF8();
 
-			//Iterate through all event data and output them as strings to zmq
-			for (int i = 0; i < numMetaData; i++)
-			{
+            if (-1 == zmq_send(socket, threshStr, strlen(threshStr), ZMQ_SNDMORE))
+            {
+                std::cout << "Error sending threshold: " << zmq_strerror(zmq_errno()) << std::endl;
+                return;
+            }
+        }
 
-				//Send event data descriptor
-				const MetaDataDescriptor * metaDescPtr = eventChan->getEventMetaDataDescriptor(i);
-				if (metaDescPtr != nullptr)
-				{
-					juce::String metaDesc = metaDescPtr->getName();
+        // send spike data here maybe?
+    }
+    break;
 
-					if (metaDesc.isNotEmpty())
-					{
-						const char * metaString = metaDesc.toUTF8();
-						if (-1 == zmq_send(zmqSocket.get(), metaString, strlen(metaString), ZMQ_SNDMORE))
-						{
-							fprintf(stdout, "Error sending description \n");
-						}
-					}
-					else
-					{
-						fprintf(stdout, "Empty meta descriptor \n");
-					}
-				}
+    case PROCESSOR_EVENT:
+    {
+        auto eventChannel = static_cast<const EventChannel*>(channel);
+        auto event = static_cast<Event*>(baseEvent.get());
 
-				//Send event data value
-				const MetaDataValue * valuePtr = meta->getMetaDataValue(i);
-				//get data type returns a int corresponding to data type
-				//getValue() needs an initalized variable of that type
-				//Might be able to malloc with a void * but I found this to be the easiest method
-				switch (valuePtr->getDataType())
-				{
-				case 0: {
-					//Get the Value
-					CHAR sendValue;
-					valuePtr->getValue(sendValue);
-					//Change to UTF8 encoded string so python doesn't need to worry about anything
-					juce::String valueString = juce::String(sendValue);
-					const char * charValue = valueString.toUTF8();
-					//Send string
-					if (-1 == zmq_send(zmqSocket.get(), charValue, strlen(charValue), ZMQ_SNDMORE))
-					{
-						fprintf(stdout, "Error sending char \n");
-					}
-					break;
-				}
-				case 1: {
-					int8 sendValue;
-					valuePtr->getValue(sendValue);
-					juce::String valueString = juce::String(sendValue);
-					const char * int8Value = valueString.toUTF8();
-					if (-1 == zmq_send(zmqSocket.get(), int8Value, strlen(int8Value), ZMQ_SNDMORE))
-					{
-						fprintf(stdout, "Error sending int8 \n");
-					}
-					break;
-				}
-				case 2: {
-					uint8 sendValue;
-					valuePtr->getValue(sendValue);
-					juce::String valueString = juce::String(sendValue);
-					const char * uint8Value = valueString.toUTF8();
-					if (-1 == zmq_send(zmqSocket.get(), uint8Value, strlen(uint8Value), ZMQ_SNDMORE))
-					{
-						fprintf(stdout, "Error sending uint8 \n");
-					}
-					break;
-				}
-				case 3: {
-					int16 sendValue;
-					valuePtr->getValue(sendValue);
-					juce::String valueString = juce::String(sendValue);
-					const char * int16Value = valueString.toUTF8();
-					if (-1 == zmq_send(zmqSocket.get(), int16Value, strlen(int16Value), ZMQ_SNDMORE))
-					{
-						fprintf(stdout, "Error sending int16 \n");
-					}
-					break;
-				}
-				case 4:
-				{
-					uint16 sendValue;
-					valuePtr->getValue(sendValue);
-					juce::String valueString = juce::String(sendValue);
-					const char * uint16Value = valueString.toUTF8();
-					if (-1 == zmq_send(zmqSocket.get(), uint16Value, strlen(uint16Value), ZMQ_SNDMORE))
-					{
-						fprintf(stdout, "Error sending uint8 \n");
-					}
-					break;
-				}
-				case 5:
-				{
-					int32 sendValue;
-					valuePtr->getValue(sendValue);
-					juce::String valueString = juce::String(sendValue);
-					const char * int32Value = valueString.toUTF8();
-					if (-1 == zmq_send(zmqSocket.get(), int32Value, strlen(int32Value), ZMQ_SNDMORE))
-					{
-						fprintf(stdout, "Error sending int32 \n");
-					}
-					break;
-				}
-				case 6:
-				{
-					uint32 sendValue;
-					valuePtr->getValue(sendValue);
-					juce::String valueString = juce::String(sendValue);
-					const char * uint32Value = valueString.toUTF8();
-					if (-1 == zmq_send(zmqSocket.get(), uint32Value, strlen(uint32Value), ZMQ_SNDMORE))
-					{
-						fprintf(stdout, "Error sending uint32 \n");
-					}
-					break;
-				}
-				case 7:
-				{
-					int64 sendValue;
-					valuePtr->getValue(sendValue);
-					juce::String valueString = juce::String(sendValue);
-					const char * int64Value = valueString.toUTF8();
-					if (-1 == zmq_send(zmqSocket.get(), int64Value, strlen(int64Value), ZMQ_SNDMORE))
-					{
-						fprintf(stdout, "Error sending int64 \n");
-					}
-					break;
-				}
-				case 8:
-				{
-					uint64 sendValue;
-					valuePtr->getValue(sendValue);
-					juce::String valueString = juce::String(sendValue);
-					const char * uint64Value = valueString.toUTF8();
-					if (-1 == zmq_send(zmqSocket.get(), uint64Value, strlen(uint64Value), ZMQ_SNDMORE))
-					{
-						fprintf(stdout, "Error sending uint64 \n");
-					}
-					break;
-				}
-				case 9:
-				{
-					float sendValue;
-					valuePtr->getValue(sendValue);
-					juce::String valueString = juce::String(sendValue);
-					const char * floatValue = valueString.toUTF8();
-					if (-1 == zmq_send(zmqSocket.get(), floatValue, strlen(floatValue), ZMQ_SNDMORE))
-					{
-						fprintf(stdout, "Error sending float \n");
-					}
-					break;
-				}
-				case 10:
-				{
-					double sendValue;
-					valuePtr->getValue(sendValue);
-					juce::String valueString = juce::String(sendValue);
-					const char * doubleValue = valueString.toUTF8();
-					if (-1 == zmq_send(zmqSocket.get(), doubleValue, strlen(doubleValue), ZMQ_SNDMORE))
-					{
-						fprintf(stdout, "Error sending double \n");
-					}
-					break;
-				}
-				default:
-					fprintf(stdout, "error \n");
-					return;
-				}
+        // TODO didn't actually write the calls to send this stuff yet, since we're
+        // probably going to change the format anyway.
+        auto eventType = event->getEventType();
+        switch (eventType)
+        {
+        case EventChannel::EventChannelTypes::TTL:
+        {
+            // data we want to send:
+            bool state = static_cast<TTLEvent*>(event)->getState();
+            break;
+        }
+        case EventChannel::EventChannelTypes::TEXT:
+        {
+            // data we want to send:
+            const String& text = static_cast<TextEvent*>(event)->getText();
+            break;
+        }
+        default:
+        {
+            if (eventType < EventChannel::EventChannelTypes::BINARY_BASE_VALUE ||
+                eventType >= EventChannel::EventChannelTypes::INVALID)
+            {
+                jassertfalse;
+                return;
+            }
 
-			}
-		}
-	}
+            // must have binary event
+            // data we want to send:
+            const void* rawData = static_cast<BinaryEvent*>(event)->getBinaryDataPointer();
+            size_t rawDataSize = eventChannel->getDataSize();
 
-	//Maybe other types of events?
+            break;
+        }
+        }
+    }
+    break;
+
+    default: // neither spike nor processor event? (wtf)
+        jassertfalse;
+        return;
+    }
+
+    // ******* Send metadata ********
+
+    int numMetaData = baseEvent->getMetadataValueCount();
+
+    //Iterate through all event data and output them as strings to zmq
+    for (int i = 0; i < numMetaData; i++)
+    {
+
+        //Send event data descriptor
+        const MetaDataDescriptor * metaDescPtr = metaDataChannel->getEventMetaDataDescriptor(i);
+        if (metaDescPtr != nullptr)
+        {
+            juce::String metaDesc = metaDescPtr->getName();
+
+            if (metaDesc.isNotEmpty())
+            {
+                const char * metaString = metaDesc.toUTF8();
+                if (-1 == zmq_send(socket, metaString, strlen(metaString), ZMQ_SNDMORE))
+                {
+                    std::cout << "Error sending description" << std::endl;
+                }
+            }
+            else
+            {
+                std::cout << "Empty meta descriptor" << std::endl;
+            }
+        }
+
+        //Send event data value
+        const MetaDataValue* valuePtr = baseEvent->getMetaDataValue(i);
+        //get data type returns a int corresponding to data type
+        //getValue() needs an initalized variable of that type
+        //Might be able to malloc with a void * but I found this to be the easiest method
+        bool success;
+        switch (valuePtr->getDataType())
+        {
+        case MetaDataDescriptor::MetaDataTypes::CHAR:
+        {
+            String data;
+            valuePtr->getValue(data);
+            success = sendStringMetaData(data);
+            break;
+        }
+        case MetaDataDescriptor::MetaDataTypes::INT8:
+            success = sendMetaDataValue<int8>(valuePtr);
+            break;
+
+        case MetaDataDescriptor::MetaDataTypes::UINT8:
+            success = sendMetaDataValue<uint8>(valuePtr);
+            break;
+
+        case MetaDataDescriptor::MetaDataTypes::INT16:
+            success = sendMetaDataValue<int16>(valuePtr);
+            break;
+
+        case MetaDataDescriptor::MetaDataTypes::UINT16:
+            success = sendMetaDataValue<uint16>(valuePtr);
+            break;
+
+        case MetaDataDescriptor::MetaDataTypes::INT32:
+            success = sendMetaDataValue<int32>(valuePtr);
+            break;
+
+        case MetaDataDescriptor::MetaDataTypes::UINT32:
+            success = sendMetaDataValue<uint32>(valuePtr);
+            break;
+
+        case MetaDataDescriptor::MetaDataTypes::INT64:
+            success = sendMetaDataValue<int64>(valuePtr);
+            break;
+
+        case MetaDataDescriptor::MetaDataTypes::UINT64:
+            success = sendMetaDataValue<uint64>(valuePtr);
+            break;
+
+        case MetaDataDescriptor::MetaDataTypes::FLOAT:
+            success = sendMetaDataValue<float>(valuePtr);
+            break;
+
+        case MetaDataDescriptor::MetaDataTypes::DOUBLE:
+            success = sendMetaDataValue<double>(valuePtr);
+            break;
+
+        default:
+            jassertfalse;
+            std::cout << "Error: unknown metadata type" << std::endl;
+            success = false;
+        }
+        if (!success) { return; }
+    }
 	
 	//Send all raw data and actually flushes the multipart message out
-	if (-1 == zmq_send(zmqSocket.get(), event.getRawData(), event.getRawDataSize(), 0))
+    // TODO probably want to get rid of this eventually since it's redundant
+	if (-1 == zmq_send(socket, msg.getRawData(), msg.getRawDataSize(), 0))
 	{
 		std::cout << "Failed to send message: " << zmq_strerror(zmq_errno()) << std::endl;
 	}
 #endif
 }
 
+template <typename T>
+bool EventBroadcaster::sendMetaDataValue(const MetaDataValue* valuePtr) const
+{
+    Array<T> data;
+    valuePtr->getValue(data);
+    String valueString;
+    int dataLength = data.size();
+    if (dataLength == 1)
+    {
+        valueString = String(sendValue);
+    }
+    else
+    {
+        valueString = "[";
+        for (int i = 0; i < dataLength; ++i)
+        {
+            if (i > 0) { valueString += ", "; }
+            valueString += data[i];
+        }
+        valueString += "]";
+    }
+
+    return sendStringMetaData(valueString);
+}
+
+bool EventBroadcaster::sendStringMetaData(const String& valueString) const
+{
+    const char* valueUTF8 = valueString.toUTF8();
+    if (-1 == zmq_send(socket, valueUTF8, strlen(valueUTF8), ZMQ_SNDMORE))
+    {
+        std::cout << "Error sending metadata" << std::endl;
+        return false;
+    }
+    return true;
+}
+
 void EventBroadcaster::handleEvent(const EventChannel* channelInfo, const MidiMessage& event, int samplePosition)
 {
-	sendEvent(event, channelInfo->getSampleRate());
+	sendEvent(channelInfo, event);
 }
 
 void EventBroadcaster::handleSpike(const SpikeChannel* channelInfo, const MidiMessage& event, int samplePosition)
 {
-	sendEvent(event, channelInfo->getSampleRate());
+	sendEvent(channelInfo, event);
 }
 
 void EventBroadcaster::saveCustomParametersToXml(XmlElement* parentElement)
