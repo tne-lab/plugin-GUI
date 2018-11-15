@@ -219,14 +219,14 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
     {
         uint16 index;
     case SPIKE_EVENT:
-        baseEvent = SpikeEvent::deserializeFromMessage(msg, static_cast<const SpikeChannel*>(channel));
+        baseEvent = SpikeEvent::deserializeFromMessage(msg, static_cast<const SpikeChannel*>(channel)).release();
         index = static_cast<SpikeEvent*>(baseEvent.get())->getSortedID();
         metaDataChannel = static_cast<const MetaDataEventObject*>(static_cast<const SpikeChannel*>(channel));
         envelope = "spike/sortedID:" + String(index) + "/type:" + identifier;
         break;
 
     case PROCESSOR_EVENT:
-        baseEvent = Event::deserializeFromMessage(msg, static_cast<const EventChannel*>(channel));
+        baseEvent = Event::deserializeFromMessage(msg, static_cast<const EventChannel*>(channel)).release();
         index = static_cast<Event*>(baseEvent.get())->getChannel();
         metaDataChannel = static_cast<const MetaDataEventObject*>(static_cast<const EventChannel*>(channel));
         envelope = "event/channel:" + String(index) + "/type:" + identifier;
