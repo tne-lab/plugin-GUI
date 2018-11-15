@@ -12,6 +12,8 @@
 #define EVENTBROADCASTER_H_INCLUDED
 
 #include <ProcessorHeaders.h>
+#include "json.h"
+#include "json-forwards.h"
 
 #ifdef ZEROMQ
     #ifdef WIN32
@@ -71,8 +73,10 @@ private:
     
     // returns true on success, false on failure
     template <typename T>
-    bool sendMetaDataValue(const MetaDataValue* valuePtr) const;
+	bool sendMetaDataValue(const MetaDataValue* valuePtr) const;
 
+	template <typename T>
+	Json::Value appendToJSON(const MetaDataValue* valuePtr, std::string metaDesc, Json::Value message) const;
     // special specialization for strings
     bool sendStringMetaData(const String& valueString) const;
 
