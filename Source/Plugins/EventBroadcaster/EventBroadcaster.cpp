@@ -227,7 +227,7 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
         baseEvent = SpikeEvent::deserializeFromMessage(msg, static_cast<const SpikeChannel*>(channel)).release();
         index = static_cast<SpikeEvent*>(baseEvent.get())->getSortedID();
         metaDataChannel = static_cast<const MetaDataEventObject*>(static_cast<const SpikeChannel*>(channel));
-        message["envelope"] = ("spike/sortedID:" + String(index) + "/type:" + identifier).toStdString();
+        envelope = ("spike/sortedID:" + String(index) + "/type:" + identifier).toStdString();
         break;
 
     case PROCESSOR_EVENT:
@@ -235,13 +235,39 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
         baseEvent = Event::deserializeFromMessage(msg, static_cast<const EventChannel*>(channel)).release();
         index = static_cast<Event*>(baseEvent.get())->getChannel();
         metaDataChannel = static_cast<const MetaDataEventObject*>(static_cast<const EventChannel*>(channel));
-		message["envelope"] = ("event/channel:" + String(index) + "/type:" + identifier).toStdString();
+		envelope = ("event/channel:" + String(index) + "/type:" + identifier).toStdString();
         break;
 
     default:
         jassertfalse; // should never happen
         return;
     }
+
+    //Send Envelope First
+    const char * envelopeStr = envelope.toUTF8();
+    if (-1 == zmq_send(socket, envelopeStr, strlen(envelopeStr), ZMQ_SNDMORE))
+    {
+        std::cout << "Error sending envelope: " << zmq_strerror(zmq_errno()) << std::endl;
+    }
+
+
+    ////USE JUCE JSON??
+    DynamicObject* obj = new DynamicObject();
+    obj->setProperty("foo", "bar");
+    obj->setProperty("num", 123);
+
+    DynamicObject* nestedObj = new DynamicObject();
+    nestedObj->setProperty("inner", "value");
+    obj->setProperty("nested", nestedObj);
+
+    var json(obj); // store the outer object in a var [we could have done this earlier]
+    String s = JSON::toString(json);
+    const char * JSONTest = s.toUTF8();
+    if (-1 == zmq_send(socket, JSONTest, strlen(JSONTest), ZMQ_SNDMORE))
+    {
+        std::cout << "Error sending JSONTest: " << zmq_strerror(zmq_errno()) << std::endl;
+    }
+    ////
 
     float eventSampleRate = channel->getSampleRate();
 	message["timing"]["sample rate"] = eventSampleRate;
