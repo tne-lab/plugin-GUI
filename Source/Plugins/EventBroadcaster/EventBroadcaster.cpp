@@ -210,8 +210,8 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
 	
 	//Init json struct
 	//Add infomration by message[key] = value; NEEDS TO BE std::string
-	Json::Value message;
-
+	//Json::Value message;
+    DynamicObject* message = new DynamicObject();
     // deserialize the event
     EventType baseType = Event::getBaseType(msg);
     const String& identifier = channel->getIdentifier();
@@ -269,10 +269,12 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
     }
     ////
 
+    DynamicObject* timing = new DynamicObject();
+    message->setProperty("timing", timing);
     float eventSampleRate = channel->getSampleRate();
-	message["timing"]["sample rate"] = eventSampleRate;
+	timing->setProperty("sample rate", eventSampleRate);
 	double timestampSeconds = double(Event::getTimestamp(msg)) / eventSampleRate;
-	message["timing"]["timestamp"] = timestampSeconds;
+	timing->setProperty("timestamp", timestampSeconds);
 
     // ****** Get data payload *******
     switch (baseType)
@@ -282,12 +284,14 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
         auto spikeChannel = static_cast<const SpikeChannel*>(channel);
         auto spike = static_cast<SpikeEvent*>(baseEvent.get());
 
+        DynamicObject* thresholdObj = new DynamicObject();
+        message->setProperty("threshold", thresholdObj);
         // Send the thresholds
         int spikeChannels = spikeChannel->getNumChannels();
         for (int i = 0; i < spikeChannels; ++i)
         {
 			float threshold = spike->getThreshold(i);
-			message["threshold"][std::to_string(i)] = threshold;
+			thresholdObj->setProperty(String(i), threshold);
 			const char* threshStr = String(threshold).toUTF8();
         }
 
@@ -310,7 +314,7 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
         {
             // data we want to send:
             bool state = static_cast<TTLEvent*>(event)->getState();
-			message["state"] = state;
+			message->setProperty("state", state);
 			//Anything else?
             break;
         }
@@ -320,7 +324,7 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
             const String& text = static_cast<TextEvent*>(event)->getText();
 			//Will the reference on string from ^^ break line below??
 			//Not sure how to send one...
-			message["text"] = text.toStdString();
+			message->setProperty("text", text);
 			//Anything else?
             break;
         }
@@ -359,7 +363,7 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
         //Get event data descriptor
         const MetaDataDescriptor * metaDescPtr = metaDataChannel->getEventMetaDataDescriptor(i);
         //Did not like Juce::String for referencing items
-		std::string metaDesc = (metaDescPtr->getName()).toStdString();
+		String metaDesc = (metaDescPtr->getName()).toStdString();
 		
         //Get event data value
         const MetaDataValue* valuePtr = baseEvent->getMetaDataValue(i);
@@ -370,9 +374,9 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
 		{
 		case MetaDataDescriptor::MetaDataTypes::CHAR:
 		{
-			String value;
-			valuePtr->getValue(value);
-			message[metaDesc] = value.toStdString();
+			String sendValue;
+			valuePtr->getValue(sendValue);
+            message->setProperty(metaDesc, sendValue);
 			success = true;
 			break;
 		}
@@ -427,7 +431,8 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
         if (!success) { return; }
     }
 
-	String JSONStr = message.toStyledString();
+	var jsonMes(message);
+    String JSONStr = JSON::toString(jsonMes);
 	//Our JSON String!!
 	//std::cout << JSONStr << std::endl;
 
@@ -440,7 +445,7 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
 }
 
 template <typename T>
-bool EventBroadcaster::appendMetaToJSON(const MetaDataValue* valuePtr, std::string metaDesc, Json::Value& message) const
+bool EventBroadcaster::appendMetaToJSON(const MetaDataValue* valuePtr, String metaDesc, DynamicObject* message) const
 {
 	Array<T> data;
 	valuePtr->getValue(data);
@@ -448,13 +453,15 @@ bool EventBroadcaster::appendMetaToJSON(const MetaDataValue* valuePtr, std::stri
 	int dataLength = data.size();
 	if (dataLength == 1)
 	{
-		message[metaDesc] = data[0];
+		message->setProperty(metaDesc, data[0]);
 	}
 	else
 	{
+        DynamicObject* nestedObj = new DynamicObject();
+        message->setProperty(metaDesc, nestedObj);
 		for (int i = 0; i < dataLength; ++i)
 		{
-			message[metaDesc][std::to_string(i)] = data[i];
+			nestedObj->setProperty(String(i), data[i]);
 		}
 	}
 	
