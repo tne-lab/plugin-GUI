@@ -210,7 +210,6 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
 	
 	// Init JSON struct
     // TODO Create a procotol that has outline for every type of event
-    // TODO **************** Change nested objs from &name to name.get() ********************
     DynamicObject::Ptr message = new DynamicObject();
 
 
@@ -231,7 +230,7 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
         baseEvent = SpikeEvent::deserializeFromMessage(msg, static_cast<const SpikeChannel*>(channel)).release();
         index = static_cast<SpikeEvent*>(baseEvent.get())->getSortedID();
         metaDataChannel = static_cast<const MetaDataEventObject*>(static_cast<const SpikeChannel*>(channel));
-        envelope = ("spike/sortedID:" + String(index) + "/type:" + identifier).toStdString();
+        envelope = "spike/sortedID:" + String(index) + "/type:" + identifier;
         break;
 
     case PROCESSOR_EVENT:
@@ -239,7 +238,7 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
         baseEvent = Event::deserializeFromMessage(msg, static_cast<const EventChannel*>(channel)).release();
         index = static_cast<Event*>(baseEvent.get())->getChannel();
         metaDataChannel = static_cast<const MetaDataEventObject*>(static_cast<const EventChannel*>(channel));
-		envelope = ("event/channel:" + String(index) + "/type:" + identifier).toStdString();
+		envelope = "event/channel:" + String(index) + "/type:" + identifier;
         break;
 
     default:
@@ -247,31 +246,9 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
         return;
     }
 
-    //Send Envelope First // NO!
+    //Save the envelope to be sent later 
     const char * envelopeStr = envelope.toUTF8();
-    if (-1 == zmq_send(socket, envelopeStr, strlen(envelopeStr), ZMQ_SNDMORE))
-    {
-        std::cout << "Error sending envelope: " << zmq_strerror(zmq_errno()) << std::endl;
-    }
-
-
-    ////USE JUCE JSON?? - Just a guide on how to make the obj
-    DynamicObject::Ptr obj = new DynamicObject();
-    obj->setProperty("foo", "bar");
-    obj->setProperty("num", 123);
-
-    DynamicObject::Ptr nestedObj = new DynamicObject();
-    nestedObj->setProperty("inner", "value");
-    obj->setProperty("nested", &nestedObj);
-
-    var json(obj); // store the outer object in a var [we could have done this earlier]
-    String s = JSON::toString(json);
-    const char * JSONTest = s.toUTF8();
-    if (-1 == zmq_send(socket, JSONTest, strlen(JSONTest), ZMQ_SNDMORE))
-    {
-        std::cout << "Error sending JSONTest: " << zmq_strerror(zmq_errno()) << std::endl;
-    }
-    ////
+    
 
     // Still sending these guys as float/doubles for now. Might change in future.
     DynamicObject::Ptr timing = new DynamicObject();
@@ -290,7 +267,7 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
         auto spike = static_cast<SpikeEvent*>(baseEvent.get());
 
         DynamicObject::Ptr thresholdObj = new DynamicObject();
-        message->setProperty("threshold", &thresholdObj);
+        message->setProperty("threshold", thresholdObj.get());
 
         // Send the thresholds
         int spikeChannels = spikeChannel->getNumChannels();
@@ -361,7 +338,8 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
     // ******* Send metadata ********
 
     int numMetaData = baseEvent->getMetadataValueCount();
-	
+    DynamicObject::Ptr metaDataObj = new DynamicObject();
+    message->setProperty("Meta Data", metaDataObj.get());
     //Iterate through all event data and output them as strings to zmq
     for (int i = 0; i < numMetaData; i++)
     {
@@ -369,6 +347,8 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
         const MetaDataDescriptor * metaDescPtr = metaDataChannel->getEventMetaDataDescriptor(i);
 		String metaDesc = metaDescPtr->getName();
 		
+
+
         //Get event data value
         const MetaDataValue* valuePtr = baseEvent->getMetaDataValue(i);
         //get data type returns a int corresponding to data type
@@ -380,52 +360,52 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
 		{
 			String sendValue;
 			valuePtr->getValue(sendValue);
-            message->setProperty(metaDesc, sendValue);
+            metaDataObj->setProperty(metaDesc, sendValue);
 			success = true;
 			break;
 		}
         // TODO How to fix <uint16> not having a constructor???
-        //  Easy fix - We make them Strings!!
+        //  Easy fix - We make them Strings!! Current fix.
         //  Hard fix - ...?
 		case MetaDataDescriptor::MetaDataTypes::INT8:
 			//success = sendMetaDataValue<int8>(valuePtr);
-			success = appendMetaToJSON<int8>(valuePtr, metaDesc, message);
+			success = appendMetaToJSON<int8>(valuePtr, metaDesc, metaDataObj);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::UINT8:
-			success = appendMetaToJSON<uint8>(valuePtr, metaDesc, message);
+            success = appendMetaToJSON<uint8>(valuePtr, metaDesc, metaDataObj);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::INT16:
-			success = appendMetaToJSON<int16>(valuePtr, metaDesc, message);
+            success = appendMetaToJSON<int16>(valuePtr, metaDesc, metaDataObj);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::UINT16:
-            success = appendMetaToJSON<uint16>(valuePtr, metaDesc, message);
+            success = appendMetaToJSON<uint16>(valuePtr, metaDesc, metaDataObj);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::INT32:
-			success = appendMetaToJSON<int32>(valuePtr, metaDesc, message);
+            success = appendMetaToJSON<int32>(valuePtr, metaDesc, metaDataObj);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::UINT32:
-			success = appendMetaToJSON<uint32>(valuePtr, metaDesc, message);
+            success = appendMetaToJSON<uint32>(valuePtr, metaDesc, metaDataObj);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::INT64:
-			success = appendMetaToJSON<int64>(valuePtr, metaDesc, message);
+            success = appendMetaToJSON<int64>(valuePtr, metaDesc, metaDataObj);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::UINT64:
-			success = appendMetaToJSON<uint64>(valuePtr, metaDesc, message);
+            success = appendMetaToJSON<uint64>(valuePtr, metaDesc, metaDataObj);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::FLOAT:
-			success = appendMetaToJSON<float>(valuePtr, metaDesc, message);
+            success = appendMetaToJSON<float>(valuePtr, metaDesc, metaDataObj);
 			break;
 
 		case MetaDataDescriptor::MetaDataTypes::DOUBLE:
-			success = appendMetaToJSON<double>(valuePtr, metaDesc, message);
+            success = appendMetaToJSON<double>(valuePtr, metaDesc, metaDataObj);
 			break;
 
 		default:
@@ -444,15 +424,44 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
 
     // TODO make function to send all at end... send(const char * envelope, const char * json)
 	const char * JSONPtr = JSONStr.toUTF8();
-	if (-1 == zmq_send(socket, JSONPtr, strlen(JSONPtr), 0))
-	{
-		std::cout << "Error sending json: " << zmq_strerror(zmq_errno()) << std::endl;
-	}
+    /*
+    if (!sendPackage(envelopeStr, JSONPtr)) {
+        std::cout << "Error sending Package" << std::endl;
+    }
+    */
+
+    if (-1 == zmq_send(socket, envelopeStr, strlen(envelopeStr), ZMQ_SNDMORE))
+    {
+        std::cout << "Error sending envelope: " << zmq_strerror(zmq_errno()) << std::endl;
+    }
+
+    if (-1 == zmq_send(socket, JSONPtr, strlen(JSONPtr), 0))
+    {
+        std::cout << "Error sending json: " << zmq_strerror(zmq_errno()) << std::endl;
+    }
 #endif
 }
 
+/*
+bool EventBroadcaster::sendPackage(const char * envelopeStr, const char * JSONPtr) const
+{
+    if (-1 == zmq_send(socket, envelopeStr, strlen(envelopeStr), ZMQ_SNDMORE))
+    {
+        std::cout << "Error sending envelope: " << zmq_strerror(zmq_errno()) << std::endl;
+        return false;
+    }
+    
+    if (-1 == zmq_send(socket, JSONPtr, strlen(JSONPtr), 0))
+    {
+        std::cout << "Error sending json: " << zmq_strerror(zmq_errno()) << std::endl;
+        return false;
+    } 
+    return true;
+}
+*/
+
 template <typename T>
-bool EventBroadcaster::appendMetaToJSON(const MetaDataValue* valuePtr, String metaDesc, DynamicObject::Ptr message) const
+bool EventBroadcaster::appendMetaToJSON(const MetaDataValue* valuePtr, String metaDesc, DynamicObject::Ptr metaDataObj) const
 {
 	Array<T> data;
 	valuePtr->getValue(data);
@@ -461,15 +470,15 @@ bool EventBroadcaster::appendMetaToJSON(const MetaDataValue* valuePtr, String me
     
 	if (dataLength == 1)
 	{
-            message->setProperty(metaDesc, data[0]);
+            metaDataObj->setProperty(metaDesc, String(data[0]));
 	}
 	else
 	{
         DynamicObject::Ptr nestedObj = new DynamicObject();
-        message->setProperty(metaDesc, &nestedObj);
+        metaDataObj->setProperty(metaDesc, nestedObj.get());
 		for (int i = 0; i < dataLength; ++i)
 		{
-			nestedObj->setProperty(String(i), data[i]);
+			nestedObj->setProperty(String(i), String(data[i]));
 		}
 	}
 	

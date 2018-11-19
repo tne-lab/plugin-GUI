@@ -80,6 +80,9 @@ private:
     // special specialization for strings
     bool sendStringMetaData(const String& valueString) const;
 
+    //Function to send our envelope and JSON obj
+    //bool sendPackage(const char * envelopeStr, const char * JSONPtr) const;
+
     static String getEndpoint(int port);
     // called from getListeningPort() depending on success/failure of ZMQ operations
     void reportActualListeningPort(int port);
