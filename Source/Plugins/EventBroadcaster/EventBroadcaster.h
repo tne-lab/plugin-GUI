@@ -81,7 +81,8 @@ private:
     bool sendStringMetaData(const String& valueString) const;
 
     //Function to send our envelope and JSON obj
-    //bool sendPackage(const char * envelopeStr, const char * JSONPtr) const;
+    //DOESN'T WORK DLL error ( how to add functions??)
+    bool sendPackage(void* socket, const char * envelopeStr, const char * JSONPtr) const;
 
     static String getEndpoint(int port);
     // called from getListeningPort() depending on success/failure of ZMQ operations

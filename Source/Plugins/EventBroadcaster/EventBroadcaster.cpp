@@ -424,26 +424,15 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
 
     // TODO make function to send all at end... send(const char * envelope, const char * json)
 	const char * JSONPtr = JSONStr.toUTF8();
-    /*
-    if (!sendPackage(envelopeStr, JSONPtr)) {
+    
+    if (!sendPackage(socket, envelopeStr, JSONPtr)) {
         std::cout << "Error sending Package" << std::endl;
-    }
-    */
-
-    if (-1 == zmq_send(socket, envelopeStr, strlen(envelopeStr), ZMQ_SNDMORE))
-    {
-        std::cout << "Error sending envelope: " << zmq_strerror(zmq_errno()) << std::endl;
-    }
-
-    if (-1 == zmq_send(socket, JSONPtr, strlen(JSONPtr), 0))
-    {
-        std::cout << "Error sending json: " << zmq_strerror(zmq_errno()) << std::endl;
     }
 #endif
 }
 
-/*
-bool EventBroadcaster::sendPackage(const char * envelopeStr, const char * JSONPtr) const
+
+bool EventBroadcaster::sendPackage(void* socket, const char * envelopeStr, const char * JSONPtr) const
 {
     if (-1 == zmq_send(socket, envelopeStr, strlen(envelopeStr), ZMQ_SNDMORE))
     {
@@ -458,7 +447,7 @@ bool EventBroadcaster::sendPackage(const char * envelopeStr, const char * JSONPt
     } 
     return true;
 }
-*/
+
 
 template <typename T>
 bool EventBroadcaster::appendMetaToJSON(const MetaDataValue* valuePtr, String metaDesc, DynamicObject::Ptr metaDataObj) const
@@ -474,12 +463,15 @@ bool EventBroadcaster::appendMetaToJSON(const MetaDataValue* valuePtr, String me
 	}
 	else
 	{
-        DynamicObject::Ptr nestedObj = new DynamicObject();
-        metaDataObj->setProperty(metaDesc, nestedObj.get());
+       // DynamicObject::Ptr nestedObj = new DynamicObject();
+        //metaDataObj->setProperty(metaDesc, nestedObj.get());
+        Array<var> myArray;
 		for (int i = 0; i < dataLength; ++i)
 		{
-			nestedObj->setProperty(String(i), String(data[i]));
+            myArray.add(String(data[i]));
+			//nestedObj->setProperty(String(i), String(data[i]));
 		}
+        metaDataObj->setProperty(metaDesc, myArray);
 	}
 	
 
