@@ -12,8 +12,8 @@
 #define EVENTBROADCASTER_H_INCLUDED
 
 #include <ProcessorHeaders.h>
-#include "json.h"
-#include "json-forwards.h"
+//#include "json.h"
+//#include "json-forwards.h"
 
 #ifdef ZEROMQ
     #ifdef WIN32

@@ -24,9 +24,6 @@
     <ClCompile Include="..\..\..\..\Source\Plugins\EventBroadcaster\OpenEphysLib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\EventBroadcaster\jsoncpp.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Source\Plugins\EventBroadcaster\EventBroadcaster.h">
