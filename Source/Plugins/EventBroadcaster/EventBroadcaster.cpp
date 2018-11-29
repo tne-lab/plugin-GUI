@@ -212,7 +212,6 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
     // TODO Create a procotol that has outline for every type of event
     DynamicObject::Ptr message = new DynamicObject();
 
-
     // deserialize the event
     EventType baseType = Event::getBaseType(msg);
     const String& identifier = channel->getIdentifier();
@@ -224,8 +223,8 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
     switch (baseType)
     {
         uint16 index;
-        // TODO Only the start of the envelope add more to it.. TTL, spike, binary... DO THIS FOR BOTH!
-        // Store it for later so we can input to our function
+        // TODO Only the start of the envelope add more to it.. TTL, spike, binary...
+        // Store it for later so we can send all envelope and JSON together
     case SPIKE_EVENT:
         baseEvent = SpikeEvent::deserializeFromMessage(msg, static_cast<const SpikeChannel*>(channel)).release();
         index = static_cast<SpikeEvent*>(baseEvent.get())->getSortedID();
@@ -234,7 +233,6 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
         break;
 
     case PROCESSOR_EVENT:
-		
         baseEvent = Event::deserializeFromMessage(msg, static_cast<const EventChannel*>(channel)).release();
         index = static_cast<Event*>(baseEvent.get())->getChannel();
         metaDataChannel = static_cast<const MetaDataEventObject*>(static_cast<const EventChannel*>(channel));
@@ -249,7 +247,6 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
     //Save the envelope to be sent later 
     const char * envelopeStr = envelope.toUTF8();
     
-
     // Still sending these guys as float/doubles for now. Might change in future.
     DynamicObject::Ptr timing = new DynamicObject();
     message->setProperty("timing", timing.get());
@@ -277,9 +274,6 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
 			thresholdObj->setProperty(String(i), threshold);
 			const char* threshStr = String(threshold).toUTF8();
         }
-
-        // send spike data here maybe?
-		//Probably not.. We already have everything we need (we think)
     }
     break;
 
@@ -321,6 +315,8 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
             // must have binary event
             // data we want to send:
             // I'm still unsure on how to send this data
+            // Can this be anything? UTF-8 encoded binary data? One big piece of data...
+            // Or can we break it into parts like meta data?
             const void* rawData = static_cast<BinaryEvent*>(event)->getBinaryDataPointer();
             size_t rawDataSize = eventChannel->getDataSize();
 
@@ -434,6 +430,7 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
 
 bool EventBroadcaster::sendPackage(void* socket, const char * envelopeStr, const char * JSONPtr) const
 {
+#ifdef ZEROMQ
     if (-1 == zmq_send(socket, envelopeStr, strlen(envelopeStr), ZMQ_SNDMORE))
     {
         std::cout << "Error sending envelope: " << zmq_strerror(zmq_errno()) << std::endl;
@@ -446,6 +443,12 @@ bool EventBroadcaster::sendPackage(void* socket, const char * envelopeStr, const
         return false;
     } 
     return true;
+#elif
+    std::cout << "No ZEROMQ" << std::endl;
+    return false;
+#endif
+
+    
 }
 
 
@@ -463,61 +466,16 @@ bool EventBroadcaster::appendMetaToJSON(const MetaDataValue* valuePtr, String me
 	}
 	else
 	{
-       // DynamicObject::Ptr nestedObj = new DynamicObject();
-        //metaDataObj->setProperty(metaDesc, nestedObj.get());
-        Array<var> myArray;
+        Array<var> metaDataArray;
 		for (int i = 0; i < dataLength; ++i)
 		{
-            myArray.add(String(data[i]));
-			//nestedObj->setProperty(String(i), String(data[i]));
+            metaDataArray.add(String(data[i]));
 		}
-        metaDataObj->setProperty(metaDesc, myArray);
+        metaDataObj->setProperty(metaDesc, metaDataArray);
 	}
-	
-
 	return true;
 }
 
-template <typename T>
-bool EventBroadcaster::sendMetaDataValue(const MetaDataValue* valuePtr) const
-{
-    Array<T> data;
-    valuePtr->getValue(data);
-    String valueString;
-    int dataLength = data.size();
-    if (dataLength == 1)
-    {
-		
-        valueString = String(data[0]);
-    }
-    else
-    {
-        valueString = "[";
-        for (int i = 0; i < dataLength; ++i)
-        {
-            if (i > 0) { valueString += ", "; }
-            valueString += String(data[i]);
-        }
-        valueString += "]";
-    }
-
-    return sendStringMetaData(valueString);
-}
-
-bool EventBroadcaster::sendStringMetaData(const String& valueString) const
-{
-#ifdef ZEROMQ
-    void* socket = zmqSocket.get();
-
-    const char* valueUTF8 = valueString.toUTF8();
-    if (-1 == zmq_send(socket, valueUTF8, strlen(valueUTF8), ZMQ_SNDMORE))
-    {
-        std::cout << "Error sending metadata" << std::endl;
-        return false;
-    }
-#endif
-    return true;
-}
 
 void EventBroadcaster::handleEvent(const EventChannel* channelInfo, const MidiMessage& event, int samplePosition)
 {

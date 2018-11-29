@@ -71,17 +71,12 @@ private:
 
 	void sendEvent(const InfoObjectCommon* channel, const MidiMessage& event) const;
     
-    // returns true on success, false on failure
-    template <typename T>
-	bool sendMetaDataValue(const MetaDataValue* valuePtr) const;
-
+    
+    // Adds meta data to JSON object
 	template <typename T>
     bool appendMetaToJSON(const MetaDataValue* valuePtr, String metaDesc, DynamicObject::Ptr message) const;
-    // special specialization for strings
-    bool sendStringMetaData(const String& valueString) const;
-
-    //Function to send our envelope and JSON obj
-    //DOESN'T WORK DLL error ( how to add functions??)
+    
+    // Function to send our envelope and JSON obj on the socket
     bool sendPackage(void* socket, const char * envelopeStr, const char * JSONPtr) const;
 
     static String getEndpoint(int port);
