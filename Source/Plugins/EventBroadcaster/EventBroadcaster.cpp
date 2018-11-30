@@ -317,9 +317,18 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
                 "/ts:" + String(timestamp);
 
             message->setProperty("type", "binary");
-            // TODO: get the binary data as a string.
-            //const void* rawData = static_cast<BinaryEvent*>(event)->getBinaryDataPointer();
-            //unsigned int length = eventChannel->getLength();
+
+            BaseType dataType = eventChannel->getEquivalentMetaDataType();
+            const void* rawData = static_cast<BinaryEvent*>(event)->getBinaryDataPointer();
+            unsigned int length = eventChannel->getLength();
+
+            auto dataReader = getDataReader(dataType);
+            if (!dataReader) // invalid type?
+            {
+                jassertfalse;
+                return;
+            }
+            message->setProperty("data", dataReader(rawData, length));
             break;
         }
         } // end switch(eventType)
@@ -357,97 +366,24 @@ void EventBroadcaster::populateMetaData(const MetaDataEventObject* channel,
     int numMetaData = event->getMetadataValueCount();
     for (int i = 0; i < numMetaData; i++)
     {
-        //Get event data descriptor
-        const MetaDataDescriptor * metaDescPtr = channel->getEventMetaDataDescriptor(i);
-        String metaDataName = metaDescPtr->getName();
+        //Get metadata name
+        const MetaDataDescriptor* metaDescPtr = channel->getEventMetaDataDescriptor(i);
+        const String& metaDataName = metaDescPtr->getName();
 
-        //Get event data value
+        //Get metadata value
         const MetaDataValue* valuePtr = event->getMetaDataValue(i);
-        //get data type returns a int corresponding to data type
-        //getValue() needs an initalized variable of that type
-        switch (valuePtr->getDataType())
+        const void* rawPtr = valuePtr->getRawValuePointer();
+        unsigned int length = valuePtr->getDataLength();
+
+        auto dataReader = getDataReader(valuePtr->getDataType());
+        if (!dataReader) // invalid metadata type?
         {
-
-            // TODO How to fix <uint16> not having a constructor???
-            //  Easy fix - We make them Strings!! Current fix.
-            //  Hard fix - ...?
-#define SET_METADATA_OF_TYPE(type) dest->setProperty(metaDataName, metaDataValueToVar<type>(valuePtr))
-
-        case MetaDataDescriptor::MetaDataTypes::CHAR:
-            SET_METADATA_OF_TYPE(char);
-            break;
-        case MetaDataDescriptor::MetaDataTypes::INT8:
-            SET_METADATA_OF_TYPE(int8);
-            break;
-        case MetaDataDescriptor::MetaDataTypes::UINT8:
-            SET_METADATA_OF_TYPE(uint8);
-            break;
-        case MetaDataDescriptor::MetaDataTypes::INT16:
-            SET_METADATA_OF_TYPE(int16);
-            break;
-        case MetaDataDescriptor::MetaDataTypes::UINT16:
-            SET_METADATA_OF_TYPE(uint16);
-            break;
-        case MetaDataDescriptor::MetaDataTypes::INT32:
-            SET_METADATA_OF_TYPE(int32);
-            break;
-        case MetaDataDescriptor::MetaDataTypes::UINT32:
-            SET_METADATA_OF_TYPE(uint32);
-            break;
-        case MetaDataDescriptor::MetaDataTypes::INT64:
-            SET_METADATA_OF_TYPE(int64);
-            break;
-        case MetaDataDescriptor::MetaDataTypes::UINT64:
-            SET_METADATA_OF_TYPE(uint64);
-            break;
-        case MetaDataDescriptor::MetaDataTypes::FLOAT:
-            SET_METADATA_OF_TYPE(float);
-            break;
-        case MetaDataDescriptor::MetaDataTypes::DOUBLE:
-            SET_METADATA_OF_TYPE(double);
-            break;
-
-#undef SET_METADATA_OF_TYPE
-
-        default:
-            std::cout << "Error: unknown metadata type" << std::endl;
             jassertfalse;
-            return;
+            continue;
         }
+        dest->setProperty(metaDataName, dataReader(rawPtr, length));
     }
 }
-
-template <typename T>
-var EventBroadcaster::metaDataValueToVar(const MetaDataValue* valuePtr)
-{
-    Array<T> data;
-    valuePtr->getValue(data);
-    String valueString;
-    int dataLength = data.size();
-    
-    if (dataLength == 1)
-    {
-        return String(data.getUnchecked(0));
-    }
-    else
-    {
-        Array<var> metaDataArray;
-        for (int i = 0; i < dataLength; ++i)
-        {
-            metaDataArray.add(String(data.getUnchecked(i)));
-        }
-        return metaDataArray;
-    }
-}
-
-template <>
-var EventBroadcaster::metaDataValueToVar<char>(const MetaDataValue* valuePtr)
-{
-    String value;
-    valuePtr->getValue(value);
-    return value;
-}
-
 
 bool EventBroadcaster::sendPackage(void* socket, const char* envelopeStr, const char* jsonStr)
 {
@@ -498,5 +434,74 @@ void EventBroadcaster::loadCustomParametersFromXml()
                 setListeningPort(mainNode->getIntAttribute("port"));
             }
         }
+    }
+}
+
+template <typename T>
+var EventBroadcaster::binaryValueToVar(const void* value, unsigned int dataLength)
+{
+    auto typedValue = reinterpret_cast<const T*>(value);
+
+    if (dataLength == 1)
+    {
+        return String(*typedValue);
+    }
+    else
+    {
+        Array<var> metaDataArray;
+        for (int i = 0; i < dataLength; ++i)
+        {
+            metaDataArray.add(String(typedValue[i]));
+        }
+        return metaDataArray;
+    }
+}
+
+var EventBroadcaster::stringValueToVar(const void* value, unsigned int dataLength)
+{
+    return String::createStringFromData(value, dataLength);
+}
+
+EventBroadcaster::DataToVarFcn EventBroadcaster::getDataReader(BaseType dataType)
+{
+    switch (dataType)
+    {
+    case BaseType::CHAR:
+        return &stringValueToVar;
+
+    case BaseType::INT8:
+        return &binaryValueToVar<int8>;
+
+    case BaseType::UINT8:
+        return &binaryValueToVar<uint8>;
+
+    case BaseType::INT16:
+        return &binaryValueToVar<int16>;
+
+    case BaseType::UINT16:
+        return &binaryValueToVar<uint16>;
+
+    case BaseType::INT32:
+        return &binaryValueToVar<int32>;
+
+    case BaseType::UINT32:
+        return &binaryValueToVar<uint32>;
+
+    case BaseType::INT64:
+        return &binaryValueToVar<int64>;
+
+    case BaseType::UINT64:
+        return &binaryValueToVar<uint64>;
+
+    case BaseType::FLOAT:
+        return &binaryValueToVar<float>;
+
+    case BaseType::DOUBLE:
+        return &binaryValueToVar<double>;
+
+    default:
+        std::cout << "Error: unknown metadata type" << std::endl;
+        jassertfalse;
+        return nullptr;
     }
 }

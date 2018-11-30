@@ -75,14 +75,6 @@ private:
     static void populateMetaData(const MetaDataEventObject* channel,
         const EventBasePtr event, DynamicObject::Ptr dest);
 
-    // get metadata in a form we can add to the JSON object
-    template <typename T>
-    static var metaDataValueToVar(const MetaDataValue* valuePtr);
-
-    // specialization for strings
-    template <>
-    static var metaDataValueToVar<char>(const MetaDataValue* valuePtr);
-
     // send our envelope and JSON obj on the socket
     static bool sendPackage(void* socket, const char* envelopeStr, const char* jsonStr);
 
@@ -98,6 +90,18 @@ private:
     static CriticalSection sharedContextLock;
     ZMQSocketPtr zmqSocket;
     int listeningPort;
+
+    // ---- utilities for formatting binary data and metadata ----
+    
+    // a fuction to convert metadata or binary data to a form we can add to the JSON object
+    typedef var(*DataToVarFcn)(const void* value, unsigned int dataLength);
+
+    template <typename T>
+    static var binaryValueToVar(const void* value, unsigned int dataLength);
+
+    static var stringValueToVar(const void* value, unsigned int dataLength);
+
+    static DataToVarFcn getDataReader(BaseType dataType);
 };
 
 
