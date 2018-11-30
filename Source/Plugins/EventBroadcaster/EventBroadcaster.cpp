@@ -207,7 +207,7 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
 {
 #ifdef ZEROMQ
     void* socket = zmqSocket.get();
-	
+
     // TODO Create a procotol that has outline for every type of event
 
     // common info that isn't type-specific
@@ -320,7 +320,6 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
             // TODO: get the binary data as a string.
             //const void* rawData = static_cast<BinaryEvent*>(event)->getBinaryDataPointer();
             //unsigned int length = eventChannel->getLength();
-
             break;
         }
         } // end switch(eventType)
@@ -340,7 +339,7 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
     message->setProperty("metaData", metaDataObj.get());
 
     // Finally, send everything
-	var jsonMes(message);
+    var jsonMes(message);
     const char* jsonStr = JSON::toString(jsonMes).toUTF8();
     const char* envelopeStr = envelope.toUTF8();
     
@@ -421,24 +420,24 @@ void EventBroadcaster::populateMetaData(const MetaDataEventObject* channel,
 template <typename T>
 var EventBroadcaster::metaDataValueToVar(const MetaDataValue* valuePtr)
 {
-	Array<T> data;
-	valuePtr->getValue(data);
-	String valueString;
-	int dataLength = data.size();
+    Array<T> data;
+    valuePtr->getValue(data);
+    String valueString;
+    int dataLength = data.size();
     
-	if (dataLength == 1)
-	{
+    if (dataLength == 1)
+    {
         return String(data.getUnchecked(0));
-	}
-	else
-	{
-        Array<var> myArray;
-		for (int i = 0; i < dataLength; ++i)
-		{
-            myArray.add(String(data.getUnchecked(i)));
-		}
-        return myArray;
-	}
+    }
+    else
+    {
+        Array<var> metaDataArray;
+        for (int i = 0; i < dataLength; ++i)
+        {
+            metaDataArray.add(String(data.getUnchecked(i)));
+        }
+        return metaDataArray;
+    }
 }
 
 template <>
@@ -464,19 +463,21 @@ bool EventBroadcaster::sendPackage(void* socket, const char* envelopeStr, const 
         std::cout << "Error sending json: " << zmq_strerror(zmq_errno()) << std::endl;
         return false;
     }
-#endif
     return true;
+#else
+    std::cout << "No ZEROMQ" << std::endl;
+    return false;
+#endif
 }
-
 
 void EventBroadcaster::handleEvent(const EventChannel* channelInfo, const MidiMessage& event, int samplePosition)
 {
-	sendEvent(channelInfo, event);
+    sendEvent(channelInfo, event);
 }
 
 void EventBroadcaster::handleSpike(const SpikeChannel* channelInfo, const MidiMessage& event, int samplePosition)
 {
-	sendEvent(channelInfo, event);
+    sendEvent(channelInfo, event);
 }
 
 void EventBroadcaster::saveCustomParametersToXml(XmlElement* parentElement)

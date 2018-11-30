@@ -133,7 +133,6 @@
   <ItemGroup>
     <ClCompile Include="..\..\..\..\Source\Plugins\EventBroadcaster\EventBroadcaster.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\EventBroadcaster\EventBroadcasterEditor.cpp" />
-    <ClCompile Include="..\..\..\..\Source\Plugins\EventBroadcaster\jsoncpp.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\EventBroadcaster\OpenEphysLib.cpp" />
   </ItemGroup>
   <ItemGroup>

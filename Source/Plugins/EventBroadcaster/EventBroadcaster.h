@@ -12,8 +12,8 @@
 #define EVENTBROADCASTER_H_INCLUDED
 
 #include <ProcessorHeaders.h>
-#include "json.h"
-#include "json-forwards.h"
+//#include "json.h"
+//#include "json-forwards.h"
 
 #ifdef ZEROMQ
     #ifdef WIN32
@@ -39,7 +39,7 @@ public:
 
     void process (AudioSampleBuffer& continuousBuffer) override;
     void handleEvent (const EventChannel* channelInfo, const MidiMessage& event, int samplePosition = 0) override;
-	void handleSpike(const SpikeChannel* channelInfo, const MidiMessage& event, int samplePosition = 0) override;
+    void handleSpike(const SpikeChannel* channelInfo, const MidiMessage& event, int samplePosition = 0) override;
 
     void saveCustomParametersToXml (XmlElement* parentElement) override;
     void loadCustomParametersFromXml() override;
@@ -69,20 +69,21 @@ private:
     int unbindZMQSocket();
     int rebindZMQSocket();
 
-	void sendEvent(const InfoObjectCommon* channel, const MidiMessage& msg) const;
+    void sendEvent(const InfoObjectCommon* channel, const MidiMessage& msg) const;
 
     // add metadata from an event to a DynamicObject
     static void populateMetaData(const MetaDataEventObject* channel,
         const EventBasePtr event, DynamicObject::Ptr dest);
 
-	template <typename T>
+    // get metadata in a form we can add to the JSON object
+    template <typename T>
     static var metaDataValueToVar(const MetaDataValue* valuePtr);
 
     // specialization for strings
     template <>
     static var metaDataValueToVar<char>(const MetaDataValue* valuePtr);
 
-    //Function to send our envelope and JSON obj
+    // send our envelope and JSON obj on the socket
     static bool sendPackage(void* socket, const char* envelopeStr, const char* jsonStr);
 
     static String getEndpoint(int port);
