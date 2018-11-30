@@ -69,22 +69,24 @@ private:
     int unbindZMQSocket();
     int rebindZMQSocket();
 
-	void sendEvent(const InfoObjectCommon* channel, const MidiMessage& event) const;
-    
-    // returns true on success, false on failure
-    template <typename T>
-	bool sendMetaDataValue(const MetaDataValue* valuePtr) const;
+	void sendEvent(const InfoObjectCommon* channel, const MidiMessage& msg) const;
+
+    // add metadata from an event to a DynamicObject
+    static void populateMetaData(const MetaDataEventObject* channel,
+        const EventBasePtr event, DynamicObject::Ptr dest);
 
 	template <typename T>
-    bool appendMetaToJSON(const MetaDataValue* valuePtr, String metaDesc, DynamicObject::Ptr message) const;
-    // special specialization for strings
-    bool sendStringMetaData(const String& valueString) const;
+    static var metaDataValueToVar(const MetaDataValue* valuePtr);
+
+    // specialization for strings
+    template <>
+    static var metaDataValueToVar<char>(const MetaDataValue* valuePtr);
 
     //Function to send our envelope and JSON obj
-    //DOESN'T WORK DLL error ( how to add functions??)
-    bool sendPackage(void* socket, const char * envelopeStr, const char * JSONPtr) const;
+    static bool sendPackage(void* socket, const char* envelopeStr, const char* jsonStr);
 
     static String getEndpoint(int port);
+
     // called from getListeningPort() depending on success/failure of ZMQ operations
     void reportActualListeningPort(int port);
 
