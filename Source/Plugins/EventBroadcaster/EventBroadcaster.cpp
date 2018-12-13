@@ -231,7 +231,6 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
 
     message->setProperty("identifier", identifier);
     message->setProperty("name", channel->getName());
-    
     // deserialize event and get type-specific information
     switch (baseType)
     {
@@ -349,9 +348,10 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
 
     // Finally, send everything
     var jsonMes(message);
-    const char* jsonStr = JSON::toString(jsonMes).toUTF8();
+    String tempStr = JSON::toString(jsonMes);
+    const char* jsonStr = tempStr.toUTF8();
+    std::cout << jsonStr << std::endl;
     const char* envelopeStr = envelope.toUTF8();
-    
     if (!sendPackage(socket, envelopeStr, jsonStr))
     {
         std::cout << "Error sending Package" << std::endl;
@@ -387,6 +387,7 @@ void EventBroadcaster::populateMetaData(const MetaDataEventObject* channel,
 
 bool EventBroadcaster::sendPackage(void* socket, const char* envelopeStr, const char* jsonStr)
 {
+    
 #ifdef ZEROMQ
     if (-1 == zmq_send(socket, envelopeStr, strlen(envelopeStr), ZMQ_SNDMORE))
     {
