@@ -28,17 +28,17 @@
 
 class EventBroadcaster : public GenericProcessor
 {
+    friend class EventBroadcasterEditor;
 public:
+    // ids for format combobox
+    enum Format { RAW_BINARY = 1, HEADER_ONLY, HEADER_AND_JSON };
+
     EventBroadcaster();
 
     AudioProcessorEditor* createEditor() override;
 
-    int getListeningPort() const;
     // returns 0 on success, else the errno value for the error that occurred.
     int setListeningPort (int port, bool forceRestart = false);
-
-    enum Format { RAW_BINARY, HEADER_ONLY, HEADER_AND_JSON };
-    void setOutputFormat(Format newFormat);
 
     void process(AudioSampleBuffer& continuousBuffer) override;
     void handleEvent(const EventChannel* channelInfo, const MidiMessage& event, int samplePosition = 0) override;
@@ -101,7 +101,7 @@ private:
     ZMQSocketPtr zmqSocket;
     int listeningPort;
 
-    Format outputFormat;
+    int outputFormat;
 
     // ---- utilities for formatting binary data and metadata ----
     

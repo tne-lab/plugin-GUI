@@ -140,12 +140,6 @@ AudioProcessorEditor* EventBroadcaster::createEditor()
 }
 
 
-int EventBroadcaster::getListeningPort() const
-{
-    return listeningPort;
-}
-
-
 int EventBroadcaster::setListeningPort(int port, bool forceRestart)
 {
     if (listeningPort == port && !forceRestart)
@@ -199,12 +193,6 @@ int EventBroadcaster::setListeningPort(int port, bool forceRestart)
 }
 
 
-void EventBroadcaster::setOutputFormat(Format newFormat)
-{
-    outputFormat = newFormat;
-}
-
-
 void EventBroadcaster::process(AudioSampleBuffer& continuousBuffer)
 {
     checkForEvents(true);
@@ -214,7 +202,7 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
 {
 #ifdef ZEROMQ
     // TODO Create a procotol that has outline for every type of event
-    Format currFormat = outputFormat;
+    int currFormat = outputFormat;
     Array<MsgPart> message;
 
     // common info that isn't type-specific
@@ -454,6 +442,7 @@ void EventBroadcaster::saveCustomParametersToXml(XmlElement* parentElement)
 {
     XmlElement* mainNode = parentElement->createNewChildElement("EVENTBROADCASTER");
     mainNode->setAttribute("port", listeningPort);
+    mainNode->setAttribute("format", outputFormat);
 }
 
 
@@ -465,7 +454,14 @@ void EventBroadcaster::loadCustomParametersFromXml()
         {
             if (mainNode->hasTagName("EVENTBROADCASTER"))
             {
-                setListeningPort(mainNode->getIntAttribute("port"));
+                setListeningPort(mainNode->getIntAttribute("port", listeningPort));
+
+                outputFormat = mainNode->getIntAttribute("format", outputFormat);
+                auto ed = static_cast<EventBroadcasterEditor*>(getEditor());
+                if (ed)
+                {
+                    ed->setDisplayedFormat(outputFormat);
+                }
             }
         }
     }
