@@ -12,8 +12,6 @@
 #define EVENTBROADCASTER_H_INCLUDED
 
 #include <ProcessorHeaders.h>
-//#include "json.h"
-//#include "json-forwards.h"
 
 #ifdef ZEROMQ
     #ifdef WIN32
@@ -85,8 +83,6 @@ private:
     // add metadata from an event to a DynamicObject
     static void populateMetaData(const MetaDataEventObject* channel,
         const EventBasePtr event, DynamicObject::Ptr dest);
-
-    static void sendRaw(void* socket, EventType baseType, double tsSec, void* data, int dataSize);
 
     static String getEndpoint(int port);
 

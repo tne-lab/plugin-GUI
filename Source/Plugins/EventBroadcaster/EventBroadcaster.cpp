@@ -10,7 +10,6 @@
 
 #include "EventBroadcaster.h"
 #include "EventBroadcasterEditor.h"
-#include <string>
 
 EventBroadcaster::ZMQContext* EventBroadcaster::sharedContext = nullptr;
 CriticalSection EventBroadcaster::sharedContextLock{};
@@ -318,21 +317,30 @@ void EventBroadcaster::sendEvent(const InfoObjectCommon* channel, const MidiMess
                 // must have binary event
 
                 BaseType dataType = eventChannel->getEquivalentMetaDataType();
+                auto dataReader = getDataReader(dataType);
                 const void* rawData = static_cast<BinaryEvent*>(event)->getBinaryDataPointer();
                 unsigned int length = eventChannel->getLength();
-
-                auto dataReader = getDataReader(dataType);
-                if (!dataReader) // invalid type?
-                {
-                    jassertfalse;
-                    return;
-                }
 
                 type = "binary";
                 data = dataReader(rawData, length);
 
+                String dataString;
+                if (data.isArray()) // make comma-separated list of values
+                {
+                    int length = data.size();
+                    for (int i = 0; i < length; ++i)
+                    {
+                        if (i > 0) { dataString += ","; }
+                        dataString += data[i].toString();
+                    }
+                }
+                else
+                {
+                    dataString = data.toString();
+                }
+
                 header = "binary/channel:" + String(channel) + "/id:" + identifier +
-                    "/data:" + data.toString() + "/ts:" + String(timestamp);
+                    "/data:" + dataString + "/ts:" + String(timestamp);
 
                 break;
             }
@@ -418,11 +426,6 @@ void EventBroadcaster::populateMetaData(const MetaDataEventObject* channel,
         unsigned int length = valuePtr->getDataLength();
 
         auto dataReader = getDataReader(valuePtr->getDataType());
-        if (!dataReader) // invalid metadata type?
-        {
-            jassertfalse;
-            continue;
-        }
         dest->setProperty(metaDataName, dataReader(rawPtr, length));
     }
 }
@@ -528,10 +531,7 @@ EventBroadcaster::DataToVarFcn EventBroadcaster::getDataReader(BaseType dataType
 
     case BaseType::DOUBLE:
         return &binaryValueToVar<double>;
-
-    default:
-        std::cout << "Error: unknown metadata type" << std::endl;
-        jassertfalse;
-        return nullptr;
     }
+    jassertfalse;
+    return nullptr;
 }
