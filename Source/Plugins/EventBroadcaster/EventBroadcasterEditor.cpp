@@ -29,7 +29,7 @@ EventBroadcasterEditor::EventBroadcasterEditor(GenericProcessor* parentNode, boo
     urlLabel->setBounds(20, 60, 140, 25);
     addAndMakeVisible(urlLabel);
 
-    portLabel = new Label("Port", String(p->listeningPort));
+    portLabel = new Label("Port", String(p->getListeningPort()));
     portLabel->setBounds(70,65,80,18);
     portLabel->setFont(Font("Default", 15, Font::plain));
     portLabel->setColour(Label::textColourId, Colours::white);
@@ -47,7 +47,7 @@ EventBroadcasterEditor::EventBroadcasterEditor(GenericProcessor* parentNode, boo
     formatBox->addItem("Raw binary", EventBroadcaster::Format::RAW_BINARY);
     formatBox->addItem("Header only", EventBroadcaster::Format::HEADER_ONLY);
     formatBox->addItem("Header/JSON", EventBroadcaster::Format::HEADER_AND_JSON);
-    formatBox->setSelectedId(p->outputFormat);
+    formatBox->setSelectedId(p->getOutputFormat());
     formatBox->addListener(this);
     addAndMakeVisible(formatBox);
 
@@ -60,7 +60,7 @@ void EventBroadcasterEditor::buttonEvent(Button* button)
     if (button == restartConnection)
     {
         EventBroadcaster* p = (EventBroadcaster*)getProcessor();
-        int status = p->setListeningPort(p->listeningPort, true);
+        int status = p->setListeningPort(p->getListeningPort(), true);
 
 #ifdef ZEROMQ
         if (status != 0)
@@ -96,7 +96,7 @@ void EventBroadcasterEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
     if (comboBoxThatHasChanged == formatBox)
     {
         auto p = static_cast<EventBroadcaster*>(getProcessor());
-        p->outputFormat = comboBoxThatHasChanged->getSelectedId();
+        p->setOutputFormat(comboBoxThatHasChanged->getSelectedId());
     }
 }
 

@@ -26,7 +26,6 @@
 
 class EventBroadcaster : public GenericProcessor
 {
-    friend class EventBroadcasterEditor;
 public:
     // ids for format combobox
     enum Format { RAW_BINARY = 1, HEADER_ONLY, HEADER_AND_JSON };
@@ -35,8 +34,12 @@ public:
 
     AudioProcessorEditor* createEditor() override;
 
+    int getListeningPort() const;
     // returns 0 on success, else the errno value for the error that occurred.
     int setListeningPort (int port, bool forceRestart = false);
+
+    int getOutputFormat() const;
+    void setOutputFormat(int format);
 
     void process(AudioSampleBuffer& continuousBuffer) override;
     void handleEvent(const EventChannel* channelInfo, const MidiMessage& event, int samplePosition = 0) override;
@@ -86,7 +89,7 @@ private:
 
     static String getEndpoint(int port);
 
-    // called from getListeningPort() depending on success/failure of ZMQ operations
+    // called from setListeningPort() depending on success/failure of ZMQ operations
     void reportActualListeningPort(int port);
 
     // share a "dumb" pointer that doesn't take part in reference counting.

@@ -139,6 +139,12 @@ AudioProcessorEditor* EventBroadcaster::createEditor()
 }
 
 
+int EventBroadcaster::getListeningPort() const
+{
+    return listeningPort;
+}
+
+
 int EventBroadcaster::setListeningPort(int port, bool forceRestart)
 {
     if (listeningPort == port && !forceRestart)
@@ -189,6 +195,18 @@ int EventBroadcaster::setListeningPort(int port, bool forceRestart)
     reportActualListeningPort(port);
     return 0;
 #endif
+}
+
+
+int EventBroadcaster::getOutputFormat() const
+{
+    return outputFormat;
+}
+
+
+void EventBroadcaster::setOutputFormat(int format)
+{
+    outputFormat = format;
 }
 
 
