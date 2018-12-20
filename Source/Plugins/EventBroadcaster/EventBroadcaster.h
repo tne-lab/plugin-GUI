@@ -37,14 +37,23 @@ public:
     // returns 0 on success, else the errno value for the error that occurred.
     int setListeningPort (int port, bool forceRestart = false);
 
-    void process (AudioSampleBuffer& continuousBuffer) override;
-    void handleEvent (const EventChannel* channelInfo, const MidiMessage& event, int samplePosition = 0) override;
+    enum Format { RAW_BINARY, HEADER_ONLY, HEADER_AND_JSON };
+    void setOutputFormat(Format newFormat);
+
+    void process(AudioSampleBuffer& continuousBuffer) override;
+    void handleEvent(const EventChannel* channelInfo, const MidiMessage& event, int samplePosition = 0) override;
     void handleSpike(const SpikeChannel* channelInfo, const MidiMessage& event, int samplePosition = 0) override;
 
-    void saveCustomParametersToXml (XmlElement* parentElement) override;
+    void saveCustomParametersToXml(XmlElement* parentElement) override;
     void loadCustomParametersFromXml() override;
 
 private:
+    struct MsgPart
+    {
+        String name;
+        MemoryBlock data;
+    };
+
     class ZMQContext : public ReferenceCountedObject
     {
     public:
@@ -71,12 +80,13 @@ private:
 
     void sendEvent(const InfoObjectCommon* channel, const MidiMessage& msg) const;
 
+    int sendMessage(const Array<MsgPart>& parts) const;
+
     // add metadata from an event to a DynamicObject
     static void populateMetaData(const MetaDataEventObject* channel,
         const EventBasePtr event, DynamicObject::Ptr dest);
 
-    // send our envelope and JSON obj on the socket
-    static bool sendPackage(void* socket, const char* envelopeStr, const char* jsonStr);
+    static void sendRaw(void* socket, EventType baseType, double tsSec, void* data, int dataSize);
 
     static String getEndpoint(int port);
 
@@ -90,6 +100,8 @@ private:
     static CriticalSection sharedContextLock;
     ZMQSocketPtr zmqSocket;
     int listeningPort;
+
+    Format outputFormat;
 
     // ---- utilities for formatting binary data and metadata ----
     
