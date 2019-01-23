@@ -637,6 +637,26 @@ void PythonPlugin::handleSpike(const SpikeChannel* spikeInfo, const MidiMessage&
  void set FloatParameter(char *name, float value) set float parameter
  
  */
+
+std::string GetLastErrorAsString()
+{
+    //Get the error message, if any.
+    DWORD errorMessageID = ::GetLastError();
+    if(errorMessageID == 0)
+        return std::string(); //No error message has been recorded
+
+    LPSTR messageBuffer = nullptr;
+    size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL, errorMessageID, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+
+    std::string message(messageBuffer, size);
+
+    //Free the buffer.
+    LocalFree(messageBuffer);
+
+    return message;
+}
+
 void PythonPlugin::setFile(String fullpath)
 {
 #ifdef PYTHON_DEBUG
@@ -654,10 +674,9 @@ void PythonPlugin::setFile(String fullpath)
     
 #ifdef _WIN32
 	//Load plugin
-	std::string path = fullpath.toStdString();
-	LPCWSTR FULLPATH = (LPCWSTR)path.c_str();
-	HINSTANCE pluginTemp = LoadLibrary(FULLPATH);
-	plugin = pluginTemp;
+    filePath = fullpath;
+	std::string path = filePath.toStdString();
+    plugin = LoadLibraryA(path.c_str());
 #else
 	filePath = fullpath;
 
@@ -670,6 +689,7 @@ void PythonPlugin::setFile(String fullpath)
 		  std::cout << "Can't open plugin "
 			  << '"' << path << "\"" //Add DLL Error Windows Equiv
 			  << std::endl;
+          std::cout << "Last know error: " << GetLastErrorAsString() << std::endl;
 		  return;
 #else
 		  std::cout << "Can't open plugin "
@@ -680,7 +700,9 @@ void PythonPlugin::setFile(String fullpath)
 #endif
       }
 
-    String initPlugin = filePath.fromLastOccurrenceOf(String("/"), false, true);
+    //String initPlugin = filePath.fromLastOccurrenceOf(String("/"), false, true);
+    //Path is dif in windows..
+    String initPlugin = filePath.fromLastOccurrenceOf(String("\\"), false, true);
     
     initPlugin = initPlugin.upToFirstOccurrenceOf(String("."), false, true);
     
@@ -725,7 +747,7 @@ void PythonPlugin::setFile(String fullpath)
     initfunc_t initF = (initfunc_t) initializer;
 	void *cfunc;
 #ifdef _WIN32
-	cfunc = GetProcAddress((HMODULE)plugin, "pluginisready");
+    cfunc = GetProcAddress((HMODULE)plugin, "pluginisready");
 #else
 	cfunc = dlsym(plugin, "pluginisready");
 #endif
@@ -735,6 +757,7 @@ void PythonPlugin::setFile(String fullpath)
 		std::cout << "Can't find ready function in plugin "
 			<< '"' << path << "\"" << std::endl //Add DLL Error
 			<< std::endl;
+        std::cout << "Last know error: " << GetLastErrorAsString() << std::endl;
 		plugin = 0;
 		return;
 #else
