@@ -22,9 +22,6 @@
     #endif
 #endif
 
-#include <memory>
-
-
 class EventBroadcaster : public GenericProcessor
 {
 public:
@@ -33,7 +30,8 @@ public:
     AudioProcessorEditor* createEditor() override;
 
     int getListeningPort() const;
-    void setListeningPort (int port, bool forceRestart = false);
+    // returns 0 on success, else the errno value for the error that occurred.
+    int setListeningPort(int port, bool forceRestart = false);
 
     void process (AudioSampleBuffer& continuousBuffer) override;
     void handleEvent (const EventChannel* channelInfo, const MidiMessage& event, int samplePosition = 0) override;
@@ -44,14 +42,42 @@ public:
 
 
 private:
+    class ZMQContext
+    {
+    public:
+        ZMQContext();
+        ~ZMQContext();
+        void* createZMQSocket();
+    private:
+        void* context;
+    };
+
+    class ZMQSocket
+    {
+    public:
+        ZMQSocket();
+        ~ZMQSocket();
+
+        bool isValid() const;
+        int getBoundPort() const;
+
+        int send(const void* buf, size_t len, int flags);
+        int bind(int port);
+        int unbind();
+    private:
+        int boundPort;
+        void* socket;
+
+        // see here for why the context can't just be static:
+        // https://github.com/zeromq/libzmq/issues/1708
+        SharedResourcePointer<ZMQContext> context;
+    };
+
 	void sendEvent(const MidiMessage& event, float eventSampleRate) const;
-    static std::shared_ptr<void> getZMQContext();
-    static void closeZMQSocket (void* socket);
 
-    const std::shared_ptr<void> zmqContext;
-    std::unique_ptr<void, decltype (&closeZMQSocket)> zmqSocket;
-    int listeningPort;
-
+    static String getEndpoint(int port);
+    
+    ScopedPointer<ZMQSocket> zmqSocket;
 };
 
 
