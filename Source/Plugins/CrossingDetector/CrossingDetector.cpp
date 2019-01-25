@@ -139,7 +139,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
     }
 
     int nSamples = getNumSamples(inputChannel);
-    const float* rp = continuousBuffer.getReadPointer(inputChannel);
+    const float* const rp = continuousBuffer.getReadPointer(inputChannel);
     juce::int64 startTs = getTimestamp(inputChannel);
 
     // turn off event from previous buffer if necessary
@@ -163,12 +163,10 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
     {
         currThresholds.resize(nSamples);
     }
-    float* pThresh = currThresholds.getRawDataPointer();
-    const float* rpThreshChan;
-    if (currThreshType == CHANNEL)
-    {
-        rpThreshChan = continuousBuffer.getReadPointer(thresholdChannel);
-    }
+    float* const pThresh = currThresholds.getRawDataPointer();
+    const float* const rpThreshChan = currThreshType == CHANNEL
+        ? continuousBuffer.getReadPointer(thresholdChannel)
+        : nullptr;
 
     // define lambdas to access history values more easily
     auto inputAt = [=](int index)
