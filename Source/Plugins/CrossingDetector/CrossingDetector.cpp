@@ -144,20 +144,11 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
     juce::int64 endTs = startTs + nSamples; // 1 past end
 
     // turn off event from previous buffer if necessary
-    if (turnoffEvent != nullptr && turnoffEvent->getTimestamp() < endTs)
+    int turnoffOffset = turnoffEvent ? jmax(0, int(turnoffEvent->getTimestamp() - startTs)) : -1;
+    if (turnoffOffset >= 0 && turnoffOffset < nSamples)
     {
-        int turnoffOffset = static_cast<int>(turnoffEvent->getTimestamp() - startTs);
-        if (turnoffOffset < 0)
-        {
-            // shouldn't happen; should be added during a previous buffer
-            jassertfalse;
-            turnoffEvent = nullptr;
-        }
-        else
-        {
-            addEvent(eventChannelPtr, turnoffEvent, turnoffOffset);
-            turnoffEvent = nullptr;
-        }
+        addEvent(eventChannelPtr, turnoffEvent, turnoffOffset);
+        turnoffEvent = nullptr;
     }
 
     // adapt threshold if necessary
