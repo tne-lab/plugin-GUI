@@ -214,6 +214,9 @@ private:
     int timeout; // milliseconds after an event onset when no more events are allowed.
     int timeoutSamp;
 
+    int bufferEndRestrictMs;
+    int bufferEndRestrictSamp;
+
     /* Number of *additional* past and future samples to look at at each timepoint (attention span)
      * If futureSpan samples are not available to look ahead from a timepoint, the test is delayed until enough samples are available.
      * If it succeeds, the event occurs on the first sample in the buffer when the test occurs, but the "crossing point"

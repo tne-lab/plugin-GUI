@@ -47,6 +47,7 @@ CrossingDetector::CrossingDetector()
     , negOn                 (false)
     , eventDuration         (5)
     , timeout               (1000)
+    , bufferEndRestrictMs   (3)
     , pastStrict            (1.0f)
     , pastSpan              (0)
     , futureStrict          (1.0f)
@@ -234,7 +235,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
             }
         }
 
-        if (i < sampToReenable)
+        if (i < sampToReenable || nSamples - i > bufferEndRestrictSamp)
         {
             // can't trigger an event now
             continue;
@@ -493,8 +494,11 @@ bool CrossingDetector::enable()
 {
     // input channel is fixed once acquisition starts, so convert timeout and eventDuration
     float sampleRate = getDataChannel(inputChannel)->getSampleRate();
-    eventDurationSamp = static_cast<int>(ceil(eventDuration * sampleRate / 1000.0f));
-    timeoutSamp = static_cast<int>(floor(timeout * sampleRate / 1000.0f));
+
+    eventDurationSamp = int(ceil(eventDuration * sampleRate / 1000.0f));
+    timeoutSamp = int(floor(timeout * sampleRate / 1000.0f));
+    bufferEndRestrictSamp = int(ceil(bufferEndRestrictMs * sampleRate / 1000.0f));
+
     restartAdaptiveThreshold();
     return isEnabled;
 }
