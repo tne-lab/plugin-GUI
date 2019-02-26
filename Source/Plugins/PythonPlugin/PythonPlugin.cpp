@@ -601,7 +601,8 @@ void PythonPlugin::handleSpike(const SpikeChannel* spikeInfo, const MidiMessage&
     //    PyGILState_STATE gstate;
     //    gstate = PyGILState_Ensure();
     //    std::cout << "in process, lock acquired" << std::endl;
-    
+     std::cout << "Sorted ID: " << sortedID << std::endl;
+     std::cout << "Spike buf: " << spikeBuf << std::endl;
     (*spikeFunction)(sortedID, spikeBuf);
     processThreadState = PyEval_SaveThread();
 
