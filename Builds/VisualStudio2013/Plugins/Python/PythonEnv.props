@@ -16,7 +16,7 @@
       <AdditionalDependencies>python36.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "$(PYTHONHOME)\python37.dll" "$(GUIDir)"
+      <Command>copy /Y "$(PYTHONHOME)\python36.dll" "$(GUIDir)"
 %(Command)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
