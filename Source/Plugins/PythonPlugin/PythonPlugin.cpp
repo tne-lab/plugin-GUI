@@ -69,29 +69,34 @@ PythonPlugin::PythonPlugin(const String &processorName)
     filePath = "";
     plugin = 0;
 
+    // if on windows, PYTHON_HOME_NAME is set by PythonEnv.props (corresponds to CONDA_HOME environment variable)
+#ifndef _WIN32
+#define QUOTE(name) #name
+#define STR(macro) QUOTE(macro)
+#define PYTHON_HOME_NAME STR(PYTHON_HOME)
+#endif
+
     char * old_python_home = getenv("PYTHONHOME");
-    if (old_python_home == NULL)
+    if (old_python_home == NULL || strcmp(old_python_home, PYTHON_HOME_NAME) != 0)
     {
 #ifdef PYTHON_DEBUG
         std::cout << "setting PYTHONHOME" << std::endl;
 #endif
 
 #ifdef _WIN32
-        _putenv_s("PYTHONHOME", "C:\\Users\\Ephys\\Anaconda3"); // set to default PYTHONHOME by PythonEnv.props
+        _putenv_s("PYTHONHOME", PYTHON_HOME_NAME);
 #else
-#define QUOTE(name) #name
-#define STR(macro) QUOTE(macro)
-#define PYTHON_HOME_NAME STR(PYTHON_HOME)
-
-        //setenv("PYTHONHOME", "/anaconda3/bin/", 1); // FIXME hardcoded PYTHONHOME!
         setenv("PYTHONHOME", PYTHON_HOME_NAME, 1);
-        //setenv("PYTHONHOME", "/anaconda3/bin/python.app", 1); // FIXME hardcoded PYTHONHOME!
 #endif
     }
-    // setenv("PYTHONHOME", "/usr/local/anaconda", 1); // FIXME hardcoded PYTHONHOME!
 
 #ifdef PYTHON_DEBUG
     std::cout << "PYTHONHOME: " << getenv("PYTHONHOME") << std::endl;
+#endif
+
+#ifdef _WIN32
+    // set PYTHONPATH to avoid error described here: https://stackoverflow.com/questions/5694706/py-initialize-fails-unable-to-load-the-file-system-codec
+    _putenv_s("PYTHONPATH", PYTHON_HOME_NAME "\\DLLs;" PYTHON_HOME_NAME "\\Lib;" PYTHON_HOME_NAME "\\Lib\\site-packages");
 #endif
     
 #ifdef PYTHON_DEBUG
@@ -112,8 +117,6 @@ PythonPlugin::PythonPlugin(const String &processorName)
 #else
     Py_SetProgramName ((char *)"PythonPlugin");
 #endif
-    //Py_SetPythonHome("Users/ClaytonBarnes/Anaconda3");
-    //Py_SetPath("Users/ClaytonBarnes/Anaconda3/lib");
     Py_Initialize ();
     PyEval_InitThreads();
 
