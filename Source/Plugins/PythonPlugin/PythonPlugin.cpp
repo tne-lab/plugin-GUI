@@ -591,22 +591,20 @@ void PythonPlugin::handleSpike(const SpikeChannel* spikeInfo, const MidiMessage&
     
     PyEval_RestoreThread(processThreadState);
     
-    PythonEvent *pyEvents = (PythonEvent *)calloc(1, sizeof(PythonEvent));
+    //PythonEvent *pyEvents = (PythonEvent *)calloc(1, sizeof(PythonEvent));
     
-    pyEvents->type = 0; // this marks an empty event
+   // pyEvents->type = 0; // this marks an empty event
 #ifdef PYTHON_DEBUG
     // std::cout << "in process, trying to acquire lock" << std::endl;
 #endif
     
-     PyEval_InitThreads();
+    // PyEval_InitThreads();
     //
     //    std::cout << "in process, threadstate: " << PyGILState_GetThisThreadState() << std::endl;
     //    PyGILState_STATE gstate;
     //    gstate = PyGILState_Ensure();
     //    std::cout << "in process, lock acquired" << std::endl;
-     std::cout << "Sorted ID: " << sortedID << std::endl;
-     std::cout << "Spike buf: " << spikeBuf << std::endl;
-    (*spikeFunction)(sortedID, spikeBuf);
+    (*spikeFunction)(0, sortedID, spikeBuf);
     processThreadState = PyEval_SaveThread();
 
     //PyGILState_Release(gstate);
