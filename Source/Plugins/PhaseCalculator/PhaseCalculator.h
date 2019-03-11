@@ -44,10 +44,11 @@ accuracy of phase-locked stimulation in real time.
 
 #include <ProcessorHeaders.h>
 #include <DspLib/Dsp.h>  // Filtering
+#include <FFTWWrapper.h>   // Fourier transform
+
 #include <queue>
 #include <array>
 
-#include "FFTWWrapper.h"   // Fourier transform
 #include "ARModeler.h"     // Autoregressive modeling
 #include "HTransformers.h" // Hilbert transformers & frequency bands
 

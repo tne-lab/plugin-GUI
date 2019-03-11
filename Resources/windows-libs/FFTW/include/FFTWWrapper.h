@@ -30,9 +30,10 @@ transform library
 #define FFTW_WRAPPER_H_INCLUDED
 
 #include <JuceHeader.h> // assertions, etc.
-#include <fftw3.h>      // Fast Fourier Transform library
 #include <complex>
 #include <algorithm>    // reverse array
+
+#include "fftw3.h" // Fast Fourier Transform library
 
 /*
 FFTW-friendly array that can hold complex or real doubles.
