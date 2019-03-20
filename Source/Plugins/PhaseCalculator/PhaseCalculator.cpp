@@ -816,14 +816,17 @@ void PhaseCalculator::updateHistoryLength()
 {
     Array<int> activeInputs = getActiveInputs();
 
-    // minimum - must have enough samples to do a Hilbert transform on past values for visualization
-    int newHistoryLength = VIS_HILBERT_LENGTH;
+    int greatestMultiple = 1;
     for (int chan : activeInputs)
     {
-        newHistoryLength = jmax(newHistoryLength,
-            arOrder * sampleRateMultiple[chan] + 1,  // minimum to train AR model
-            Hilbert::FS * sampleRateMultiple[chan]); // use @ least 1 second to train model
+        greatestMultiple = jmax(greatestMultiple, sampleRateMultiple[chan]);
     }
+    
+    // for all channels, the history buffer should have enough samples to
+    // calculate phases for the viusalizer with the proper Hilbert transform length
+    // AND train an AR model of the requested order, using at least 1 second of data
+    int newHistoryLength = jmax(VIS_HILBERT_LENGTH_MS * Hilbert::FS / 1000, arOrder + 1, Hilbert::FS)
+        * greatestMultiple;
 
     if (newHistoryLength == historyLength) { return; }
 

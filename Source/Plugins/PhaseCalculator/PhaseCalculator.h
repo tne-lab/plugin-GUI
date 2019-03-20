@@ -99,9 +99,9 @@ class PhaseCalculator : public GenericProcessor, public Thread
 
     // process length for real-time visualization ground truth hilbert transform
     // based on evaluation of phase error compared to offline processing
-    static const int VIS_HILBERT_LENGTH = 65536;
-    static const int VIS_TS_MIN_DELAY = 40000;
-    static const int VIS_TS_MAX_DELAY = 48000;
+    static const int VIS_HILBERT_LENGTH_MS = 1024;
+    static const int VIS_TS_MIN_DELAY_MS = 500;
+    static const int VIS_TS_MAX_DELAY_MS = 1000;
 
 public:
 
