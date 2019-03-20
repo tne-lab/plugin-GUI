@@ -227,7 +227,7 @@ void PhaseCalculatorEditor::channelChanged(int chan, bool newState)
         if (newState)
         {
             // check whether sample rate is compatible (and if not, disable channel)
-            if (!pc->validateSampleRate(chan)) { return; }
+            if (!pc->updateSampleRate(chan)) { return; }
 
             // ensure space allocated for per-active-channel arrays
             if (activeInputs.size() > pc->numActiveChansAllocated)

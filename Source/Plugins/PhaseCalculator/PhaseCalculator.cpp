@@ -533,12 +533,8 @@ void PhaseCalculator::updateSettings()
     // set filter parameters (sample rates may have changed)
     setFilterParameters();
 
-    // check whether active channels can be processed
-    Array<int> activeInputs = getActiveInputs();
-    for (int chan : activeInputs)
-    {
-        validateSampleRate(chan);
-    }
+    // update active channel sample rates and check whether each can still be processed
+    updateSampleRates();
 
     // create new data channels if necessary
     updateSubProcessorMap();
@@ -675,17 +671,12 @@ void PhaseCalculator::setAROrder(int newOrder)
     updateHistoryLength();
 
     // update dependent per-channel objects
-    int numInputs = getNumInputs();
-    for (int chan = 0; chan < numInputs; ++chan)
-    {
-        bool s = arModelers[chan]->setParams(arOrder, historyLength, sampleRateMultiple[chan]);
-        jassert(s);
-    }
-
     for (int i = 0; i < numActiveChansAllocated; i++)
     {
         arParams[i]->resize(arOrder);
     }
+
+    updateActiveARModelers();
 }
 
 void PhaseCalculator::setBand(Band newBand, bool force)
@@ -840,11 +831,7 @@ void PhaseCalculator::updateHistoryLength()
         bufferFreeSpace.set(i, historyLength);
     }
 
-    for (int chan : activeInputs)
-    {
-        bool success = arModelers[chan]->setParams(arOrder, historyLength, sampleRateMultiple[chan]);
-        jassert(success);
-    }
+    updateActiveARModelers();
 }
 
 void PhaseCalculator::updateScaleFactor()
@@ -908,8 +895,6 @@ bool PhaseCalculator::validateSampleRate(int chan)
         int fsMultInt = static_cast<int>(fsMultRound);
         sampleRateMultiple.set(chan, fsMultInt);
         dsOffset.set(chan, fsMultInt);
-        bool s = arModelers[chan]->setParams(arOrder, historyLength, fsMultInt);
-        jassert(s);
         return true;
     }
 
@@ -918,6 +903,45 @@ bool PhaseCalculator::validateSampleRate(int chan)
     CoreServices::sendStatusMessage("Channel " + String(chan + 1) + " was deselected because" +
         " its sample rate is not a multiple of " + String(Hilbert::FS));
     return false;
+}
+
+void PhaseCalculator::updateSampleRates()
+{
+    Array<int> activeInputs = getActiveInputs();
+    for (int* p = activeInputs.begin(); p < activeInputs.end();)
+    {
+        if (validateSampleRate(*p))
+        {
+            ++p;
+        }
+        else
+        {
+            activeInputs.remove(p);
+        }
+    }
+
+    updateHistoryLength();
+    updateActiveARModelers();
+}
+
+bool PhaseCalculator::updateSampleRate(int chan)
+{
+    if (validateSampleRate(chan))
+    {
+        updateHistoryLength();
+        arModelers[chan]->setParams(arOrder, historyLength, sampleRateMultiple[chan]);
+        return true;
+    }
+    return false;
+}
+
+void PhaseCalculator::updateActiveARModelers()
+{
+    Array<int> activeInputs = getActiveInputs();
+    for (int chan : activeInputs)
+    {
+        arModelers[chan]->setParams(arOrder, historyLength, sampleRateMultiple[chan]);
+    }
 }
 
 void PhaseCalculator::unwrapBuffer(float* wp, int nSamples, int activeChan)

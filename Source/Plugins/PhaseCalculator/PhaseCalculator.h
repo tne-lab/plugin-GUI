@@ -194,6 +194,16 @@ private:
     // Returns the new selection state of the channel.
     bool validateSampleRate(int chan);
 
+    // Validate the sample rates of all active inputs, then update the history length
+    // and AR modelers to account for any changed sample rates.
+    void updateSampleRates();
+
+    // Same as updateSampleRates, but just for the specified channel, and returns true if successful.
+    bool updateSampleRate(int chan);
+
+    // Update the AR modelers corresponding to active inputs with current settings.
+    void updateActiveARModelers();
+
     // Allocate memory for a new active input channel
     void addActiveChannel();
 
@@ -286,33 +296,33 @@ private:
 
     // Storage area for filtered data to be used by the side thread to calculate AR model parameters
     // and by the visualization event handler to calculate acccurate phases at past event times.
-    AudioBuffer<double> historyBuffer;
+    AudioBuffer<double> historyBuffer; // 1 channel per active input
 
     // Keep track of how much of the historyBuffer is empty (per channel)
-    Array<int> bufferFreeSpace;
+    Array<int> bufferFreeSpace; // 1 entry per active input
 
     // Keeps track of each channel's state (see enum definition above)
-    Array<ChannelState> chanState;
+    Array<ChannelState> chanState; // 1 entry per active input
 
     // mutexes for sharedDataBuffer arrays, which are used in the side thread to calculate AR parameters.
     // since the side thread only READS sharedDataBuffer, only needs to be locked in the main thread when it's WRITTEN to.
-    OwnedArray<CriticalSection> historyLock;
+    OwnedArray<CriticalSection> historyLock; // 1 entry per active input
 
     // for autoregressive parameter calculation
-    OwnedArray<ARModeler> arModelers;
+    OwnedArray<ARModeler> arModelers; // 1 entry per input
 
     // for active input channels, equals the sample rate divided by HT_FS
-    Array<int> sampleRateMultiple;
+    Array<int> sampleRateMultiple; // 1 entry per input
 
     // AR model parameters
-    OwnedArray<Array<double>> arParams;
-    OwnedArray<CriticalSection> arParamLock;
+    OwnedArray<Array<double>> arParams; // 1 entry per active input
+    OwnedArray<CriticalSection> arParamLock; // 1 entry per active input
 
     // storage area for predicted samples (to compensate for group delay)
     Array<double> predSamps;
 
     // state of each hilbert transformer (persistent and temporary)
-    OwnedArray<Array<double>> htState;
+    OwnedArray<Array<double>> htState; // 1 entry per active input
     Array<double> htTempState;
 
     // store indices of current buffer to feed into transformer
@@ -327,11 +337,11 @@ private:
     // keep track of each active channel's last non-interpolated ("computed") transformer output
     // and the number of samples by which this sample precedes the start of the next buffer
     // (ranges from 1 to sampleRateMultiple).
-    Array<std::complex<double>> lastComputedSample;
-    Array<int> dsOffset;
+    Array<std::complex<double>> lastComputedSample; // 1 entry per active input
+    Array<int> dsOffset; // 1 entry per input
 
     // keep track of last phase output, for glitch correction
-    Array<float> lastPhase;
+    Array<float> lastPhase; // 1 entry per active input
 
     // maps full source subprocessor IDs of incoming streams to indices of
     // corresponding subprocessors created here.
