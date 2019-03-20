@@ -1154,8 +1154,13 @@ void PhaseCalculator::deselectAllExtraChannels()
 
 void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
 {
-    juce::int64 minTs = sdbEndTs - VIS_TS_MAX_DELAY;
-    juce::int64 maxTs = sdbEndTs - VIS_TS_MIN_DELAY;
+    int multiplier = Hilbert::FS * sampleRateMultiple[visContinuousChannel] / 1000;
+    int maxDelay = VIS_TS_MAX_DELAY_MS * multiplier;
+    int minDelay = VIS_TS_MIN_DELAY_MS * multiplier;
+    int hilbertLength = VIS_HILBERT_LENGTH_MS * multiplier;
+
+    juce::int64 minTs = sdbEndTs - maxDelay;
+    juce::int64 maxTs = sdbEndTs - minDelay;
 
     // discard any timestamps less than minTs
     while (!visTsBuffer.empty() && visTsBuffer.front() < minTs)
@@ -1170,17 +1175,17 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
         int visActiveChan = activeInputs.indexOf(visContinuousChannel);
         jassert(visActiveChan != -1);
         const double* rpBuffer = historyBuffer.getReadPointer(visActiveChan, historyLength - 1);
-        for (int i = 0; i < VIS_HILBERT_LENGTH; ++i)
+        for (int i = 0; i < hilbertLength; ++i)
         {
             visHilbertBuffer.set(i, rpBuffer[-i]);
         }
 
         double* realPtr = visHilbertBuffer.getRealPointer();
         visReverseFilter.reset();
-        visReverseFilter.process(VIS_HILBERT_LENGTH, &realPtr);
+        visReverseFilter.process(hilbertLength, &realPtr);
 
         // un-reverse values
-        visHilbertBuffer.reverseReal(VIS_HILBERT_LENGTH);
+        visHilbertBuffer.reverseReal(hilbertLength);
 
         visForwardPlan.execute();
         hilbertManip(&visHilbertBuffer);
@@ -1192,7 +1197,7 @@ void PhaseCalculator::calcVisPhases(juce::int64 sdbEndTs)
         {
             visTsBuffer.pop();
             int delay = static_cast<int>(sdbEndTs - ts);
-            std::complex<double> analyticPt = visHilbertBuffer.getAsComplex(VIS_HILBERT_LENGTH - delay);
+            std::complex<double> analyticPt = visHilbertBuffer.getAsComplex(hilbertLength - delay);
             double phaseRad = std::arg(analyticPt);
             visPhaseBuffer.push(phaseRad);
 
