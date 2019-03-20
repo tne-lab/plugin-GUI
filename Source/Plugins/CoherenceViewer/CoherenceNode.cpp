@@ -22,11 +22,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "CoherenceNode.h"
-#include "CoherenceVisualizer.h"
 
 /********** node ************/
 CoherenceNode::CoherenceNode()
-    : GenericProcessor("Coherence")
+    : GenericProcessor  ("Coherence")
+    , Thread            ("Coherence Calc")
 {
     setProcessorType(PROCESSOR_TYPE_SINK);
 }
@@ -41,6 +41,18 @@ AudioProcessorEditor* CoherenceNode::createEditor()
 
 void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
 {}
+
+
+void CoherenceNode::run()
+{
+    AtomicReaderPtr dataReader = dataSync.getReader();
+    AtomicWriterPtr coherenceWriter = coherenceSync.getWriter();
+
+    while (!threadShouldExit())
+    {
+
+    }
+}
 
 
 /************** editor *************/

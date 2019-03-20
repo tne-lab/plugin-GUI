@@ -35,11 +35,14 @@ in units of z-score.
 
 #include <ProcessorHeaders.h>
 #include <VisualizerEditorHeaders.h>
-#include <FFTWWrapper.h>
 
 #include "CoherenceVisualizer.h"
+#include "AtomicSynchronizer.h"
+#include "CumulativeTFR.h"
 
-class CoherenceNode : public GenericProcessor
+#include <vector>
+
+class CoherenceNode : public GenericProcessor, public Thread
 {
 public:
     CoherenceNode();
@@ -48,8 +51,16 @@ public:
 
     void process(AudioSampleBuffer& continuousBuffer) override;
 
+    // thread function - coherence calculation
+    void run() override;
 
 private:
+    AtomicSynchronizer dataSync;        // writer = process function , reader = thread
+    AtomicSynchronizer coherenceSync;   // writer = thread, reader = visualizer (message thread)
+
+    // group of 3, controlled by coherenceSync:
+    std::vector<std::vector<double>> meanCoherence;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceNode);
 };
 

@@ -31,6 +31,7 @@ class CoherenceVisualizer : public Visualizer
 {
 public:
     CoherenceVisualizer();
+    ~CoherenceVisualizer();
 
     void resized() override;
 
@@ -47,7 +48,8 @@ private:
     ScopedPointer<Viewport>  viewport;
     ScopedPointer<Component> canvas;
 
-    ScopedPointer<MatlabLikePlot> testPlot;
+    ScopedPointer<MatlabLikePlot> referencePlot;
+    ScopedPointer<MatlabLikePlot> currentPlot;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceVisualizer);
 };

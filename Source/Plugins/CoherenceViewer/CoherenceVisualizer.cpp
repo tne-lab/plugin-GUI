@@ -30,10 +30,16 @@ CoherenceVisualizer::CoherenceVisualizer()
     juce::Rectangle<int> canvasBounds(0, 0, 1, 1);
     juce::Rectangle<int> bounds;
 
-    testPlot = new MatlabLikePlot();
-    testPlot->setBounds(bounds = { 50, 50, 500, 200 });
-    canvas->addAndMakeVisible(testPlot);
-    canvasBounds = canvasBounds.getUnion(bounds);
+    //testPlot = new MatlabLikePlot();
+    //testPlot->setBounds(bounds = { 50, 50, 800, 300 });
+    //testPlot->setRange(0, 30, 0, 20, true);
+    //testPlot->setControlButtonsVisibile(true);
+
+    //XYline testLine(0.5, 0.5, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 1, Colours::red);
+    //testPlot->plotxy(testLine);
+
+    //canvas->addAndMakeVisible(testPlot);
+    //canvasBounds = canvasBounds.getUnion(bounds);
     
     // some extra padding
     canvasBounds.setBottom(canvasBounds.getBottom() + 10);
@@ -43,7 +49,16 @@ CoherenceVisualizer::CoherenceVisualizer()
     viewport->setViewedComponent(canvas, false);
     viewport->setScrollBarsShown(true, true);
     addAndMakeVisible(viewport);
+
+    startCallbacks();
 }
+
+
+CoherenceVisualizer::~CoherenceVisualizer()
+{
+    stopCallbacks();
+}
+
 
 void CoherenceVisualizer::resized()
 {
@@ -52,7 +67,14 @@ void CoherenceVisualizer::resized()
 
 void CoherenceVisualizer::refreshState() {}
 void CoherenceVisualizer::update() {}
-void CoherenceVisualizer::refresh() {}
+
+
+void CoherenceVisualizer::refresh() 
+{
+    // testPlot->repaint();
+}
+
+
 void CoherenceVisualizer::beginAnimation() {}
 void CoherenceVisualizer::endAnimation() {}
 void CoherenceVisualizer::setParameter(int, float) {}
