@@ -123,13 +123,14 @@ private:
 
         // adds or removes recordStatus entry for extra chan
         // corresponding to given input chan.
-        void addExtraChan(int inputChan, const Array<int>& activeInputs);
-        void removeExtraChan(int inputChan, const Array<int>& activeInputs);
+        void addExtraChan(int inputChan);
+        void removeExtraChan(int inputChan);
         void resize(int numExtraChans);
 
         bool getRecordStatus(int extraChan) const;
     private:
         const PhaseCalculator* p;
+        GenericEditor* e;
         Array<bool> recordStatus;
     };
 

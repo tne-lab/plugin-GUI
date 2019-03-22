@@ -223,16 +223,13 @@ void PhaseCalculatorEditor::channelChanged(int chan, bool newState)
     auto pc = static_cast<PhaseCalculator*>(getProcessor());
     if (chan < pc->getNumInputs())
     {
-        Array<int> activeInputs = pc->getActiveInputs();
         if (newState)
         {
-            // check whether sample rate is compatible (and if not, disable channel)
-            if (!pc->updateSampleRate(chan)) { return; }
-
-            // ensure space allocated for per-active-channel arrays
-            if (activeInputs.size() > pc->numActiveChansAllocated)
-            {
-                pc->addActiveChannel();
+            // check whether channel can be activated
+            if (!pc->activateInputChannel(chan))
+            { 
+                pc->deselectChannel(chan, true);
+                return;
             }
         }
 
@@ -240,19 +237,20 @@ void PhaseCalculatorEditor::channelChanged(int chan, bool newState)
         {
             if (newState)
             {
-                extraChanManager.addExtraChan(chan, activeInputs);
+                extraChanManager.addExtraChan(chan);
             }
             else
             {
-                extraChanManager.removeExtraChan(chan, activeInputs);
+                extraChanManager.removeExtraChan(chan);
             }
 
             // Update signal chain to add/remove output channels if necessary
             CoreServices::updateSignalChain(this);
         }
-        else
+        else // (if not updating the whole signal chain)
         {
-            updateVisualizer(); // update the available continuous channels for visualizer
+            // update the available continuous channels for visualizer
+            updateVisualizer();
         }
     }
 }
@@ -455,6 +453,7 @@ int PhaseCalculatorEditor::selectBandFromSavedParams(const XmlElement* xmlNode)
 
 PhaseCalculatorEditor::ExtraChanManager::ExtraChanManager(const PhaseCalculator* processor)
     : p(processor)
+    , e(processor->getEditor())
 {}
 
 void PhaseCalculatorEditor::ExtraChanManager::buttonClicked(Button* button)
@@ -470,19 +469,22 @@ void PhaseCalculatorEditor::ExtraChanManager::buttonClicked(Button* button)
     recordStatus.set(extraChanInd, button->getToggleState());
 }
 
-void PhaseCalculatorEditor::ExtraChanManager::addExtraChan(int inputChan, const Array<int>& activeInputs)
+void PhaseCalculatorEditor::ExtraChanManager::addExtraChan(int inputChan)
 {
-    int newInputIndex = activeInputs.indexOf(inputChan);
+    Array<int> activeChannels = e->getActiveChannels();
+    int newInputIndex = activeChannels.indexOf(inputChan);
     jassert(newInputIndex <= recordStatus.size());
     recordStatus.insert(newInputIndex, false);
 }
 
-void PhaseCalculatorEditor::ExtraChanManager::removeExtraChan(int inputChan, const Array<int>& activeInputs)
+void PhaseCalculatorEditor::ExtraChanManager::removeExtraChan(int inputChan)
 {
-    // find # of lower-index active inputs
+    // find # of lower-index active channels
+    Array<int> activeChannels = e->getActiveChannels();
+    int numActiveChannels = activeChannels.size();
+
     int i = 0;
-    int numActiveInputs = activeInputs.size();
-    for (; i < numActiveInputs && activeInputs[i] < inputChan; ++i);
+    for (; i < numActiveChannels && activeChannels[i] < inputChan; ++i);
     jassert(i < recordStatus.size());
     recordStatus.remove(i);
 }

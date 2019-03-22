@@ -45,7 +45,7 @@ accuracy of phase-locked stimulation in real time.
 #include <ProcessorHeaders.h>
 #include <DspLib/Dsp.h>  // Filtering
 #include <queue>
-#include <array>
+#include <utility>  // pair
 
 #include "FFTWWrapper.h"   // Fourier transform
 #include "ARModeler.h"     // Autoregressive modeling
@@ -64,18 +64,116 @@ enum Param
     VIS_C_CHAN
 };
 
-/* each continuous channel has three possible states while acquisition is running:
-
-    - NOT_FULL:     Not enough samples have arrived to fill the history fifo for this channel.
-                    Wait for more  samples before calculating the autoregressive model parameters.
-
-    - FULL_NO_AR:   The history fifo for this channel is now full, but AR parameters have not been calculated yet.
-                    Tells the AR thread that it can start calculating the model and the main thread that it should still output zeros.
-
-    - FULL_AR:      The history fifo is full and AR parameters have been calculated at least once.
-                    In this state, the main thread uses the parameters to predict the future signal and output and calculate the phase.
+/*
+* FIFO that shifts its data, such that the most recent data is always at the end.
+* In other words, the free space (if any) is always at the beginning.
 */
-enum ChannelState { NOT_FULL, FULL_NO_AR, FULL_AR };
+class ShiftRegister : public Array<double, CriticalSection>
+{
+public:
+    ShiftRegister(int size = 0);
+
+    // Just resets the free space
+    void reset();
+
+    // Resets free space and resizes the array. There's no way to resize
+    // the array while keeping the data contained in it.
+    void resetAndResize(int newSize);
+    
+    bool isFull() const;
+
+    void enqueue(const float* source, int n);
+
+private:
+    int freeSpace;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ShiftRegister);
+};
+
+
+// filter design copied from FilterNode
+using BandpassFilterBase = Dsp::SmoothedFilterDesign
+<Dsp::Butterworth::Design::BandPass // design type
+<2>,                                // order
+1,                                  // number of channels
+Dsp::DirectFormII>;                 // realization
+
+class BandpassFilter : public BandpassFilterBase
+{
+public:
+    BandpassFilter() : BandpassFilterBase(1) {} // # of transition samples
+};
+
+
+struct ChannelInfo;
+class PhaseCalculator;
+
+struct ActiveChannelInfo
+{
+    ActiveChannelInfo(const ChannelInfo& cInfo);
+
+    // reset to perform after end of acquisition or update
+    void reset();
+
+    ShiftRegister history;
+
+    BandpassFilter filter;
+
+    ARModeler arModeler;
+    Array<double, CriticalSection> arParams;
+
+    Array<double> htState;
+
+    // number of samples by which lastComputedSample precedes the start of the next buffer
+    // (ranges from 1 to downsampleFactor)
+    int dsOffset;
+
+    // last non-interpolated ("computed") transformer output
+    std::complex<double> lastComputedSample;
+
+    // last phase output, for glitch correction
+    float lastPhase;
+
+    // for visualization:
+    
+    
+    const ChannelInfo& chanInfo;
+
+private:
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ActiveChannelInfo);
+};
+
+struct ChannelInfo
+{
+    ChannelInfo(int index, PhaseCalculator& proc);
+
+    void update();
+
+    // returns false on failure. does nothing if already active.
+    bool activate();
+
+    void deactivate();
+
+    bool isActive() const;
+
+    // returns nullptr if not active
+    ActiveChannelInfo* getActiveInfo() const;
+
+    int getDsFactor() const;
+
+    const int ind;
+    float sampleRate;
+
+    // 0 if sample rate is not a multiple of Hilbert::FS (in this case it cannot be activated.)
+    int dsFactor;
+
+    ScopedPointer<ActiveChannelInfo> acInfo; // null if non-active
+
+    PhaseCalculator& owner;
+
+private:
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChannelInfo);
+};
 
 // Output mode - corresponds to itemIDs on the ComboBox
 enum OutputMode { PH = 1, MAG, PH_AND_MAG, IM };
@@ -100,7 +198,7 @@ class PhaseCalculator : public GenericProcessor, public Thread
     // process length for real-time visualization ground truth hilbert transform
     // based on evaluation of phase error compared to offline processing
     static const int VIS_HILBERT_LENGTH_MS = 1024;
-    static const int VIS_TS_MIN_DELAY_MS = 500;
+    static const int VIS_TS_MIN_DELAY_MS = 675;
     static const int VIS_TS_MAX_DELAY_MS = 1000;
 
 public:
@@ -145,7 +243,9 @@ public:
     // for visualizer continuous channel
     void saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType) override;
     void loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType) override;
-    
+
+    void updateActiveChannelInfo(ActiveChannelInfo& acInfo);
+
     /*
      * Circular distance between angles x and ref (in radians). The "cutoff" is the maximum
      * possible positive output; greater differences will be wrapped to negative angles.
@@ -160,9 +260,6 @@ private:
     // Allow responding to stim events if a stimEventChannel is selected.
     void handleEvent(const EventChannel* eventInfo, const MidiMessage& event,
         int samplePosition = 0) override;
-
-    // Sets arOrder (which in turn influences historyLength and the arModeler)
-    void setAROrder(int newOrder);
 
     // Sets frequency band (which resets lowCut and highCut to defaults for this band)
     void setBand(Band newBand, bool force = false);
@@ -179,39 +276,21 @@ private:
     // Sets visContinuousChannel and updates the visualization filter
     void setVisContChan(int newChan);
 
-    // Update historyLength to be the minimum possible size (depending on
-    // VIS_HILBERT_LENGTH, hilbertLength, predictionLength, and arOrder).
-    void updateHistoryLength();
+    // Update visHilbertLength, depending on sample rates and the selected channel
+    // for visualization. Updates the visHilbertBuffer and FFTW plans.
+    void updateVisHilbertLength();
 
     // Update the htScaleFactor depending on the lowCut and highCut of the filter.
     void updateScaleFactor();
 
-    // Update the filters of active channels. From FilterNode code.
-    void setFilterParameters();
-
-    // If given input channel has an incompatible sample rate, deselect it (and send a warning).
-    // Otherwise, save the downsampling multiplier and initialize downsampling phase.
-    // Returns the new selection state of the channel.
-    bool validateSampleRate(int chan);
-
-    // Validate the sample rates of all active inputs, then update the history length
-    // and AR modelers to account for any changed sample rates.
-    void updateSampleRates();
-
-    // Same as updateSampleRates, but just for the specified channel, and returns true if successful.
-    bool updateSampleRate(int chan);
-
     // Update the AR modelers corresponding to active inputs with current settings.
     void updateActiveARModelers();
 
-    // Allocate memory for a new active input channel
-    void addActiveChannel();
-
     // Do glitch unwrapping
-    void unwrapBuffer(float* wp, int nSamples, int chan);
+    void unwrapBuffer(float* wp, int nSamples, float lastPhase);
 
     // Do start-of-buffer smoothing
-    void smoothBuffer(float* wp, int nSamples, int chan);
+    void smoothBuffer(float* wp, int nSamples, float lastPhase);
 
     // Update subProcessorMap
     void updateSubProcessorMap();
@@ -221,7 +300,9 @@ private:
 
     // Deselect given channel in the "PARAMS" channel selector. Useful to ensure "extra channels"
     // remain deselected (so that they don't become active inputs if the # of inputs changes).
-    void deselectChannel(int chan);
+    // If "warn" is true, sends a warning that the channel was deselected due to incompatible
+    // sample rate.
+    void deselectChannel(int chan, bool warn);
 
     // Calls deselectChannel on each channel that is not currently an input. Only relevant
     // when the output mode is phase and magnitude.
@@ -231,18 +312,39 @@ private:
      * Check the visualization timestamp queue, clear any that are expired
      * (too late to calculate phase), and calculate phase of any that are ready.
      * sdbEndTs = timestamp 1 past end of current buffer
+     * Precondition: chan is a valid input index.
      */
-    void calcVisPhases(juce::int64 sdbEndTs);
+    void calcVisPhases(int chan, juce::int64 sdbEndTs);
+
+    /*
+     * Convenience method to call "update" on all channel info objects (which also updates
+     * corresponding active channel info)
+     */
+    void updateAllChannels();
+
+    /*
+     * Convenience method to call "update" on all active channel info structs in the map.
+     */
+    void updateActiveChannels();
+
+    /*
+     * Enables an input channel to be processed. Returns false if this is prohibited due to
+     * the channel's sample rate. If the channel is already active, does nothing.
+     * Precondition: the channel passed in is a valid input channel index.
+     */
+    bool activateInputChannel(int chan);
+
+    void deactivateInputChannel(int chan);
 
     // ---- static utility methods ----
 
     /*
      * arPredict: use autoregressive model of order to predict future data.
-     * 
+     *
      * lastSample points to the most recent sample of past data that will be used to
      * compute phase, and there must be at least stride * (order - 1) samples
      * preceding it in order to do the AR prediction.
-     * 
+     *
      * Input params is an array of coefficients of an AR model of length 'order'.
      *
      * Writes samps future data values to prediction.
@@ -254,7 +356,7 @@ private:
      * hilbertManip: Hilbert transforms data in the frequency domain (including normalization by length of data).
      * Modifies fftData in place.
      */
-    static void hilbertManip(FFTWArray* fftData);
+    static void hilbertManip(FFTWArray* fftData, int n);
 
     // Get the htScaleFactor for the given band's Hilbert transformer,
     // over the range from lowCut and highCut. This is the reciprocal of the geometric
@@ -265,9 +367,6 @@ private:
     static double htFilterSamp(double input, Band band, Array<double>& state);
 
     // ---- customizable parameters ------
-
-    // size of historyBuffer ( >= VIS_HILBERT_LENGTH and long enough to train AR model effectively)
-    int historyLength;
 
     // time to wait between AR model recalculations in ms
     int calcInterval;
@@ -292,91 +391,40 @@ private:
 
     // ---- internals -------
 
-    int numActiveChansAllocated = 0;
+    OwnedArray<ChannelInfo> channelInfo;
 
-    // Storage area for filtered data to be used by the side thread to calculate AR model parameters
-    // and by the visualization event handler to calculate acccurate phases at past event times.
-    AudioBuffer<double> historyBuffer; // 1 channel per active input
-
-    // Keep track of how much of the historyBuffer is empty (per channel)
-    Array<int> bufferFreeSpace; // 1 entry per active input
-
-    // Keeps track of each channel's state (see enum definition above)
-    Array<ChannelState> chanState; // 1 entry per active input
-
-    // mutexes for sharedDataBuffer arrays, which are used in the side thread to calculate AR parameters.
-    // since the side thread only READS sharedDataBuffer, only needs to be locked in the main thread when it's WRITTEN to.
-    OwnedArray<CriticalSection> historyLock; // 1 entry per active input
-
-    // for autoregressive parameter calculation
-    OwnedArray<ARModeler> arModelers; // 1 entry per input
-
-    // for active input channels, equals the sample rate divided by HT_FS
-    Array<int> sampleRateMultiple; // 1 entry per input
-
-    // AR model parameters
-    OwnedArray<Array<double>> arParams; // 1 entry per active input
-    OwnedArray<CriticalSection> arParamLock; // 1 entry per active input
-
-    // storage area for predicted samples (to compensate for group delay)
+    // storage areas
+    Array<double, CriticalSection> localARParams;
     Array<double> predSamps;
-
-    // state of each hilbert transformer (persistent and temporary)
-    OwnedArray<Array<double>> htState; // 1 entry per active input
     Array<double> htTempState;
-
-    // store indices of current buffer to feed into transformer
     Array<int> htInds;
-
-    // store output of hilbert transformer
     Array<std::complex<double>> htOutput;
 
     // approximate multiplier for the imaginary component output of the HT (depends on filter band)
     double htScaleFactor;
-
-    // keep track of each active channel's last non-interpolated ("computed") transformer output
-    // and the number of samples by which this sample precedes the start of the next buffer
-    // (ranges from 1 to sampleRateMultiple).
-    Array<std::complex<double>> lastComputedSample; // 1 entry per active input
-    Array<int> dsOffset; // 1 entry per input
-
-    // keep track of last phase output, for glitch correction
-    Array<float> lastPhase; // 1 entry per active input
 
     // maps full source subprocessor IDs of incoming streams to indices of
     // corresponding subprocessors created here.
     HashMap<int, uint16> subProcessorMap;
 
     // delayed analysis for visualization
+
+    // size of the Hilbert transform for visualization, in samples
+    int visHilbertLength;
     FFTWArray visHilbertBuffer;
-    FFTWPlan  visForwardPlan, visBackwardPlan;
+    ScopedPointer<FFTWPlan>  visForwardPlan, visBackwardPlan;
+    BandpassFilter visReverseFilter;
+    CriticalSection visProcessingCS; // manages the above variables as well as visContinuousChannel.
 
     // holds stimulation timestamps until the delayed phase is ready to be calculated
     std::queue<juce::int64> visTsBuffer;
 
     // for phases of stimulations, to be read by the visualizer.
     std::queue<double> visPhaseBuffer;
-    CriticalSection visPhaseBufferLock;  // avoid race conditions when updating visualizer
+    CriticalSection visPhaseBufferCS;  // avoid race conditions when updating visualizer
 
     // event channel to send visualized phases over
     EventChannel* visPhaseChannel;
-
-    // filter design copied from FilterNode
-    typedef Dsp::SmoothedFilterDesign
-        <Dsp::Butterworth::Design::BandPass // design type
-        <2>,                                // order
-        1,                                  // number of channels
-        Dsp::DirectFormII>                  // realization
-        BandpassFilterBase;
-
-    class BandpassFilter : public BandpassFilterBase
-    {
-    public:
-        BandpassFilter() : BandpassFilterBase(1) {} // # of transition samples
-    };
-
-    OwnedArray<BandpassFilter> filters;
-    BandpassFilter visReverseFilter;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseCalculator);
 };

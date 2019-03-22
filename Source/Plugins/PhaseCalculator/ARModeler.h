@@ -35,6 +35,16 @@ public:
 
     ~ARModeler() { }
 
+    void reset()
+    {
+        hasBeenUsed = false;
+    }
+
+    bool hasBeenFit()
+    {
+        return hasBeenUsed;
+    }
+
     // returns true if successful.
     bool setParams(int order, int length, int strideIn)
     {
@@ -52,7 +62,7 @@ public:
         return true;
     }
 
-    void fitModel(const Array<double>& j_inputseries, Array<double>& j_coef)
+    void fitModel(const Array<double>& j_inputseries, Array<double, CriticalSection>& j_coef)
     {
         jassert(j_inputseries.size() == inputLength);
         jassert(j_coef.size() == arOrder);
@@ -101,6 +111,8 @@ public:
                 pef[j] = pef[j + 1] + t1 * per[j + 1] + t1 * inputseries[stride * (j + 1)];
             }
         }
+
+        hasBeenUsed = true;
     }
 
 private:
@@ -132,6 +144,8 @@ private:
     Array<double> j_per;
     Array<double> j_pef;
     Array<double> j_h;
+
+    bool hasBeenUsed = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ARModeler);
 };
