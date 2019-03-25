@@ -137,7 +137,10 @@ namespace PhaseCalculator
         float lastPhase;
 
         // for visualization:
-
+        int hilbertLengthMultiplier;
+        FFTWArray visHilbertBuffer;
+        ScopedPointer<FFTWPlan> visForwardPlan, visBackwardPlan;
+        BandpassFilter reverseFilter;
 
         const ChannelInfo& chanInfo;
 
@@ -159,7 +162,7 @@ namespace PhaseCalculator
         bool isActive() const;
 
         // index of channel among owner's data channels
-        int ind;
+        int chan;
 
         float sampleRate;
 
@@ -258,10 +261,6 @@ namespace PhaseCalculator
         // Sets visContinuousChannel and updates the visualization filter
         void setVisContChan(int newChan);
 
-        // Update visHilbertLength, depending on sample rates and the selected channel
-        // for visualization. Updates the visHilbertBuffer and FFTW plans.
-        void updateVisHilbertLength();
-
         // Update the htScaleFactor depending on the lowCut and highCut of the filter.
         void updateScaleFactor();
 
@@ -293,7 +292,7 @@ namespace PhaseCalculator
         * sdbEndTs = timestamp 1 past end of current buffer
         * Precondition: chan is a valid input index.
         */
-        void calcVisPhases(int chan, juce::int64 sdbEndTs);
+        void calcVisPhases(ActiveChannelInfo* acInfo, juce::int64 sdbEndTs);
 
         /*
         * Convenience method to call "update" on all channel info objects (which also updates
@@ -387,13 +386,6 @@ namespace PhaseCalculator
         HashMap<int, uint16> subProcessorMap;
 
         // delayed analysis for visualization
-
-        // size of the Hilbert transform for visualization, in samples
-        int visHilbertLength;
-        FFTWArray visHilbertBuffer;
-        ScopedPointer<FFTWPlan>  visForwardPlan, visBackwardPlan;
-        BandpassFilter visReverseFilter;
-        CriticalSection visProcessingCS; // manages the above variables as well as visContinuousChannel.
 
         // holds stimulation timestamps until the delayed phase is ready to be calculated
         std::queue<juce::int64> visTsBuffer;

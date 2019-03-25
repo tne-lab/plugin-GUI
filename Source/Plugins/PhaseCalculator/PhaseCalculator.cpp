@@ -143,6 +143,19 @@ namespace PhaseCalculator
 
         htState.resize(Hilbert::delay[band] * 2 + 1);
 
+        // visualization stuff
+        hilbertLengthMultiplier = Hilbert::fs * chanInfo.dsFactor / 1000;
+        int visHilbertLength = visHilbertLengthMs * hilbertLengthMultiplier;
+
+        if (visHilbertBuffer.getLength() != visHilbertLength)
+        {
+            visHilbertBuffer.resize(visHilbertLength);
+            visForwardPlan = new FFTWPlan(visHilbertLength, &visHilbertBuffer, FFTW_MEASURE);
+            visBackwardPlan = new FFTWPlan(visHilbertLength, &visHilbertBuffer, FFTW_BACKWARD, FFTW_MEASURE);
+        }
+
+        reverseFilter.setParams(params);
+
         reset();
     }
 
@@ -159,7 +172,7 @@ namespace PhaseCalculator
 
 
     ChannelInfo::ChannelInfo(const Node& pc, int i)
-        : ind           (i)
+        : chan          (i)
         , sampleRate    (0)
         , dsFactor      (0)
         , acInfo        (nullptr)
@@ -170,7 +183,7 @@ namespace PhaseCalculator
 
     void ChannelInfo::update()
     {
-        const DataChannel* dataChannel = owner.getDataChannel(ind);
+        const DataChannel* dataChannel = owner.getDataChannel(chan);
         if (dataChannel == nullptr)
         {
             jassertfalse;
@@ -345,18 +358,14 @@ namespace PhaseCalculator
         }
 
         // iterate over active input channels
-        int activeChanInd = -1;
-        for (auto chanInfo : channelInfo)
+        Array<int> activeChans = getActiveInputs();
+        int numActiveChans = activeChans.size();
+        for (int ac = 0; ac < numActiveChans; ++ac)
         {
-            if (!chanInfo->isActive())
-            {
-                continue;
-            }
-            ++activeChanInd;
+            ChannelInfo* chanInfo = channelInfo[activeChans[ac]];
+            ActiveChannelInfo* acInfo = chanInfo->acInfo;
 
-            ActiveChannelInfo& acInfo = *chanInfo->acInfo;
-
-            int chan = chanInfo->ind;
+            int chan = chanInfo->chan;
             int nSamples = getNumSamples(chan);
             if (nSamples == 0) // nothing to do
             {
@@ -365,29 +374,29 @@ namespace PhaseCalculator
 
             // filter the data
             float* const wpIn = buffer.getWritePointer(chan);
-            acInfo.filter.process(nSamples, &wpIn);
+            acInfo->filter.process(nSamples, &wpIn);
 
             // enqueue as much new data as can fit into history
-            acInfo.history.enqueue(wpIn, nSamples);
+            acInfo->history.enqueue(wpIn, nSamples);
 
             // calc phase and write out (only if AR model has been calculated)
-            if (acInfo.history.isFull() && acInfo.arModeler.hasBeenFit())
+            if (acInfo->history.isFull() && acInfo->arModeler.hasBeenFit())
             {
                 // read current AR parameters safely (uses lock internally)
-                acInfo.arModeler.getModel(localARParams);
+                acInfo->arModeler.getModel(localARParams);
 
                 // use AR model to fill predSamps (which is downsampled) based on past data.
                 int htDelay = Hilbert::delay[band];
-                int stride = acInfo.chanInfo.dsFactor;
+                int stride = acInfo->chanInfo.dsFactor;
 
                 double* pPredSamps = predSamps.getRawDataPointer();
                 const double* pLocalParam = localARParams.getRawDataPointer();
-                const double* rpHistory = acInfo.history.end() - acInfo.dsOffset;
+                const double* rpHistory = acInfo->history.end() - acInfo->dsOffset;
                 arPredict(rpHistory, pPredSamps, pLocalParam, htDelay + 1, stride, arOrder);
 
                 // identify indices of current buffer to execute HT
                 htInds.clearQuick();
-                for (int i = stride - acInfo.dsOffset; i < nSamples; i += stride)
+                for (int i = stride - acInfo->dsOffset; i < nSamples; i += stride)
                 {
                     htInds.add(i);
                 }
@@ -402,7 +411,7 @@ namespace PhaseCalculator
                 int kOut = -htDelay;
                 for (int kIn = 0; kIn < htInds.size(); ++kIn, ++kOut)
                 {
-                    double samp = htFilterSamp(wpIn[htInds[kIn]], band, acInfo.htState);
+                    double samp = htFilterSamp(wpIn[htInds[kIn]], band, acInfo->htState);
                     if (kOut >= 0)
                     {
                         double rc = wpIn[htInds[kOut]];
@@ -412,7 +421,7 @@ namespace PhaseCalculator
                 }
 
                 // copy state to transform prediction without changing the end-of-buffer state
-                htTempState = acInfo.htState;
+                htTempState = acInfo->htState;
 
                 // execute transformer on prediction
                 for (int i = 0; i <= htDelay; ++i, ++kOut)
@@ -432,13 +441,13 @@ namespace PhaseCalculator
                 if (outputMode == PH_AND_MAG)
                 {
                     // second output channel
-                    int outChan2 = getNumInputs() + activeChanInd;
+                    int outChan2 = getNumInputs() + ac;
                     jassert(outChan2 < buffer.getNumChannels());
                     wpOut2 = buffer.getWritePointer(outChan2);
                 }
 
                 kOut = 0;
-                std::complex<double> prevCS = acInfo.lastComputedSample;
+                std::complex<double> prevCS = acInfo->lastComputedSample;
                 std::complex<double> nextCS = htOutput[kOut];
                 double prevPhase, nextPhase, phaseSpan, thisPhase;
                 double prevMag, nextMag, magSpan, thisMag;
@@ -457,7 +466,7 @@ namespace PhaseCalculator
                     nextMag = std::abs(nextCS);
                     magSpan = nextMag - prevMag;
                 }
-                int subSample = acInfo.dsOffset % stride;
+                int subSample = acInfo->dsOffset % stride;
 
                 for (int i = 0; i < nSamples; ++i, subSample = (subSample + 1) % stride)
                 {
@@ -510,15 +519,15 @@ namespace PhaseCalculator
                         break;
                     }
                 }
-                acInfo.lastComputedSample = prevCS;
-                acInfo.dsOffset = ((acInfo.dsOffset + nSamples - 1) % stride) + 1;
+                acInfo->lastComputedSample = prevCS;
+                acInfo->dsOffset = ((acInfo->dsOffset + nSamples - 1) % stride) + 1;
 
                 // unwrapping / smoothing
                 if (outputMode == PH || outputMode == PH_AND_MAG)
                 {
-                    unwrapBuffer(wpOut, nSamples, acInfo.lastPhase);
-                    smoothBuffer(wpOut, nSamples, acInfo.lastPhase);
-                    acInfo.lastPhase = wpOut[nSamples - 1];
+                    unwrapBuffer(wpOut, nSamples, acInfo->lastPhase);
+                    smoothBuffer(wpOut, nSamples, acInfo->lastPhase);
+                    acInfo->lastPhase = wpOut[nSamples - 1];
                 }
             }
             else // fifo not full or AR model not ready
@@ -528,13 +537,9 @@ namespace PhaseCalculator
             }
 
             // if this is the monitored channel for events, check whether we can add a new phase
-            if (hasCanvas && acInfo.history.isFull())
+            if (hasCanvas && chan == visContinuousChannel && acInfo->history.isFull())
             {
-                ScopedLock visProcessingLock(visProcessingCS);
-                if (chan == visContinuousChannel)
-                {
-                    calcVisPhases(chan, getTimestamp(chan) + getNumSamples(chan));
-                }
+                calcVisPhases(acInfo, getTimestamp(chan) + getNumSamples(chan));
             }
         }
     }
@@ -668,7 +673,7 @@ namespace PhaseCalculator
         {
             if (chanInfo->isActive())
             {
-                activeInputs.add(chanInfo->ind);
+                activeInputs.add(chanInfo->chan);
             }
         }
         return activeInputs;
@@ -900,22 +905,10 @@ namespace PhaseCalculator
                 visTsBuffer.pop();
             }
 
-        {
-            ScopedLock visProcessingLock(visProcessingCS);
-
-            visContinuousChannel = newChan;
-            visReverseFilter.setParams(channelInfo[newChan]->acInfo->filter.getParams());
-            updateVisHilbertLength();
+            visEventChannel = tempVisEventChan;
         }
-
-        visEventChannel = tempVisEventChan;
-        }
-        else
-        {
-            // OK to do this without the lock, since the old visualized channel
-            // can still be processed while the filter, FFT buffer and plans haven't been modified.
-            visContinuousChannel = -1;
-        }
+        
+        visContinuousChannel = newChan;
 
         // If acquisition is stopped (and thus the new channel might be from a different subprocessor),
         // update signal chain. Sinks such as LFP Viewer should receive this information.
@@ -924,37 +917,6 @@ namespace PhaseCalculator
             CoreServices::updateSignalChain(getEditor());
         }
     }
-
-    void Node::updateVisHilbertLength()
-    {
-        // can happen during acquisition if the visualized channel is changed.
-        ScopedLock visProcessingLock(visProcessingCS);
-
-        int chan = visContinuousChannel;
-        if (chan >= 0 && chan < channelInfo.size())
-        {
-            int newVisHilbertLength = visHilbertLengthMs * (Hilbert::fs * channelInfo[chan]->dsFactor) / 1000;
-            if (visHilbertLength == newVisHilbertLength) { return; }
-            visHilbertLength = newVisHilbertLength;
-
-            // update the Fourier transform buffer and plans
-            if (visHilbertBuffer.getLength() < visHilbertLength) // longer is OK
-            {
-                visHilbertBuffer.resize(visHilbertLength);
-            }
-
-            if (visForwardPlan == nullptr || visForwardPlan->getLength() != visHilbertLength)
-            {
-                visForwardPlan = new FFTWPlan(visHilbertLength, &visHilbertBuffer, FFTW_MEASURE);
-            }
-
-            if (visBackwardPlan == nullptr || visBackwardPlan->getLength() != visHilbertLength)
-            {
-                visBackwardPlan = new FFTWPlan(visHilbertLength, &visHilbertBuffer, FFTW_BACKWARD, FFTW_MEASURE);
-            }
-        }
-    }
-
 
     void Node::updateScaleFactor()
     {
@@ -1175,12 +1137,17 @@ namespace PhaseCalculator
         }
     }
 
-    void Node::calcVisPhases(int chan, juce::int64 sdbEndTs)
+    void Node::calcVisPhases(ActiveChannelInfo* acInfo, juce::int64 sdbEndTs)
     {
-        int multiplier = Hilbert::fs * channelInfo[chan]->dsFactor / 1000;
-        int maxDelay = visMaxDelayMs * multiplier;
-        int minDelay = visMinDelayMs * multiplier;
-        int hilbertLength = visHilbertLengthMs * multiplier;
+        if (acInfo == nullptr)
+        {
+            jassertfalse;
+            return;
+        }
+
+        int maxDelay = visMaxDelayMs * acInfo->hilbertLengthMultiplier;
+        int minDelay = visMinDelayMs * acInfo->hilbertLengthMultiplier;
+        int hilbertLength = visHilbertLengthMs * acInfo->hilbertLengthMultiplier;
 
         juce::int64 minTs = sdbEndTs - maxDelay;
         juce::int64 maxTs = sdbEndTs - minDelay;
@@ -1196,22 +1163,22 @@ namespace PhaseCalculator
             // perform reverse filtering and Hilbert transform
             // don't need to use a lock here since it's the same thread as the one
             // that writes to it.
-            const double* rpBuffer = channelInfo[chan]->acInfo->history.end() - 1;
+            const double* rpBuffer = acInfo->history.end() - 1;
             for (int i = 0; i < hilbertLength; ++i)
             {
-                visHilbertBuffer.set(i, rpBuffer[-i]);
+                acInfo->visHilbertBuffer.set(i, rpBuffer[-i]);
             }
 
-            double* realPtr = visHilbertBuffer.getRealPointer();
-            visReverseFilter.reset();
-            visReverseFilter.process(hilbertLength, &realPtr);
+            double* realPtr = acInfo->visHilbertBuffer.getRealPointer();
+            acInfo->reverseFilter.reset();
+            acInfo->reverseFilter.process(hilbertLength, &realPtr);
 
             // un-reverse values
-            visHilbertBuffer.reverseReal(hilbertLength);
+            acInfo->visHilbertBuffer.reverseReal(hilbertLength);
 
-            visForwardPlan->execute();
-            hilbertManip(&visHilbertBuffer, hilbertLength);
-            visBackwardPlan->execute();
+            acInfo->visForwardPlan->execute();
+            hilbertManip(&acInfo->visHilbertBuffer, hilbertLength);
+            acInfo->visBackwardPlan->execute();
 
             juce::int64 ts;
             ScopedLock phaseBufferLock(visPhaseBufferCS);
@@ -1219,7 +1186,7 @@ namespace PhaseCalculator
             {
                 visTsBuffer.pop();
                 int delay = static_cast<int>(sdbEndTs - ts);
-                std::complex<double> analyticPt = visHilbertBuffer.getAsComplex(hilbertLength - delay);
+                std::complex<double> analyticPt = acInfo->visHilbertBuffer.getAsComplex(hilbertLength - delay);
                 double phaseRad = std::arg(analyticPt);
                 visPhaseBuffer.push(phaseRad);
 
@@ -1230,7 +1197,7 @@ namespace PhaseCalculator
                     continue;
                 }
                 double eventData = phaseRad * 180.0 / Dsp::doublePi;
-                juce::int64 eventTs = sdbEndTs - getNumSamples(chan);
+                juce::int64 eventTs = sdbEndTs - getNumSamples(acInfo->chanInfo.chan);
                 BinaryEventPtr event = BinaryEvent::createBinaryEvent(visPhaseChannel, eventTs, &eventData, sizeof(double));
                 addEvent(visPhaseChannel, event, 0);
             }
@@ -1247,7 +1214,7 @@ namespace PhaseCalculator
             if (wasActive && !chanInfo->isActive())
             {
                 // deselect if this channel just got deactivated
-                deselectChannel(chanInfo->ind, true);
+                deselectChannel(chanInfo->chan, true);
             }
         }
     }
