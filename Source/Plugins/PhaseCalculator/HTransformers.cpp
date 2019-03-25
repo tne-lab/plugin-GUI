@@ -40,7 +40,6 @@ namespace PhaseCalculator
             Array<float> extrema[NUM_BANDS];
             int delay[NUM_BANDS];
             Array<double> transformer[NUM_BANDS];
-            const double* transformerRaw[NUM_BANDS];
 
             static String validBandToString(const Array<float>& band)
             {
@@ -67,7 +66,6 @@ namespace PhaseCalculator
                     -0.00055322197399797961,
                     -0.63685698210351149
                 });
-                transformerRaw[ALPHA_THETA] = transformer[ALPHA_THETA].getRawDataPointer();
 
 
                 validBand[BETA] = Array<float>({ 10, 40 });
@@ -87,7 +85,6 @@ namespace PhaseCalculator
                     -0.015661948619847599,
                     -0.45268524264113719
                 });
-                transformerRaw[BETA] = transformer[BETA].getRawDataPointer();
 
 
                 validBand[LOW_GAM] = Array<float>({ 30, 55 });
@@ -100,7 +97,6 @@ namespace PhaseCalculator
                     -1.5933788446351915,
                     1.7241339075391682
                 });
-                transformerRaw[LOW_GAM] = transformer[LOW_GAM].getRawDataPointer();
 
 
                 validBand[MID_GAM] = Array<float>({ 40, 90 });
@@ -113,7 +109,6 @@ namespace PhaseCalculator
                     -0.487176162115735,
                     -0.069437334858668653
                 });
-                transformerRaw[MID_GAM] = transformer[MID_GAM].getRawDataPointer();
 
 
                 validBand[HIGH_GAM] = Array<float>({ 60, 200 });
@@ -127,7 +122,6 @@ namespace PhaseCalculator
                     0.0040553935691102303,
                     -0.59258484603659545
                 });
-                transformerRaw[HIGH_GAM] = transformer[HIGH_GAM].getRawDataPointer();
             }
         };
 
@@ -147,6 +141,6 @@ namespace PhaseCalculator
 
         extern const int* const delay = hilbertInfo.delay;
 
-        extern const double* const* const transformer = hilbertInfo.transformerRaw;
+        extern const Array<double>* const transformer = hilbertInfo.transformer;
     }
 }

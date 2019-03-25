@@ -762,10 +762,10 @@ namespace PhaseCalculator
 
     double Node::circDist(double x, double ref, double cutoff)
     {
-        const double TWO_PI = 2 * Dsp::doublePi;
-        double xMod = std::fmod(x - ref, TWO_PI);
-        double xPos = (xMod < 0 ? xMod + TWO_PI : xMod);
-        return (xPos > cutoff ? xPos - TWO_PI : xPos);
+        static const double twoPi = 2 * Dsp::doublePi;
+        double xMod = std::fmod(x - ref, twoPi);
+        double xPos = (xMod < 0 ? xMod + twoPi : xMod);
+        return (xPos > cutoff ? xPos - twoPi : xPos);
     }
 
     // ------------ PRIVATE METHODS ---------------
@@ -1352,7 +1352,7 @@ namespace PhaseCalculator
             double normFreq = freq * Dsp::doublePi / (Hilbert::fs / 2);
             std::complex<double> response = 0;
 
-            auto* transf = Hilbert::transformer[band];
+            const double* transf = Hilbert::transformer[band].begin();
             for (int kCoef = 0; kCoef < nCoefs; ++kCoef)
             {
                 double coef = transf[kCoef];
@@ -1385,7 +1385,7 @@ namespace PhaseCalculator
         state_p[order] = 0;
 
         // incorporate new input
-        auto& transf = Hilbert::transformer[band];
+        const double* transf = Hilbert::transformer[band].begin();
         for (int kCoef = 0; kCoef < nCoefs; ++kCoef)
         {
             double val = input * transf[kCoef];

@@ -74,7 +74,7 @@ namespace PhaseCalculator
         extern const int* const delay;
 
         // contain the first delay[band] coefficients; the rest are redundant and can be inferred
-        extern const double* const* const transformer;
+        extern const Array<double>* const transformer;
     }
 }
 
