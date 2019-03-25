@@ -53,6 +53,10 @@ accuracy of phase-locked stimulation in real time.
 
 namespace PhaseCalculator
 {
+    // forward declarations
+    struct ChannelInfo;
+    class Node;
+
     // parameter indices
     enum Param
     {
@@ -64,6 +68,19 @@ namespace PhaseCalculator
         OUTPUT_MODE,
         VIS_E_CHAN,
         VIS_C_CHAN
+    };
+
+    // filter design copied from FilterNode
+    using BandpassFilterBase = Dsp::SmoothedFilterDesign
+        <Dsp::Butterworth::Design::BandPass // design type
+        <2>,                                // order
+        1,                                  // number of channels
+        Dsp::DirectFormII>;                 // realization
+
+    class BandpassFilter : public BandpassFilterBase
+    {
+    public:
+        BandpassFilter() : BandpassFilterBase(1) {} // # of transition samples
     };
 
     /*
@@ -92,24 +109,6 @@ namespace PhaseCalculator
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ShiftRegister);
     };
 
-
-    // filter design copied from FilterNode
-    using BandpassFilterBase = Dsp::SmoothedFilterDesign
-        <Dsp::Butterworth::Design::BandPass // design type
-        <2>,                                // order
-        1,                                  // number of channels
-        Dsp::DirectFormII>;                 // realization
-
-    class BandpassFilter : public BandpassFilterBase
-    {
-    public:
-        BandpassFilter() : BandpassFilterBase(1) {} // # of transition samples
-    };
-
-
-    struct ChannelInfo;
-    class Node;
-
     struct ActiveChannelInfo
     {
         ActiveChannelInfo(const ChannelInfo& cInfo);
@@ -124,7 +123,6 @@ namespace PhaseCalculator
         BandpassFilter filter;
 
         ARModeler arModeler;
-        Array<double, CriticalSection> arParams;
 
         Array<double> htState;
 

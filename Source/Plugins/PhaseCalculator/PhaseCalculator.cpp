@@ -21,8 +21,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
-#include <cfloat> // DBL_MAX
-#include <cmath>  // sqrt
+#include <cfloat>  // DBL_MAX
+#include <cmath>   // sqrt
+#include <cstring> // memmove
 
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
@@ -88,16 +89,15 @@ namespace PhaseCalculator
         int nRemaining = cap - n;
         int nShift = jmin(nRemaining, cap - freeSpace);
 
+        double* dataRaw = getRawDataPointer();
+
         // shift back existing data
-        for (int i = 1; i <= nShift; ++i)
-        {
-            setUnchecked(nRemaining - i, getUnchecked(cap - i));
-        }
+        memmove(dataRaw + nRemaining - nShift, dataRaw + cap - nShift, nShift * sizeof(double));
 
         // copy new data
         for (int i = 0; i < n; ++i)
         {
-            setUnchecked(nRemaining + i, source[i]);
+            dataRaw[nRemaining + i] = double(source[i]);
         }
 
         freeSpace = cap - (n + nShift);
@@ -126,7 +126,7 @@ namespace PhaseCalculator
         int newHistorySize = chanInfo.dsFactor * jmax(
             visHilbertLengthMs * Hilbert::fs / 1000,
             arOrder + 1,
-            Hilbert::fs);
+            1 * Hilbert::fs);
 
         history.resetAndResize(newHistorySize);
 
@@ -140,8 +140,6 @@ namespace PhaseCalculator
         filter.setParams(params);
 
         arModeler.setParams(arOrder, newHistorySize, chanInfo.dsFactor);
-
-        arParams.resize(arOrder);
 
         htState.resize(Hilbert::delay[band] * 2 + 1);
 
@@ -376,7 +374,7 @@ namespace PhaseCalculator
             if (acInfo.history.isFull() && acInfo.arModeler.hasBeenFit())
             {
                 // read current AR parameters safely (uses lock internally)
-                localARParams = acInfo.arParams;
+                acInfo.arModeler.getModel(localARParams);
 
                 // use AR model to fill predSamps (which is downsampled) based on past data.
                 int htDelay = Hilbert::delay[band];
@@ -384,11 +382,8 @@ namespace PhaseCalculator
 
                 double* pPredSamps = predSamps.getRawDataPointer();
                 const double* pLocalParam = localARParams.getRawDataPointer();
-                {
-                    const ScopedLock historyLock(acInfo.history.getLock());
-                    const double* rpHistory = acInfo.history.end() - acInfo.dsOffset;
-                    arPredict(rpHistory, pPredSamps, pLocalParam, htDelay + 1, stride, arOrder);
-                }
+                const double* rpHistory = acInfo.history.end() - acInfo.dsOffset;
+                arPredict(rpHistory, pPredSamps, pLocalParam, htDelay + 1, stride, arOrder);
 
                 // identify indices of current buffer to execute HT
                 htInds.clearQuick();
@@ -605,7 +600,7 @@ namespace PhaseCalculator
             }
         }
 
-        Array<double> data;
+        Array<double, CriticalSection> data;
         data.resize(maxHistoryLength);
 
         Array<double, CriticalSection> paramsTemp;
@@ -623,14 +618,10 @@ namespace PhaseCalculator
                     continue;
                 }
 
-                data.clearQuick();
-                data.addArray(acInfo->history);
+                data = acInfo->history;
 
                 // calculate parameters
-                acInfo->arModeler.fitModel(data, paramsTemp);
-
-                // write params safely (locking internally)
-                acInfo->arParams.swapWith(paramsTemp);
+                acInfo->arModeler.fitModel(data);
             }
 
             endTime = Time::getMillisecondCounter();
