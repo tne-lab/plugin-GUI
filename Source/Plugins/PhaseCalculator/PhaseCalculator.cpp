@@ -23,7 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <cfloat>  // DBL_MAX
 #include <cmath>   // sqrt
-#include <cstring> // memmove
+#include <cstring> // memcpy, memmove
 
 #include "PhaseCalculator.h"
 #include "PhaseCalculatorEditor.h"
@@ -49,58 +49,79 @@ namespace PhaseCalculator
     static const int visMinDelayMs = 675;
     static const int visMaxDelayMs = 1000;
 
-    /*** ShiftRegister ***/
-    ShiftRegister::ShiftRegister(int size)
-        : Array()
-        , freeSpace(size)
+
+    /*** ReverseStack ***/
+    ReverseStack::ReverseStack(int size)
+        : freeSpace     (size)
+        , headOffset    (size - 1)
     {
         resize(size);
     }
 
-    void ShiftRegister::reset()
+    void ReverseStack::reset()
     {
         const ScopedLock dataLock(getLock());
         freeSpace = size();
+        headOffset = freeSpace - 1;
     }
 
-    void ShiftRegister::resetAndResize(int newSize)
+    void ReverseStack::resetAndResize(int newSize)
     {
         const ScopedLock dataLock(getLock());
         resize(newSize);
         freeSpace = newSize;
+        headOffset = newSize - 1;
     }
 
-    bool ShiftRegister::isFull() const
+    bool ReverseStack::isFull() const
     {
         return freeSpace == 0;
     }
 
-    void ShiftRegister::enqueue(const float* source, int n)
+    void ReverseStack::enqueue(const float* source, int n)
     {
         const ScopedLock dataLock(getLock());
 
-        int cap = size();
-        if (n > cap) // skip beginning
+        // skip samples that can't be written
+        int length = size();
+        int nToSkip = jmax(0, n - length);
+        int nToAdd = n - nToSkip;
+        source += nToSkip;
+
+        double* data = getRawDataPointer();
+
+        for (int nLeft = nToAdd; nLeft > 0; --nLeft)
         {
-            source += n - cap;
-            n = cap;
+            data[headOffset] = double(*(source++));
+            headOffset = (headOffset ? headOffset : length) - 1;
         }
 
-        int nRemaining = cap - n;
-        int nShift = jmin(nRemaining, cap - freeSpace);
+        freeSpace = jmax(0, freeSpace - nToAdd);
+    }
 
-        double* dataRaw = getRawDataPointer();
+    int ReverseStack::getHeadOffset() const
+    {
+        return headOffset;
+    }
 
-        // shift back existing data
-        memmove(dataRaw + nRemaining - nShift, dataRaw + cap - nShift, nShift * sizeof(double));
-
-        // copy new data
-        for (int i = 0; i < n; ++i)
+    void ReverseStack::unwrapAndCopy(double* dest, bool useLock) const
+    {
+        ScopedPointer<ScopedLock> lock;
+        if (useLock)
         {
-            dataRaw[nRemaining + i] = double(source[i]);
+            lock = new ScopedLock(getLock());
         }
 
-        freeSpace = cap - (n + nShift);
+        int length = size();
+
+        const double* block2Start = begin();
+        int block2Size = (headOffset + 1) % length;
+
+        const double* block1Start = block2Start + block2Size;
+        int block1Size = length - block2Size;
+
+        std::memcpy(dest, block1Start, block1Size * sizeof(double));
+        std::memcpy(dest + block1Size, block2Start, block2Size * sizeof(double));
     }
 
 
@@ -391,8 +412,7 @@ namespace PhaseCalculator
 
                 double* pPredSamps = predSamps.getRawDataPointer();
                 const double* pLocalParam = localARParams.getRawDataPointer();
-                const double* rpHistory = acInfo->history.end() - acInfo->dsOffset;
-                arPredict(rpHistory, pPredSamps, pLocalParam, htDelay + 1, stride, arOrder);
+                arPredict(acInfo->history, acInfo->dsOffset, pPredSamps, pLocalParam, htDelay + 1, stride, arOrder);
 
                 // identify indices of current buffer to execute HT
                 htInds.clearQuick();
@@ -605,11 +625,8 @@ namespace PhaseCalculator
             }
         }
 
-        Array<double, CriticalSection> data;
-        data.resize(maxHistoryLength);
-
-        Array<double, CriticalSection> paramsTemp;
-        paramsTemp.resize(arOrder);
+        Array<double> reverseData;
+        reverseData.resize(maxHistoryLength);
 
         uint32 startTime, endTime;
         while (!threadShouldExit())
@@ -623,10 +640,12 @@ namespace PhaseCalculator
                     continue;
                 }
 
-                data = acInfo->history;
+                // unwrap reversed history and add to temporary data array
+                double* dataPtr = reverseData.getRawDataPointer();
+                acInfo->history.unwrapAndCopy(dataPtr, true);
 
                 // calculate parameters
-                acInfo->arModeler.fitModel(data);
+                acInfo->arModeler.fitModel(reverseData);
             }
 
             endTime = Time::getMillisecondCounter();
@@ -1163,15 +1182,11 @@ namespace PhaseCalculator
             // perform reverse filtering and Hilbert transform
             // don't need to use a lock here since it's the same thread as the one
             // that writes to it.
-            const double* rpBuffer = acInfo->history.end() - 1;
-            for (int i = 0; i < hilbertLength; ++i)
-            {
-                acInfo->visHilbertBuffer.set(i, rpBuffer[-i]);
-            }
+            double* wpHilbert = acInfo->visHilbertBuffer.getRealPointer();
+            acInfo->history.unwrapAndCopy(wpHilbert, false);
 
-            double* realPtr = acInfo->visHilbertBuffer.getRealPointer();
             acInfo->reverseFilter.reset();
-            acInfo->reverseFilter.process(hilbertLength, &realPtr);
+            acInfo->reverseFilter.process(hilbertLength, &wpHilbert);
 
             // un-reverse values
             acInfo->visHilbertBuffer.reverseReal(hilbertLength);
@@ -1253,18 +1268,26 @@ namespace PhaseCalculator
         channelInfo.getUnchecked(chan)->deactivate();
     }
 
-    void Node::arPredict(const double* lastSample, double* prediction,
+    void Node::arPredict(const ReverseStack& history, int dsOffset, double* prediction,
         const double* params, int samps, int stride, int order)
     {
+        const double* rpHistory = history.begin();
+        int histSize = history.size();
+        int histStart = history.getHeadOffset() + dsOffset;
+
+        // s = index to write output
         for (int s = 0; s < samps; ++s)
         {
-            // s = index to write output
             prediction[s] = 0;
-            for (int ind = s - 1; ind > s - 1 - order; --ind)
+
+            // p = which AR param we are on
+            for (int p = 0; p < order; ++p)
             {
-                // ind = index of previous output to read
-                prediction[s] -= params[s - 1 - ind] *
-                    (ind < 0 ? lastSample[(ind + 1) * stride] : prediction[ind]);
+                double pastSamp = p < s
+                    ? prediction[s - 1 - p]
+                    : rpHistory[(histStart + (p - s) * stride) % histSize];
+
+                prediction[s] -= params[p] * pastSamp;
             }
         }
     }
@@ -1273,7 +1296,7 @@ namespace PhaseCalculator
     {
         jassert(fftData->getLength() >= n);
 
-        // Normalize DC and Nyquist, normalize and double prositive freqs, and set negative freqs to 0.
+        // Normalize DC and Nyquist, normalize and double positive freqs, and set negative freqs to 0.
         int lastPosFreq = (n + 1) / 2 - 1;
         int firstNegFreq = n / 2 + 1;
         int numPosNegFreqDoubles = lastPosFreq * 2; // sizeof(complex<double>) = 2 * sizeof(double)
@@ -1362,7 +1385,7 @@ namespace PhaseCalculator
 
         // output and shift state
         double sampOut = state_p[0];
-        memmove(state_p, state_p + 1, order * sizeof(double));
+        std::memmove(state_p, state_p + 1, order * sizeof(double));
         return sampOut;
     }
 }

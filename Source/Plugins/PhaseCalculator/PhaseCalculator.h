@@ -83,14 +83,11 @@ namespace PhaseCalculator
         BandpassFilter() : BandpassFilterBase(1) {} // # of transition samples
     };
 
-    /*
-    * FIFO that shifts its data, such that the most recent data is always at the end.
-    * In other words, the free space (if any) is always at the beginning.
-    */
-    class ShiftRegister : public Array<double, CriticalSection>
+
+    class ReverseStack : public Array<double, CriticalSection>
     {
     public:
-        ShiftRegister(int size = 0);
+        ReverseStack(int size = 0);
 
         // Just resets the free space
         void reset();
@@ -103,11 +100,18 @@ namespace PhaseCalculator
 
         void enqueue(const float* source, int n);
 
+        int getHeadOffset() const;
+
+        // copies to given array, with first element corresponding to most recent data point.
+        void unwrapAndCopy(double* dest, bool useLock) const;
+
     private:
         int freeSpace;
+        int headOffset; // offset of write head from start of buffer
 
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ShiftRegister);
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ReverseStack);
     };
+
 
     struct ActiveChannelInfo
     {
@@ -118,7 +122,7 @@ namespace PhaseCalculator
         // reset to perform after end of acquisition or update
         void reset();
 
-        ShiftRegister history;
+        ReverseStack history;
 
         BandpassFilter filter;
 
@@ -327,7 +331,7 @@ namespace PhaseCalculator
         *
         * Writes samps future data values to prediction.
         */
-        static void arPredict(const double* lastSample, double* prediction,
+        static void arPredict(const ReverseStack& history, int dsOffset, double* prediction,
             const double* params, int samps, int stride, int order);
 
         /*

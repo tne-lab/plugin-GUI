@@ -72,14 +72,14 @@ namespace PhaseCalculator
             modelOut = coefficients;
         }
 
-        void fitModel(const Array<double, CriticalSection>& j_inputseries)
+        void fitModel(const Array<double>& j_inputseries_reverse)
         {
-            jassert(j_inputseries.size() == inputLength);
+            jassert(j_inputseries_reverse.size() >= inputLength);
             double t1, t2;
             int n;
 
             // get raw pointers to improve performance
-            const double* inputseries = j_inputseries.begin();
+            const double* inputseries_last = j_inputseries_reverse.begin() + inputLength - 1;
             double* coef = j_coef_temp.begin();
             double* per = j_per.begin();
             double* pef = j_pef.begin();
@@ -97,8 +97,8 @@ namespace PhaseCalculator
 
                 for (j = 0; j < jj; j++)
                 {
-                    t1 = inputseries[stride * (j + n)] + pef[j];
-                    t2 = inputseries[stride * j] + per[j];
+                    t1 = inputseries_last[-stride * (j + n)] + pef[j];
+                    t2 = inputseries_last[-stride * j] + per[j];
                     sn -= 2.0 * t1 * t2;
                     sd += (t1 * t1) + (t2 * t2);
                 }
@@ -116,8 +116,8 @@ namespace PhaseCalculator
 
                 for (j = 0; j < jj; j++)
                 {
-                    per[j] = per[j] + t1 * pef[j] + t1 * inputseries[stride * (j + n)];
-                    pef[j] = pef[j + 1] + t1 * per[j + 1] + t1 * inputseries[stride * (j + 1)];
+                    per[j] = per[j] + t1 * pef[j] + t1 * inputseries_last[-stride * (j + n)];
+                    pef[j] = pef[j + 1] + t1 * per[j + 1] + t1 * inputseries_last[-stride * (j + 1)];
                 }
             }
 
