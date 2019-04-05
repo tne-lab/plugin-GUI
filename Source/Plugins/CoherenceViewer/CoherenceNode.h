@@ -46,20 +46,82 @@ class CoherenceNode : public GenericProcessor, public Thread
 {
 public:
     CoherenceNode();
+    ~CoherenceEditor();
+
+    bool hasEditor() const override;
 
     AudioProcessorEditor* createEditor() override;
 
+    void createEventChannels() override;
+
+    void setParameter(int parameterIndex, float newValue) override;
+
     void process(AudioSampleBuffer& continuousBuffer) override;
+
+    bool enable() override;
+    bool disable() override;
 
     // thread function - coherence calculation
     void run() override;
 
+    // Handle changing channels/groups
+    void updateSettings() override;
+
+    // Returns array of active input channels 
+    Array<int> getActiveInputs();
+
+    // Get source info
+    int getFullSourceID(int chan);
+
+    // Save info
+    void saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType) override;
+    void loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType) override;
+
+
+
 private:
     AtomicSynchronizer dataSync;        // writer = process function , reader = thread
     AtomicSynchronizer coherenceSync;   // writer = thread, reader = visualizer (message thread)
-
+    
     // group of 3, controlled by coherenceSync:
     std::vector<std::vector<double>> meanCoherence;
+    std::vector<AudioBuffer<float>> dataBuffer; // Need to figure out size of this buffer. 8 seconds long
+
+    AtomicWriterPtr dataWriter;
+    AtomicReaderPtr coherenceReader;
+
+    // Segment Length
+    int segLen;  // 8 seconds
+    // Window Length
+    int winLen;  // 2 seconds
+    // Step Length
+    float stepLen; // Iterval between times of interest
+    // Interp Ratio ??
+    int interpRatio; //
+
+    // Array of channels for regions 1 and 2
+    Array<int> group1Channels;
+    Array<int> group2Channels;
+
+    ///// TFR vars
+    // Number of channels for region 1
+    int nGroup1Chans;
+    // Number of channels for region 2
+    int nGroup2Chans;
+    // Number of freq of interest
+    int nFreqs;
+    // Number of times of interest
+    int nTimes;
+    // Fs (sampling rate?)
+    float Fs;
+
+    // Keep track of how many samples are in current buffer
+    int nSamplesAdded;
+
+    // Total Combinations
+    int nGroupCombs;
+
+
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceNode);
 };

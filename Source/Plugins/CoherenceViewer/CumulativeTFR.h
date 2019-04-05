@@ -45,7 +45,13 @@ public:
         int Fs,
         double fftSec = 10.0);
 
+    // Handle a new buffer of data. Preform FFT and create pxxs, etc.
+    // Then update coherence stats and pushUpdate to coherence sync.. I think!
     void addTrial(const CircularArray<double>& dataBuffer);
+
+    // Functions to get coherence data
+    vector<vector<double>> getCurrentMeanCoherence();
+    vector<vector<double>> getCurrentStdCoherence();
 
 private:
     int nGroup1Chans;

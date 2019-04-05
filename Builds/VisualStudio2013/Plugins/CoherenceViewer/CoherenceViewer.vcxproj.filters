@@ -24,12 +24,24 @@
     <ClCompile Include="..\..\..\..\Source\Plugins\CoherenceViewer\OpenEphysLib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Source\Plugins\CoherenceViewer\CumulativeTFR.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Source\Plugins\CoherenceViewer\CoherenceNode.h">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Source\Plugins\CoherenceViewer\CoherenceVisualizer.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Source\Plugins\CoherenceViewer\AtomicSynchronizer.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Source\Plugins\CoherenceViewer\CircularArray.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Source\Plugins\CoherenceViewer\CumulativeTFR.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
