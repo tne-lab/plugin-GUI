@@ -104,8 +104,7 @@ void CoherenceNode::run()
     
     while (!threadShouldExit())
     {
-
-        //// Check for new filled data buffer ////
+        //// Check for new filled data buffer and run stats ////
         int curDataIndex  = dataReader->pullUpdate();
         if (curDataIndex != -1) 
         {
@@ -120,7 +119,7 @@ void CoherenceNode::run()
             
         }
 
-        //// Send updated coherence     //// (only do this when addTrial happens)
+        //// Send updated coherence  //// (only do this when addTrial happens)
         int curCohIndex = coherenceWriter->getIndexToUse();
         // For loop over combinations?
         for (int comb = 0; comb < nGroupCombs; ++comb)

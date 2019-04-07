@@ -57,11 +57,15 @@ void CumulativeTFR::addTrial(const CircularArray<double>& dataBuffer)
 	float winsPerSegment = (segmentLen - windowLen) / stepLen;
 
 	//// Update convInput ////
+
+	// Iterate through dataBuffer and add to convInput for fft
 	int dataSize = dataBuffer.size();
-	int windowSize = 0; // ?
+	int startPoint = 0;
 	for (int window = 0; window < dataSize; window++)
 	{
-		convInput.copyFrom(dataBuffer[window], windowSize, window*windowSize);
+		int windowSize = sizeof(dataBuffer[window]);
+		convInput.copyFrom(dataBuffer[window], windowSize, startPoint);
+		startPoint += windowSize;
 	}
 	
 	//// Execute fft ////
@@ -86,9 +90,12 @@ void CumulativeTFR::addTrial(const CircularArray<double>& dataBuffer)
 	{
 		for (int comb = 1; comb < (nGroup1Chans*nGroup2Chans); comb++)
 		{
-			pxys.at(comb).at(freq).at(time).addValue(calcCrssspctrm(comb));
+			pxys.at(comb).at(freq).at(time).addValue(calcCrssspctrm(comb, freqData));
 		}
 	}
+
+	//// Ready to update coherence ////
+	updateCoherenceStats();
 }
 
 
@@ -132,4 +139,11 @@ void CumulativeTFR::updateCoherenceStats()
 double CumulativeTFR::singleCoherence(double pxx, double pyy, std::complex<double> pxy)
 {
     return std::norm(pxy) / (pxx * pyy);
+}
+
+
+double CumulativeTFR::calcCrssspctrm(int combination, FFTWArray freqData)
+{
+	// Get region 1 and region 2 data
+	std::complex<double> complexData = freqData.getAsComplex(combination); // Something like this but for both channels
 }
