@@ -32,6 +32,7 @@ CoherenceNode::CoherenceNode()
     , nFreqs            (1)
     , nTimes            (20)
     , Fs                (CoreServices::getGlobalSampleRate())
+	, TFR				(nGroup1Chans,nGroup2Chans,nFreqs,nTimes,Fs)
 {
     setProcessorType(PROCESSOR_TYPE_SINK);
 }
@@ -99,7 +100,7 @@ void CoherenceNode::run()
     AtomicWriterPtr coherenceWriter = coherenceSync.getWriter();
 
     // Create TFR object
-    CumulativeTFR& TFR = CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs);
+    TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs);
     
     while (!threadShouldExit())
     {
@@ -142,13 +143,17 @@ void CoherenceNode::updateSettings()
 
     // Reset data buffer and meanCoherence vectors
 
-    // Reset TFR
-
+    // Update TFR
+	delete TFR;
+	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs);
 }
 
 void CoherenceNode::setParameter(int parameterIndex, float newValue)
 {
     //Set regions or such in here?
+
+	// Update TFR (maybe call updateSettings()?)
+	//TFR.update(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs);
 }
 
 /// CHECK THIS - COPIED FROM PHASECALCULATOR

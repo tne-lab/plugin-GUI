@@ -90,6 +90,8 @@ private:
     AtomicWriterPtr dataWriter;
     AtomicReaderPtr coherenceReader;
 
+	CumulativeTFR* TFR;
+
     // Segment Length
     int segLen;  // 8 seconds
     // Window Length

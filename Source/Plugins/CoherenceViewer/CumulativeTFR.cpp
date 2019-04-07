@@ -49,7 +49,46 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, double ff
 
 void CumulativeTFR::addTrial(const CircularArray<double>& dataBuffer)
 {
+	int segmentLen = 8;
+	int windowLen = 2;
+	float stepLen = 0.1;
+	int interpRatio = 2;
 
+	float winsPerSegment = (segmentLen - windowLen) / stepLen;
+
+	//// Update convInput ////
+	int dataSize = dataBuffer.size();
+	int windowSize = 0; // ?
+	for (int window = 0; window < dataSize; window++)
+	{
+		convInput.copyFrom(dataBuffer[window], windowSize, window*windowSize);
+	}
+	
+	//// Execute fft ////
+	fftPlan.execute();
+
+	//// Use freqData to find pow/crss ////
+
+	// for loop over both of these two.
+	int channel = 0; // ?
+	int time = 0; // ?
+	// Iterate through frequencies and get average power at each freq and place it into pxx/pyy
+	for (int freq = 0; freq < freqData.getLength(); freq++)
+	{
+		// if channel in group 1
+		pxxs.at(channel).at(freq).at(time).addValue(freqData.getAsReal(freq));
+		// if channel in group 2
+		pyys.at(channel).at(freq).at(time).addValue(freqData.getAsReal(freq));
+	}
+
+	// Iterate through frequencies and group combinations to get crssSpctrm at each freq
+	for (int freq = 0; freq < freqData.getLength(); freq++)
+	{
+		for (int comb = 1; comb < (nGroup1Chans*nGroup2Chans); comb++)
+		{
+			pxys.at(comb).at(freq).at(time).addValue(calcCrssspctrm(comb));
+		}
+	}
 }
 
 
