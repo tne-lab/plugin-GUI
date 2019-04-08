@@ -91,6 +91,7 @@ private:
     AtomicReaderPtr coherenceReader;
 
 	CumulativeTFR* TFR;
+    bool SEGMENT_DONE;
 
     // Segment Length
     int segLen;  // 8 seconds
@@ -117,11 +118,11 @@ private:
     // Fs (sampling rate?)
     float Fs;
 
-    // Keep track of how many samples are in current buffer
-    int nSamplesAdded;
-
     // Total Combinations
     int nGroupCombs;
+
+    // from 0 to 10
+    static const int COH_PRIORITY = 3;
 
 
 

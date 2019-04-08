@@ -54,7 +54,7 @@ public:
     vector<vector<double>> getCurrentStdCoherence();
 
 private:
-	double CumulativeTFR::calcCrssspctrm(int combination);
+	double CumulativeTFR::calcCrssspctrm(int combination, FFTWArray freqData);
     int nGroup1Chans;
     int nGroup2Chans;
     int nFreqs;

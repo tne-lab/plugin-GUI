@@ -30,9 +30,8 @@ CoherenceNode::CoherenceNode()
     , dataWriter        (dataSync.getWriter())
     , coherenceReader   (coherenceSync.getReader())
     , nFreqs            (1)
-    , nTimes            (20)
+    , nTimes            (10)
     , Fs                (CoreServices::getGlobalSampleRate())
-	, TFR				(nGroup1Chans,nGroup2Chans,nFreqs,nTimes,Fs)
 {
     setProcessorType(PROCESSOR_TYPE_SINK);
 }
@@ -53,7 +52,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
 
     // Do something with coherence!
 
-    ///// Add incoming data to data buffer. Let thread start at 8seconds ////
+    ///// Add incoming data to data buffer. Let thread get the ok to start at 8seconds ////
     
     // Get our current index for data buffer
     int curDataBufferIndex = dataWriter->getIndexToUse();
@@ -64,10 +63,11 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
     //for loop over active channels and update buffer with new data
     Array<int> activeInputs = getActiveInputs();
     int nActiveInputs = activeInputs.size();
+    int nSamplesAdded = 0; // int big enough?? vector?
     for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
     {
         int chan = activeInputs[activeChan];
-        int nSamples = getNumSamples(chan);
+        int nSamples = getNumSamples(chan); // all channels the same?
         if (nSamples == 0)
         {
             continue;
@@ -77,18 +77,19 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
         const float* rpIn = continuousBuffer.getReadPointer(chan);
 
         curBuffer.copyFrom(chan, nSamplesAdded, rpIn, nSamples);
-        nSamplesAdded += nSamples;
-        
-        if (nSamples >= 8 * Fs) // 8 seconds = how many samples? Maybe
-        {
-            // Push update here?
-        }
 
+        nSamplesAdded += nSamples; // Make this a vector??
     }
-    
-    // Let sync know that data is updated
-    dataWriter->pushUpdate();
 
+    
+
+    if (nSamplesAdded >= 8 * Fs) // 8 seconds of samples
+    {
+        // Push update here?
+        SEGMENT_DONE = true;
+        // Let sync know that data is updated
+        dataWriter->pushUpdate();
+    }
 }
 
 
@@ -98,9 +99,6 @@ void CoherenceNode::run()
 {
     AtomicReaderPtr dataReader = dataSync.getReader();
     AtomicWriterPtr coherenceWriter = coherenceSync.getWriter();
-
-    // Create TFR object
-    TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs);
     
     while (!threadShouldExit())
     {
@@ -111,26 +109,24 @@ void CoherenceNode::run()
             // Get our current data buffer, index from our atomic sync object
             // How do we not redo the same data over and over again?
             AudioBuffer<float>curBuffer = dataBuffer.at(curDataIndex);
-            bool bufferFull = false;
-            if (bufferFull) 
+            if (SEGMENT_DONE)
             {
-                TFR.addTrial(curBuffer);
-            }
-            
-        }
+                TFR->addTrial(curBuffer);
 
-        //// Send updated coherence  //// (only do this when addTrial happens)
-        int curCohIndex = coherenceWriter->getIndexToUse();
-        // For loop over combinations?
-        for (int comb = 0; comb < nGroupCombs; ++comb)
-        {
-            if (curCohIndex != -1)
-            {
-                std::vector<double> curMeanCoherence = meanCoherence.at(curCohIndex);
-                curMeanCoherence.insert(TFR.getCurrentMeanCoherence().at(comb));
-            }
-        }
-        coherenceWriter->pushUpdate();
+                //// Send updated coherence  //// (only do this when addTrial happens?)
+                int curCohIndex = coherenceWriter->getIndexToUse();
+                // For loop over combinations?
+                for (int comb = 0; comb < nGroupCombs; ++comb)
+                {
+                    if (curCohIndex != -1)
+                    {
+                        std::vector<double> * curMeanCoherence = &meanCoherence.at(curCohIndex);
+                        curMeanCoherence->at(comb) = TFR->getCurrentMeanCoherence().at(comb);
+                    }
+                }
+                coherenceWriter->pushUpdate();
+            }   
+        }   
     }
 }
 
@@ -141,18 +137,31 @@ void CoherenceNode::updateSettings()
     coherenceSync.reset();
 
     // Reset data buffer and meanCoherence vectors
+    dataBuffer.clear();
+    meanCoherence.clear();
 
-    // Update TFR
+    // Update TFR (probably change this into a function to be cleaner, depends on FFTW stuff)
 	delete TFR;
 	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs);
 }
 
 void CoherenceNode::setParameter(int parameterIndex, float newValue)
 {
-    //Set regions or such in here?
+    // Set new region channels and such in here?
+    
 
-	// Update TFR (maybe call updateSettings()?)
-	//TFR.update(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs);
+    updateSettings();
+}
+
+bool CoherenceNode::enable()
+{
+    if (isEnabled)
+    {
+        TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs);
+        // Start coherence calculation thread
+        startThread(COH_PRIORITY);
+    }
+    return isEnabled;
 }
 
 /// CHECK THIS - COPIED FROM PHASECALCULATOR
