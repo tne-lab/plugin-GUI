@@ -46,7 +46,7 @@ class CoherenceNode : public GenericProcessor, public Thread
 {
 public:
     CoherenceNode();
-    ~CoherenceEditor();
+    ~CoherenceNode();
 
     bool hasEditor() const override;
 
@@ -91,7 +91,7 @@ private:
     AtomicReaderPtr coherenceReader;
 
 	CumulativeTFR* TFR;
-    bool SEGMENT_DONE;
+    Array<bool> CHANNEL_READY;
 
     // Segment Length
     int segLen;  // 8 seconds
@@ -117,6 +117,10 @@ private:
     int nTimes;
     // Fs (sampling rate?)
     float Fs;
+
+    Array<int> nSamplesAdded; // holds how many samples were added for each channel
+    AudioBuffer<float> channelData; // Holds the segment buffer for each channel.
+
 
     // Total Combinations
     int nGroupCombs;

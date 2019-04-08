@@ -47,7 +47,7 @@ public:
 
     // Handle a new buffer of data. Preform FFT and create pxxs, etc.
     // Then update coherence stats and pushUpdate to coherence sync.. I think!
-    void addTrial(const CircularArray<double>& dataBuffer);
+    void addTrial(AudioBuffer<float> dataBuffer, int chan);
 
     // Functions to get coherence data
     vector<vector<double>> getCurrentMeanCoherence();

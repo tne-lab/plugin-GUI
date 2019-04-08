@@ -47,9 +47,11 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, double ff
 {}
 
 
-void CumulativeTFR::addTrial(const CircularArray<double>& dataBuffer)
+void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan)
 {
-	int segmentLen = 8;
+    const float* rpChan = dataBuffer.getReadPointer(chan);
+	
+    int segmentLen = 8;
 	int windowLen = 2;
 	float stepLen = 0.1;
 	int interpRatio = 2;
@@ -59,7 +61,7 @@ void CumulativeTFR::addTrial(const CircularArray<double>& dataBuffer)
 	//// Update convInput ////
 
 	// Iterate through dataBuffer and add to convInput for fft
-	int dataSize = dataBuffer.size();
+	int dataSize = dataBuffer.getNumSamples();
 	int startPoint = 0;
 	for (int window = 0; window < dataSize; window++)
 	{
