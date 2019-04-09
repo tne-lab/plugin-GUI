@@ -44,44 +44,65 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, double ff
     , pxys          (ng1 * ng2,
                     vector<vector<ComplexAccum>>(nf,
                     vector<ComplexAccum>(nt)))
+    , tempBuffer    (nGroup1Chans+nGroup2Chans) // how to init an empty buffer...?
 {}
 
 
-void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan)
+void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region)
 {
+    int region = region; // Either 1 or 2. 1 => pxx, 2 => pyy 
     const float* rpChan = dataBuffer.getReadPointer(chan);
-	
+
     int segmentLen = 8;
-	int windowLen = 2;
-	float stepLen = 0.1;
-	int interpRatio = 2;
+    int windowLen = 2;
+    float stepLen = 0.1;
+    int interpRatio = 2;
 
-	float winsPerSegment = (segmentLen - windowLen) / stepLen;
+    float winsPerSegment = (segmentLen - windowLen) / stepLen;
 
-	//// Update convInput ////
+    //// Update convInput ////
 
-	// copy dataBuffer to fft input
-	int dataSize = dataBuffer.getNumSamples();
-	convInput.copyFrom(dataBuffer.getReadPointer(0), dataSize, 0); // Double to float...?
-    
-	//// Execute fft ////
-	fftPlan.execute();
+    // copy dataBuffer to fft input
+    int dataSize = dataBuffer.getNumSamples();
+    convInput.copyFrom(rpChan, dataSize, 0); // Double to float...?
 
-    FFTWArray tempBuf = freqData;
+    //// Execute fft ////
+    fftPlan.execute();
 
-	//// Use freqData to find pow/crss ////
-	int channel = chan; 
+    tempBuffer.insert(chan, freqData);
 
-    
+    //// Use freqData to find pxx or pyy ////
+    int channel = chan;
+
     // fourier transform of https://dsp.stackexchange.com/questions/736/how-do-i-implement-cross-correlation-to-prove-two-audio-files-are-similar
-    // fft over wavelet?
-    
-    // Multiply the two fft datas
-    // Use this to find power and cross spectrum
-    // Update the vectors
 
-	//// Ready to update coherence ////
-	updateCoherenceStats();
+    // Get FFT values at frequencies/times of interest
+    // Clearly wrong, change later. Times in windows or buffers?
+    for (int window; window < segmentLen; windowLen + stepLen)
+    {
+        toi.insert(-1, window);
+    }
+
+    int nFreqs = foi.size();
+    int nTimes = toi.size();
+
+    for (int time_it; time_it < nTimes; time_it++)
+    {
+        float time = toi[time_it];
+        for (int freq_it = 0; freq_it < nFreqs; freq_it++)
+        {
+            float freq = foi[freq_it];
+            std::complex<double> * cp = freqData.getComplexPointer(freq);
+            // Get power. Is this one timeframe? Whats the window for?
+                        
+        }
+    }
+    
+    /// Notes I remember from talking, not sure about this.
+    // fft over wavelet?
+    // Multiply the two fft datas?
+    // Use this to find power
+    // Update the vector
 }
 
 
@@ -128,8 +149,35 @@ double CumulativeTFR::singleCoherence(double pxx, double pyy, std::complex<doubl
 }
 
 
-double CumulativeTFR::calcCrssspctrm(int combination, FFTWArray freqData)
+double CumulativeTFR::calcCrssspctrm()
 {
-	// Get region 1 and region 2 data
-	std::complex<double> complexData = freqData.getAsComplex(combination); // Something like this but for both channels
+    int comb = 0; // loop over combinations
+    for (int freq; freq < nFreqs; freq++)
+    {
+        for (int chanX = 0; chanX < nGroup1Chans; chanX++)
+        {
+            for (int chanY = 0; chanY < nGroup2Chans; chanY++)
+            {
+                // Get complex fft output for both chanX and chanY
+                std::complex<double> complexDataX = tempBuffer[chanX].getAsComplex(comb); 
+                std::complex<double> complexDataY = tempBuffer[chanY].getAsComplex(comb);
+                //ifft(x) * conj(y) = cross-correlation
+            }
+        }
+    }
+}
+
+
+std::vector<std::vector<double>> CumulativeTFR::getCurrentMeanCoherence()
+{
+    // Calculate pxys
+    calcCrssspctrm();
+
+    // Update coherence (make sure stdCoherence hasn't already calc coherence)
+    if (meanCoherence.size() != curTime)
+    {
+        updateCoherenceStats();
+    }
+   
+    return meanCoherence;
 }

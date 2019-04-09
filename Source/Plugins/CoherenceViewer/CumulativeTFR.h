@@ -45,20 +45,30 @@ public:
         int Fs,
         double fftSec = 10.0);
 
-    // Handle a new buffer of data. Preform FFT and create pxxs, etc.
-    // Then update coherence stats and pushUpdate to coherence sync.. I think!
-    void addTrial(AudioBuffer<float> dataBuffer, int chan);
+    // Handle a new buffer of data. Preform FFT and create pxxs, pyys.
+    void addTrial(AudioBuffer<float> dataBuffer, int chan, int region);
 
     // Functions to get coherence data
     vector<vector<double>> getCurrentMeanCoherence();
     vector<vector<double>> getCurrentStdCoherence();
 
 private:
-	double CumulativeTFR::calcCrssspctrm(int combination, FFTWArray freqData);
+    // calc pxys
+	double CumulativeTFR::calcCrssspctrm();
     int nGroup1Chans;
     int nGroup2Chans;
     int nFreqs;
     int nTimes;
+    
+    // Keeps track of which buffer we are setting
+    double curTime;
+
+    // Time of interest
+    Array<int> toi;
+    // Freq of interest
+    Array<int> foi;
+
+    Array<FFTWArray> tempBuffer;
 
     const int nfft;
 
