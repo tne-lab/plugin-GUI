@@ -47,7 +47,6 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, double ff
     , tempBuffer    (nGroup1Chans+nGroup2Chans,nfft) // how to an array of fftwarrays?
 {}
 
-
 void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region)
 {
     int region = region; // Either 1 or 2. 1 => pxx, 2 => pyy 
@@ -64,12 +63,16 @@ void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region
 
     // copy dataBuffer to fft input
     int dataSize = dataBuffer.getNumSamples();
-    convInput.copyFrom(rpChan, dataSize, 0); // Double to float...?
+    for (int i = 0; i < dataSize; i++)
+    {
+        convInput.set(i, rpChan[i]);
+    }
+    //convInput.copyFrom(rpChan, dataSize, 0); // Double to float...? ^^
 
     //// Execute fft ////
     fftPlan.execute();
 
-    tempBuffer.insert(chan, freqData);
+    tempBuffer.set(chan, freqData);
 
     //// Use freqData to find pxx or pyy ////
     int channel = chan;
@@ -177,6 +180,47 @@ double CumulativeTFR::calcCrssspctrm()
             }
         }
     }
+}
+
+
+void CumulativeTFR::generateWavelet(int nfft, int nFreqs, int segLen) 
+{
+    std::vector<double> hann(nfft);
+    std::vector<std::complex<double>> sine(nfft);
+
+    FFTWArray waveletIn(nfft);
+
+    int position = 0;
+    int maxPosition = nfft;
+    for (int freq = 1; freq < nFreqs; freq++)
+    {
+        for (int position = 0; position < maxPosition; position++)
+        {
+            //// Hann Window ////
+            // Create first hann function
+            if (sin(position) >= 0)
+            {
+                hann.assign(position, hannFunc(.5 + position)); // Shift half over
+            }
+            // Pad with zeroes
+            else if (position <= (segLen - 1 / freq)) // wrong get one half positive cycle left
+            {
+                hann.assign(position, -1);
+            }
+            else
+            {
+                hann.assign(position, ); // wrong. need to move to 
+            }
+
+            //// Sine wave ////
+            sine.assign(position, sin(position));
+
+            //// Wavelet ////
+            waveletIn.set(position,sine.at(position) * hann.at(position));
+        }
+        
+    }
+
 }
 
 

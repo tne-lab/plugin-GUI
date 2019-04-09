@@ -53,6 +53,7 @@ public:
     vector<vector<double>> getCurrentStdCoherence();
 
 private:
+    void CumulativeTFR::generateWavelet(int nfft, int nFreqs, int segLen);
     // calc pxys
 	double CumulativeTFR::calcCrssspctrm();
     int nGroup1Chans;
@@ -98,6 +99,10 @@ private:
     // calculate a single magnitude-squared coherence from cross spectrum and auto-power values
     static double singleCoherence(double pxx, double pyy, std::complex<double> pxy);
 
+
+    // Create wavelet
+    // complex sinusoid
+    
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CumulativeTFR);
 };
 
