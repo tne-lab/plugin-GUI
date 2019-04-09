@@ -30,7 +30,7 @@ CoherenceNode::CoherenceNode()
     , dataWriter        (dataSync.getWriter())
     , coherenceReader   (coherenceSync.getReader())
     , segLen            (8)
-    , nFreqs            (1)
+    , nFreqs            (30)
     , nTimes            (10)
     , Fs                (CoreServices::getGlobalSampleRate())
 {

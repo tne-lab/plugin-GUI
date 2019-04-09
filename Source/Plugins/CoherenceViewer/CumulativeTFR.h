@@ -74,6 +74,7 @@ private:
 
     FFTWArray convInput;
     FFTWArray freqData;
+    FFTWArray region2Data;
     FFTWArray convOutput;
 
     FFTWPlan fftPlan;

@@ -44,7 +44,7 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, double ff
     , pxys          (ng1 * ng2,
                     vector<vector<ComplexAccum>>(nf,
                     vector<ComplexAccum>(nt)))
-    , tempBuffer    (nGroup1Chans+nGroup2Chans) // how to init an empty buffer...?
+    , tempBuffer    (nGroup1Chans+nGroup2Chans,nfft) // how to an array of fftwarrays?
 {}
 
 
@@ -74,18 +74,7 @@ void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region
     //// Use freqData to find pxx or pyy ////
     int channel = chan;
 
-    // fourier transform of https://dsp.stackexchange.com/questions/736/how-do-i-implement-cross-correlation-to-prove-two-audio-files-are-similar
-
     // Get FFT values at frequencies/times of interest
-    // Clearly wrong, change later. Times in windows or buffers?
-    for (int window; window < segmentLen; windowLen + stepLen)
-    {
-        toi.insert(-1, window);
-    }
-
-    int nFreqs = foi.size();
-    int nTimes = toi.size();
-
     for (int time_it; time_it < nTimes; time_it++)
     {
         float time = toi[time_it];
@@ -104,6 +93,23 @@ void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region
     // Use this to find power
     // Update the vector
 }
+
+std::vector<std::vector<double>> CumulativeTFR::getCurrentMeanCoherence()
+{
+    // Calculate pxys
+    calcCrssspctrm();
+
+    // Update coherence (make sure stdCoherence hasn't already calc coherence)
+    if (meanCoherence.size() != curTime)
+    {
+        updateCoherenceStats();
+    }
+
+    return meanCoherence;
+}
+
+
+// > Private Methods
 
 
 void CumulativeTFR::updateCoherenceStats()
@@ -151,6 +157,8 @@ double CumulativeTFR::singleCoherence(double pxx, double pyy, std::complex<doubl
 
 double CumulativeTFR::calcCrssspctrm()
 {
+    // fourier transform of https://dsp.stackexchange.com/questions/736/how-do-i-implement-cross-correlation-to-prove-two-audio-files-are-similar
+
     int comb = 0; // loop over combinations
     for (int freq; freq < nFreqs; freq++)
     {
@@ -159,25 +167,16 @@ double CumulativeTFR::calcCrssspctrm()
             for (int chanY = 0; chanY < nGroup2Chans; chanY++)
             {
                 // Get complex fft output for both chanX and chanY
-                std::complex<double> complexDataX = tempBuffer[chanX].getAsComplex(comb); 
-                std::complex<double> complexDataY = tempBuffer[chanY].getAsComplex(comb);
-                //ifft(x) * conj(y) = cross-correlation
+                std::complex<double> complexDataX = tempBuffer[chanX].getAsComplex(freq); 
+                FFTWArray * bufferY = &tempBuffer[chanY];
+                ifftPlan.execute();
+                //ifft(y) * conj(x) = cross-correlation
+                pxys.at(comb).at(freq).at(curTime).addValue(convOutput.getAsComplex(freq)*std::conj(complexDataX));
+                comb++;
+                
             }
         }
     }
 }
 
 
-std::vector<std::vector<double>> CumulativeTFR::getCurrentMeanCoherence()
-{
-    // Calculate pxys
-    calcCrssspctrm();
-
-    // Update coherence (make sure stdCoherence hasn't already calc coherence)
-    if (meanCoherence.size() != curTime)
-    {
-        updateCoherenceStats();
-    }
-   
-    return meanCoherence;
-}
