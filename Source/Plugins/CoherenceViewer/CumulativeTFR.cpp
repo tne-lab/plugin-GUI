@@ -60,42 +60,25 @@ void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan)
 
 	//// Update convInput ////
 
-	// Iterate through dataBuffer and add to convInput for fft
+	// copy dataBuffer to fft input
 	int dataSize = dataBuffer.getNumSamples();
-	int startPoint = 0;
-	for (int window = 0; window < dataSize; window++)
-	{
-		int windowSize = sizeof(dataBuffer[window]);
-		convInput.copyFrom(dataBuffer[window], windowSize, startPoint);
-		startPoint += windowSize;
-	}
-	
+	convInput.copyFrom(dataBuffer.getReadPointer(0), dataSize, 0); // Double to float...?
+    
 	//// Execute fft ////
 	fftPlan.execute();
 
+    FFTWArray tempBuf = freqData;
+
 	//// Use freqData to find pow/crss ////
+	int channel = chan; 
 
-	// for loop over both of these two.
-    //std::vector<int> activeChannels = CoherenceNode::getActiveChannels(); something like this?
-	int channel = 0; // ^^
-    int window = 0; // Over circular array? or windows?
-	// Iterate through frequencies and get average power at each freq and place it into pxx/pyy
-	for (int freq = 0; freq < freqData.getLength(); freq++)
-	{
-		// if channel in group 1
-        pxxs.at(channel).at(freq).at(window).addValue(freqData.getAsReal(freq));
-		// if channel in group 2
-        pyys.at(channel).at(freq).at(window).addValue(freqData.getAsReal(freq));
-	}
-
-	// Iterate through frequencies and group combinations to get crssSpctrm at each freq
-	for (int freq = 0; freq < freqData.getLength(); freq++)
-	{
-		for (int comb = 1; comb < (nGroup1Chans*nGroup2Chans); comb++)
-		{
-            pxys.at(comb).at(freq).at(window).addValue(calcCrssspctrm(comb, freqData));
-		}
-	}
+    
+    // fourier transform of https://dsp.stackexchange.com/questions/736/how-do-i-implement-cross-correlation-to-prove-two-audio-files-are-similar
+    // fft over wavelet?
+    
+    // Multiply the two fft datas
+    // Use this to find power and cross spectrum
+    // Update the vectors
 
 	//// Ready to update coherence ////
 	updateCoherenceStats();

@@ -80,7 +80,11 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
             // Get read pointer of incoming data to move to the stored data buffer
             const float* rpIn = continuousBuffer.getReadPointer(chan);
             
-            ////// TODO ! NEED TO HANDLE OVERFLOW ISSUE ///////////
+            // Handle overflow 
+            if (nSamplesAdded[activeChan] + nSamples >= segLen * Fs) 
+            {
+                nSamples = segLen - nSamplesAdded[activeChan];
+            }
 
             // Add to buffer the new samples. Use copyFrom ?
             curBuffer.addFrom(activeChan, nSamplesAdded[activeChan], rpIn, nSamples); 
@@ -182,10 +186,7 @@ void CoherenceNode::updateSettings()
     CHANNEL_READY.insertMultiple(-1, 0, nGroup1Chans + nGroup2Chans);
     nSamplesAdded.insertMultiple(-1, 0, nGroup1Chans + nGroup2Chans);
     
-    // Buffer to hold 8 seconds of data 
-    channelData = AudioBuffer<float>(nGroup1Chans+nGroup2Chans, segLen*Fs);
-    
-    // Update TFR (maybe change this into a function to be cleaner, depends on FFTW stuff)
+    // Overwrite TFR 
 	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs);
 }
 
