@@ -69,7 +69,8 @@ private:
     // Freq of interest
     Array<int> foi;
 
-    Array<FFTWArray> tempBuffer;
+	Array<FFTWArray> spectrumBuffer;
+	Array<FFTWArray> waveletArray;
 
     const int nfft;
 

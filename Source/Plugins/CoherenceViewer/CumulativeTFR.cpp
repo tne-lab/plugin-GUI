@@ -51,6 +51,7 @@ void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region
 {
     int region = region; // Either 1 or 2. 1 => pxx, 2 => pyy 
     const float* rpChan = dataBuffer.getReadPointer(chan);
+	int channel = chan;
 
     int segmentLen = 8;
     int windowLen = 2;
@@ -72,29 +73,14 @@ void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region
     //// Execute fft ////
     fftPlan.execute();
 
-    tempBuffer.set(chan, freqData);
+    //// Use freqData to find generate spectrum and get power ////
 
-    //// Use freqData to find pxx or pyy ////
-    int channel = chan;
 
-    // Get FFT values at frequencies/times of interest
-    for (int time_it; time_it < nTimes; time_it++)
-    {
-        float time = toi[time_it];
-        for (int freq_it = 0; freq_it < nFreqs; freq_it++)
-        {
-            float freq = foi[freq_it];
-            std::complex<double> * cp = freqData.getComplexPointer(freq);
-            // Get power. Is this one timeframe? Whats the window for?
-                        
-        }
-    }
+	/// Set spectrum and power
+	//spectrumChan = ifft(fft(chan) * waveletSpectrum)
+	//spectrumBuffer.set(channel, spectrumChan);
+	//powerBuffer.set(channel, pow(abs(spectrumChan),2))
     
-    /// Notes I remember from talking, not sure about this.
-    // fft over wavelet?
-    // Multiply the two fft datas?
-    // Use this to find power
-    // Update the vector
 }
 
 std::vector<std::vector<double>> CumulativeTFR::getCurrentMeanCoherence()
@@ -163,18 +149,23 @@ double CumulativeTFR::calcCrssspctrm()
     // fourier transform of https://dsp.stackexchange.com/questions/736/how-do-i-implement-cross-correlation-to-prove-two-audio-files-are-similar
 
     int comb = 0; // loop over combinations
+	// for loop over time
     for (int freq; freq < nFreqs; freq++)
     {
         for (int chanX = 0; chanX < nGroup1Chans; chanX++)
         {
             for (int chanY = 0; chanY < nGroup2Chans; chanY++)
             {
-                // Get complex fft output for both chanX and chanY
-                std::complex<double> complexDataX = tempBuffer[chanX].getAsComplex(freq); 
-                FFTWArray * bufferY = &tempBuffer[chanY];
-                ifftPlan.execute();
+				Array<std::complex<double>> crss;
+				crss.resize(nfft);
+                // Get crss from specturm of both chanX and chanY
+				for (int i = 0; i < nfft; i++)
+				{
+					crss[i] = spectrumBuffer[chanX].getAsComplex(i) * conj(spectrumBuffer[chanY].getAsComplex(i));
+				}
+				
                 //ifft(y) * conj(x) = cross-correlation
-                pxys.at(comb).at(freq).at(curTime).addValue(convOutput.getAsComplex(freq)*std::conj(complexDataX));
+                pxys.at(comb).at(freq).at(curTime).addValue(crss);
                 comb++;
                 
             }
@@ -188,39 +179,49 @@ void CumulativeTFR::generateWavelet(int nfft, int nFreqs, int segLen)
     std::vector<double> hann(nfft);
     std::vector<std::complex<double>> sine(nfft);
 
-    FFTWArray waveletIn(nfft);
-
+    
+	waveletArray.resize(nFreqs);
     int position = 0;
     int maxPosition = nfft;
     for (int freq = 1; freq < nFreqs; freq++)
     {
+		FFTWArray waveletIn(nfft);
         for (int position = 0; position < maxPosition; position++)
         {
             //// Hann Window ////
             // Create first hann function
             if (sin(position) >= 0)
             {
-                hann.assign(position, hannFunc(.5 + position)); // Shift half over
+                hann.assign(position, pow(cos((position*freq + M_PI)),2)); // Shift half over cos^2(pi*x*freq/(n+1))
             }
             // Pad with zeroes
-            else if (position <= (segLen - 1 / freq)) // wrong get one half positive cycle left
+            else if (position <= (segLen - (M_PI_2 / freq))) // 0's until one half cycle left
             {
                 hann.assign(position, -1);
             }
             else
             {
-                hann.assign(position, ); // wrong. need to move to 
+				int hannPos = (position - int(segLen - (M_PI_2 / freq))); // Shift hann to be at position 0 with one half cycle left
+				hann.assign(position, pow(cos((hannPos*freq)), 2)); // check this math
             }
 
             //// Sine wave ////
-            sine.assign(position, sin(position));
+            sine.assign(position, sin(position * freq * (M_PI * 2) - M_PI_2)); // Shift by pi/2 to put peak at time 0
 
             //// Wavelet ////
             waveletIn.set(position,sine.at(position) * hann.at(position));
-        }
-        
+			// Move into fft array
+			for (int i = 0; i < nfft; i++)
+			{
+				convInput.set(i, waveletIn.getAsComplex(i));
+			}
+			fftPlan.execute();
+			// Save fft output for use later
+			waveletArray.set(freq, freqData);
+        } 
     }
 
+	
 }
 
 
