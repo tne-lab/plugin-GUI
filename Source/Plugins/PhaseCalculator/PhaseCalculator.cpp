@@ -400,7 +400,7 @@ namespace PhaseCalculator
             if (acInfo->history.isFull())
             {
                 AtomicScopedWritePtr<Array<double>> shWritePtr(acInfo->sharedHistory);
-                if (!shWritePtr.valid)
+                if (!shWritePtr.isValid())
                 {
                     jassertfalse;
                 }
@@ -637,7 +637,7 @@ namespace PhaseCalculator
             {
                 // try to get shared history
                 AtomicScopedReadPtr<Array<double>> shPtr(channelInfo[chan]->acInfo->sharedHistory);
-                if (!shPtr.valid)
+                if (!shPtr.isValid())
                 {
                     continue;
                 }

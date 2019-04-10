@@ -72,11 +72,12 @@ namespace PhaseCalculator
             jassert(hasBeenUsed);
 
             AtomicScopedReadPtr<Array<double>> coefPtr(coefficients);
-            if (!coefPtr.valid)
+            if (!coefPtr.isValid())
             {
                 jassertfalse;
                 return;
             }
+
             modelOut = *coefPtr;
         }
 
@@ -132,11 +133,12 @@ namespace PhaseCalculator
             // save
             {
                 AtomicScopedWritePtr<Array<double>> coefPtr(coefficients);
-                if (!coefPtr.valid)
+                if (!coefPtr.isValid())
                 {
                     jassertfalse;
                     return;
                 }
+
                 coefPtr->swapWith(j_coef_temp);
             }
 

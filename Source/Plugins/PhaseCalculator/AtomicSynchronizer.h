@@ -91,7 +91,7 @@ public:
             }
         }
 
-        operator int()
+        operator int() const
         {
             if (valid)
             {
@@ -100,10 +100,13 @@ public:
             return -1;
         }
 
+        bool isValid() const
+        {
+            return valid;
+        }
+
     private:
         AtomicSynchronizer* owner;
-
-    public:
         const bool valid;
     };
 
@@ -146,7 +149,7 @@ public:
             }
         }
 
-        operator int()
+        operator int() const
         {
             if (valid)
             {
@@ -155,11 +158,13 @@ public:
             return -1;
         }
 
+        bool isValid() const
+        {
+            return valid;
+        }
 
     private:
         AtomicSynchronizer* owner;
-
-    public:
         const bool valid;
     };
 
@@ -171,10 +176,10 @@ public:
     {
     public:
         explicit ScopedLockout(AtomicSynchronizer& o)
-            : owner(&o)
-            , haveReadLock(o.checkoutReader())
-            , haveWriteLock(o.checkoutWriter())
-            , valid(haveReadLock && haveWriteLock)
+            : owner         (&o)
+            , haveReadLock  (o.checkoutReader())
+            , haveWriteLock (o.checkoutWriter())
+            , valid         (haveReadLock && haveWriteLock)
         {}
 
         ~ScopedLockout()
@@ -190,12 +195,15 @@ public:
             }
         }
 
+        bool isValid() const
+        {
+            return valid;
+        }
+
     private:
         AtomicSynchronizer* owner;
         const bool haveReadLock;
         const bool haveWriteLock;
-
-    public:
         const bool valid;
     };
 
@@ -216,7 +224,7 @@ public:
     bool reset()
     {
         ScopedLockout lock(*this);
-        if (!lock.valid)
+        if (!lock.isValid())
         {
             return false;
         }
@@ -375,7 +383,7 @@ public:
     bool apply(UnaryFunction f)
     {
         AtomicSynchronizer::ScopedLockout lock(sync);
-        if (!lock.valid)
+        if (!lock.isValid())
         {
             return false;
         }
@@ -394,7 +402,7 @@ public:
         ScopedWritePtr(AtomicallyShared<T>& o)
             : owner (&o)
             , ind   (o.sync)
-            , valid (ind.valid)
+            , valid (ind.isValid())
         {}
 
         void pushUpdate()
@@ -420,21 +428,25 @@ public:
             return &(operator*());
         }
 
-        const bool valid;
+        bool isValid() const
+        {
+            return valid;
+        }
 
     private:
         AtomicallyShared<T>* owner;
         AtomicSynchronizer::ScopedWriteIndex ind;
+        const bool valid;
     };
 
     class ScopedReadPtr
     {
     public:
         ScopedReadPtr(AtomicallyShared<T>& o)
-            : owner (&o)
-            , ind   (o.sync)
+            : owner(&o)
+            , ind(o.sync)
             // if the ind is valid, but is equal to -1, this pointer is still invalid (for now)
-            , valid (ind != -1) 
+            , valid(ind != -1)
         {}
 
         void pullUpdate()
@@ -462,11 +474,15 @@ public:
             return &(operator*());
         }
 
-        bool valid;
+        bool isValid() const
+        {
+            return valid;
+        }
 
     private:
         AtomicallyShared<T>* owner;
         AtomicSynchronizer::ScopedReadIndex ind;
+        bool valid;
     };
 
 private:
