@@ -201,6 +201,8 @@ public:
 
 
     AtomicSynchronizer()
+	: nReaders(0)
+	, nWriters(0)
     {
         reset();
     }
@@ -342,8 +344,8 @@ private:
     int writerIndex; // index the writer may currently be writing to
     int readerIndex; // index the reader may currently be reading from
 
-    std::atomic<int> nWriters = 0;
-    std::atomic<int> nReaders = 0;
+    std::atomic<int> nWriters;
+    std::atomic<int> nReaders;
 };
 
 
@@ -415,7 +417,7 @@ public:
 
         T* operator->()
         {
-            return &(*this);
+            return &(operator*());
         }
 
         const bool valid;
@@ -457,7 +459,7 @@ public:
 
         const T* operator->()
         {
-            return &(*this);
+            return &(operator*());
         }
 
         bool valid;
@@ -473,9 +475,9 @@ private:
 };
 
 template<typename T>
-using AtomicScopedWritePtr = AtomicallyShared<T>::ScopedWritePtr;
+using AtomicScopedWritePtr = typename AtomicallyShared<T>::ScopedWritePtr;
 
 template<typename T>
-using AtomicScopedReadPtr = AtomicallyShared<T>::ScopedReadPtr;
+using AtomicScopedReadPtr = typename AtomicallyShared<T>::ScopedReadPtr;
 
 #endif // ATOMIC_SYNCHRONIZER_H_INCLUDED
