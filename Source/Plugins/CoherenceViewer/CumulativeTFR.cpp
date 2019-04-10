@@ -44,7 +44,7 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, double ff
     , pxys          (ng1 * ng2,
                     vector<vector<ComplexAccum>>(nf,
                     vector<ComplexAccum>(nt)))
-    , tempBuffer    (nGroup1Chans+nGroup2Chans,nfft) // how to an array of fftwarrays?
+    , tempBuffer    (nGroup1Chans+nGroup2Chans,nfft) // how to init an array of fftwarrays?
 {}
 
 void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region)
@@ -68,18 +68,28 @@ void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region
     {
         convInput.set(i, rpChan[i]);
     }
-    //convInput.copyFrom(rpChan, dataSize, 0); // Double to float...? ^^
 
     //// Execute fft ////
     fftPlan.execute();
 
     //// Use freqData to find generate spectrum and get power ////
+	// Multiple fft data by wavelet
+	for (int freq = 1; freq < nFreqs; freq++)
+	{
+		freqData.set(freq, freqData.getAsComplex(freq) * waveletArray.getUnchecked(freq).getAsComplex(freq));
+	}
+	// Inverse FFT on data multiplied by wavelet
+	ifftPlan.execute();
+	// Save the channel spectrum
+	spectrumBuffer.set(channel, convOutput);
 
+	// Save power
+	powerBuffer.set(channel, pow(abs(convOutput), 2));
 
 	/// Set spectrum and power
 	//spectrumChan = ifft(fft(chan) * waveletSpectrum)
 	//spectrumBuffer.set(channel, spectrumChan);
-	//powerBuffer.set(channel, pow(abs(spectrumChan),2))
+	//
     
 }
 
@@ -148,26 +158,22 @@ double CumulativeTFR::calcCrssspctrm()
 {
     // fourier transform of https://dsp.stackexchange.com/questions/736/how-do-i-implement-cross-correlation-to-prove-two-audio-files-are-similar
 
-    int comb = 0; // loop over combinations
-	// for loop over time
+	std::complex<double> crss;
+
+    int comb = 0; // loop over combinations at each freq
     for (int freq; freq < nFreqs; freq++)
     {
         for (int chanX = 0; chanX < nGroup1Chans; chanX++)
         {
             for (int chanY = 0; chanY < nGroup2Chans; chanY++)
             {
-				Array<std::complex<double>> crss;
-				crss.resize(nfft);
                 // Get crss from specturm of both chanX and chanY
-				for (int i = 0; i < nfft; i++)
+				for (int i = 0; i < nfft; i++) // Time of interest here instead of every point
 				{
-					crss[i] = spectrumBuffer[chanX].getAsComplex(i) * conj(spectrumBuffer[chanY].getAsComplex(i));
+					crss = spectrumBuffer[chanX].getAsComplex(i) * conj(spectrumBuffer[chanY].getAsComplex(i));
+					pxys.at(comb).at(freq).at(curTime).addValue(crss);
 				}
-				
-                //ifft(y) * conj(x) = cross-correlation
-                pxys.at(comb).at(freq).at(curTime).addValue(crss);
-                comb++;
-                
+                comb++;              
             }
         }
     }
@@ -189,7 +195,7 @@ void CumulativeTFR::generateWavelet(int nfft, int nFreqs, int segLen)
         for (int position = 0; position < maxPosition; position++)
         {
             //// Hann Window ////
-            // Create first hann function
+            // Create first half hann function
             if (sin(position) >= 0)
             {
                 hann.assign(position, pow(cos((position*freq + M_PI)),2)); // Shift half over cos^2(pi*x*freq/(n+1))
@@ -199,26 +205,27 @@ void CumulativeTFR::generateWavelet(int nfft, int nFreqs, int segLen)
             {
                 hann.assign(position, -1);
             }
+			// Finish off hann function
             else
             {
 				int hannPos = (position - int(segLen - (M_PI_2 / freq))); // Shift hann to be at position 0 with one half cycle left
 				hann.assign(position, pow(cos((hannPos*freq)), 2)); // check this math
             }
 
-            //// Sine wave ////
+            //// Sine wave //// Does this need to be complex?
             sine.assign(position, sin(position * freq * (M_PI * 2) - M_PI_2)); // Shift by pi/2 to put peak at time 0
 
             //// Wavelet ////
             waveletIn.set(position,sine.at(position) * hann.at(position));
-			// Move into fft array
-			for (int i = 0; i < nfft; i++)
-			{
-				convInput.set(i, waveletIn.getAsComplex(i));
-			}
-			fftPlan.execute();
-			// Save fft output for use later
-			waveletArray.set(freq, freqData);
         } 
+		// Move into fft array
+		for (int i = 0; i < nfft; i++)
+		{
+			convInput.set(i, waveletIn.getAsComplex(i));
+		}
+		fftPlan.execute();
+		// Save fft output for use later
+		waveletArray.set(freq, freqData);
     }
 
 	
