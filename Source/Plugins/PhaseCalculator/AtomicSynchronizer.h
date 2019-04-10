@@ -58,11 +58,7 @@ public:
             : owner(&o)
             , valid(o.checkoutWriter())
         {
-            if (valid)
-            {
-                owner->updateWriterIndex();
-            }
-            else
+            if (!valid)
             {
                 // just to be sure - if not valid, shouldn't be able to access the synchronizer
                 owner = nullptr;
@@ -279,8 +275,14 @@ private:
     }
 
     // should only be called by a writer
-    void updateWriterIndex()
+    void pushWrite()
     {
+        // It's an invariant that writerIndex != -1
+        // except within this method, and this method is not reentrant.
+        assert(writerIndex != -1);
+
+        writerIndex = readyToReadIndex.exchange(writerIndex, std::memory_order_relaxed);
+
         if (writerIndex == -1)
         {
             // attempt to pull an index from readyToWriteIndex
@@ -289,31 +291,14 @@ private:
             if (writerIndex == -1)
             {
                 writerIndex = readyToWriteIndex2.exchange(-1, std::memory_order_relaxed);
-
-                // There are only 5 slots, so writerIndex, readyToWriteIndex, and
-                // readyToWriteIndex2 cannot all be empty. There can't be a race condition
-                // where one of these slots is now nonempty, because only the writer can
-                // set any of them to -1 (and there's only one writer).
-                assert(writerIndex != -1);
             }
         }
-    }
 
-    // should only be called by a writer
-    void pushWrite()
-    {
-        if (writerIndex == -1)
-        {
-            // Shouldn't happen - it's an invariant that writerIndex != -1
-            // except within this method before updateWriterIndex is called
-            // and this method is not reentrant.
-            assert(false);
-        }
-        else
-        {
-            writerIndex = readyToReadIndex.exchange(writerIndex, std::memory_order_relaxed);
-        }
-        updateWriterIndex();
+        // There are only 5 slots, so writerIndex, readyToWriteIndex, and
+        // readyToWriteIndex2 cannot all be empty. There can't be a race condition
+        // where one of these slots is now nonempty, because only the writer can
+        // set any of them to -1 (and there's only one writer).
+        assert(writerIndex != -1);
     }
 
     // should only be called by a reader
