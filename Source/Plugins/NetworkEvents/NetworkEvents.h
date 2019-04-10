@@ -90,15 +90,18 @@ private:
         int64 timestamp;
     };
 
-    class ZMQContext : public ReferenceCountedObject
+    struct StringTTL
+    {
+        bool onOff;
+        int eventChannel;
+    };
+
+    class ZMQContext
     {
     public:
-        ZMQContext(const ScopedLock& lock);
-        ~ZMQContext() override;
+        ZMQContext();
+        ~ZMQContext();
         void* createSocket();
-
-        typedef ReferenceCountedObjectPtr<ZMQContext> Ptr;
-
     private:
         void* context;
 
@@ -134,7 +137,7 @@ private:
         int send(StringRef response);
 
     private:
-        ZMQContext::Ptr context;
+        SharedResourcePointer<ZMQContext> context;
         void* socket;
         bool valid;
         uint16 boundPort;
@@ -145,7 +148,7 @@ private:
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Responder);
     };
 
-    void postTimestamppedStringToMidiBuffer(const StringTS& s);
+    void postTimestamppedStringToMidiBuffer(const StringTS& s, juce::int64 timestamp);
     
     String handleSpecialMessages(const String& s);
 
@@ -161,20 +164,20 @@ private:
     // get a representation of the given port for use on the editor
     static String getPortString(uint16 port);
 
-    // share a "dumb" pointer that doesn't take part in reference counting.
-    // want the context to be terminated by the time the static members are
-    // destroyed (see: https://github.com/zeromq/libzmq/issues/1708)
-    static ZMQContext* sharedContext;
-    static CriticalSection sharedContextLock;
-
     std::atomic<bool> makeNewSocket;   // port change or restart needed (depending on requestedPort)
     std::atomic<uint16> requestedPort; // never set by the thread; 0 means any free port
     std::atomic<uint16> boundPort;     // only set by the thread; 0 means no connection
 
     std::queue<StringTS> networkMessagesQueue;
     CriticalSection queueLock;
+
+    std::queue<StringTTL> TTLQueue;
+    CriticalSection TTLqueueLock;
     
 	const EventChannel* messageChannel{ nullptr };
+    const EventChannel* TTLChannel{ nullptr };
+
+    void triggerTTLEvent(StringTTL TTLmsg, juce::int64 timestamp);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NetworkEvents);
 };

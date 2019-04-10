@@ -1136,13 +1136,10 @@ void SignalChainTabButton::paintButton(Graphics& g, bool isMouseOver, bool isBut
 
 // how about some loading and saving?
 
-XmlElement* EditorViewport::createNodeXml(GenericEditor* editor,
-                                          int insertionPt)
+XmlElement* EditorViewport::createNodeXml(GenericProcessor* source)
 {
 
     XmlElement* e = new XmlElement("PROCESSOR");
-
-    GenericProcessor* source = (GenericProcessor*) editor->getProcessor();
 
     String name = "";
 
@@ -1155,12 +1152,12 @@ XmlElement* EditorViewport::createNodeXml(GenericEditor* editor,
     else
         name += "Filters/";
 
-    name += editor->getName();
+    name += source->getEditor()->getName();
 
     std::cout << name << std::endl;
 
     e->setAttribute("name", name);
-    e->setAttribute("insertionPoint", insertionPt);
+    e->setAttribute("insertionPoint", 1);
 	e->setAttribute("pluginName", source->getPluginName());
 	e->setAttribute("pluginType", (int)(source->getPluginType()));
 	e->setAttribute("pluginIndex", source->getIndex());
@@ -1222,7 +1219,6 @@ const String EditorViewport::saveState(File fileToUse, String* xmlText)
     /** Used to reset saveOrder at end, to allow saving the same processor multiple times*/
     Array<GenericProcessor*> allProcessors;
 
-    bool moveForward;
     int saveOrder = 0;
 
     XmlElement* xml = new XmlElement("SETTINGS");
@@ -1246,103 +1242,56 @@ const String EditorViewport::saveState(File fileToUse, String* xmlText)
     XmlElement* machineName = info->createNewChildElement("MACHINE");
     machineName->addTextElement(SystemStats::getComputerName());
 
-    GenericEditor* editor;
-
     for (int n = 0; n < signalChainArray.size(); n++)
     {
-
-        moveForward = true;
-
         XmlElement* signalChain = new XmlElement("SIGNALCHAIN");
 
-        editor = signalChainArray[n]->getEditor();
+        GenericProcessor* processor = signalChainArray[n]->getEditor()->getProcessor();
 
-        int insertionPt = 1;
-
-        while (editor != 0)
+        while (processor != nullptr)
         {
-
-            GenericProcessor* currentProcessor = (GenericProcessor*) editor->getProcessor();
-            GenericProcessor* nextProcessor;
-
-            if (currentProcessor->saveOrder < 0)   // create a new XML element
+            if (processor->saveOrder < 0)
             {
+                if (processor->isSplitter())
+                {
+                    // add to list of splitters to come back to
+                    splitPoints.add(processor);
+                    processor->switchIO(0);
+                }
 
-                signalChain->addChildElement(createNodeXml(editor, insertionPt));
-                currentProcessor->saveOrder = saveOrder;
-                allProcessors.addIfNotAlreadyThere(currentProcessor);
+                // create a new XML element
+                signalChain->addChildElement(createNodeXml(processor));
+                processor->saveOrder = saveOrder;
+                allProcessors.addIfNotAlreadyThere(processor);
                 saveOrder++;
 
             }
             else
             {
-                std::cout << "   Processor already saved as number " << currentProcessor->saveOrder << std::endl;
+                std::cout << "   Processor already saved as number " << processor->saveOrder << std::endl;
             }
 
-            if (moveForward)
+            // continue until the end of the chain
+            std::cout << "  Moving forward along signal chain." << std::endl;
+            processor = processor->getDestNode();
+
+            if (processor == nullptr)
             {
-                std::cout << "  Moving forward along signal chain." << std::endl;
-                nextProcessor = currentProcessor->getDestNode();
-            }
-            else
-            {
-                std::cout << "  Moving backward along signal chain." << std::endl;
-                nextProcessor = currentProcessor->getSourceNode();
-            }
-
-
-            if (nextProcessor != 0)   // continue until the end of the chain
-            {
-
-                editor = (GenericEditor*) nextProcessor->getEditor();
-
-                if ((nextProcessor->isSplitter())// || nextProcessor->isMerger())
-                    && nextProcessor->saveOrder < 0)
-                {
-                    splitPoints.add(nextProcessor);
-
-                    nextProcessor->switchIO(0);
-                }
-
-            }
-            else
-            {
-
-                std::cout << "  No processor found." << std::endl;
-
                 if (splitPoints.size() > 0)
                 {
+                    std::cout << "  Going back to first unswitched splitter." << std::endl;
 
-                    nextProcessor = splitPoints.getFirst();
+                    processor = splitPoints.getFirst();
                     splitPoints.remove(0);
 
-                    nextProcessor->switchIO(1);
-                    signalChain->addChildElement(switchNodeXml(nextProcessor));
-
-                    if (nextProcessor->isMerger())
-                    {
-                        insertionPt = 0;
-                        moveForward = false;
-                    }
-                    else
-                    {
-                        insertionPt = 1;
-                        moveForward = true;
-                    }
-
-                    editor = nextProcessor->getEditor();
-
+                    processor->switchIO(1);
+                    signalChain->addChildElement(switchNodeXml(processor));
                 }
                 else
                 {
-
                     std::cout << "  End of chain." << std::endl;
-
-                    editor = 0;
                 }
             }
-
-            //insertionPt++;
         }
 
         xml->addChildElement(signalChain);
@@ -1352,6 +1301,10 @@ const String EditorViewport::saveState(File fileToUse, String* xmlText)
 
     audioSettings->setAttribute("bufferSize", AccessClass::getAudioComponent()->getBufferSize());
     xml->addChildElement(audioSettings);
+
+	XmlElement* recordSettings = new XmlElement("RECORDING");
+	recordSettings->setAttribute("isRecordThreadEnabled", AccessClass::getProcessorGraph()->getRecordNode()->getRecordThreadStatus());
+	xml->addChildElement(recordSettings);
 
 	XmlElement* timestampSettings = new XmlElement("GLOBAL_TIMESTAMP");
 	int tsID, tsSubID;
@@ -1615,7 +1568,16 @@ const String EditorViewport::loadState(File fileToLoad)
         {
             int bufferSize = element->getIntAttribute("bufferSize");
             AccessClass::getAudioComponent()->setBufferSize(bufferSize);
-        }
+		}
+		else if (element->hasTagName("RECORDING"))
+		{
+			bool recordThreadStatus = element->getBoolAttribute("isRecordThreadEnabled");
+
+			if (recordThreadStatus)
+				AccessClass::getProcessorGraph()->getRecordNode()->setParameter(3, 1.0f);
+			else
+				AccessClass::getProcessorGraph()->getRecordNode()->setParameter(3, 0.0f);
+		}
 		else if (element->hasTagName("GLOBAL_TIMESTAMP"))
 		{
 			int tsID = element->getIntAttribute("selected_index", -1);
@@ -1633,9 +1595,9 @@ const String EditorViewport::loadState(File fileToLoad)
 
     AccessClass::getProcessorGraph()->restoreParameters();
 
-    AccessClass::getControlPanel()->loadStateFromXml(xml); // save the control panel settings
-    AccessClass::getProcessorList()->loadStateFromXml(xml);
-    AccessClass::getUIComponent()->loadStateFromXml(xml);  // save the UI settings
+    AccessClass::getControlPanel()->loadStateFromXml(xml); // load the control panel settings
+    AccessClass::getProcessorList()->loadStateFromXml(xml); // load the processor list settings
+    AccessClass::getUIComponent()->loadStateFromXml(xml);  // load the UI settings
 
     if (editorArray.size() > 0)
         signalChainManager->updateVisibleEditors(editorArray[0], 0, 0, UPDATE);
