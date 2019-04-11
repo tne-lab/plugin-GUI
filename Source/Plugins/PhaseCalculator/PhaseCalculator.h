@@ -235,7 +235,8 @@ namespace PhaseCalculator
         float getLowCut() const;
         Band getBand() const;
 
-        std::queue<double>* tryToGetVisPhaseBuffer(ScopedPointer<ScopedTryLock>& lock);
+        // swaps other with the visPhaseBuffer if it can acquire a TryLock. returns true if successful.
+        bool tryToSwapVisPhaseBuffer(std::queue<double>& other);
 
         // for visualizer continuous channel
         void saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType) override;

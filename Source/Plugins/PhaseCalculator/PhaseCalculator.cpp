@@ -631,7 +631,6 @@ namespace PhaseCalculator
     {
         Array<int> activeChans = getActiveInputs();
 
-        uint32 startTime, endTime;
         while (!threadShouldExit())
         {
             for (int chan : activeChans)
@@ -751,10 +750,16 @@ namespace PhaseCalculator
         return band;
     }
 
-    std::queue<double>* Node::tryToGetVisPhaseBuffer(ScopedPointer<ScopedTryLock>& lock)
+    bool Node::tryToSwapVisPhaseBuffer(std::queue<double>& other)
     {
-        lock = new ScopedTryLock(visPhaseBufferCS);
-        return lock->isLocked() ? &visPhaseBuffer : nullptr;
+        const ScopedTryLock lock(visPhaseBufferCS);
+        if (!lock.isLocked())
+        {
+            return false;
+        }
+
+        visPhaseBuffer.swap(other);
+        return true;
     }
 
     void Node::saveCustomChannelParametersToXml(XmlElement* channelElement,

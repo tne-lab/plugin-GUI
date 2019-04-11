@@ -234,22 +234,14 @@ namespace PhaseCalculator
         }
 
         // get new angles from visualization phase buffer
+        if (processor->tryToSwapVisPhaseBuffer(tempPhaseBuffer))
         {
-            ScopedPointer<ScopedTryLock> bufferLock;
-            std::queue<double>* buffer = processor->tryToGetVisPhaseBuffer(bufferLock);
-            if (buffer == nullptr)
+            // read off angles from swapped buffer
+            while (!tempPhaseBuffer.empty())
             {
-                // buffer is in use
-                return;
+                addAngle(tempPhaseBuffer.front());
+                tempPhaseBuffer.pop();
             }
-            buffer->swap(tempPhaseBuffer); // ...which should always be empty at this point
-        }
-
-        // read off angles from swapped buffer
-        while (!tempPhaseBuffer.empty())
-        {
-            addAngle(tempPhaseBuffer.front());
-            tempPhaseBuffer.pop();
         }
     }
 
