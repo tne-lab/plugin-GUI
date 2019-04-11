@@ -234,9 +234,9 @@ namespace PhaseCalculator
         }
 
         // get new angles from visualization phase buffer
-        if (processor->tryToSwapVisPhaseBuffer(tempPhaseBuffer))
+        if (processor->tryToReadVisPhases(tempPhaseBuffer))
         {
-            // read off angles from swapped buffer
+            // add new angles to rose plot
             while (!tempPhaseBuffer.empty())
             {
                 addAngle(tempPhaseBuffer.front());

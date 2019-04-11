@@ -750,7 +750,7 @@ namespace PhaseCalculator
         return band;
     }
 
-    bool Node::tryToSwapVisPhaseBuffer(std::queue<double>& other)
+    bool Node::tryToReadVisPhases(std::queue<double>& other)
     {
         const ScopedTryLock lock(visPhaseBufferCS);
         if (!lock.isLocked())
@@ -758,7 +758,11 @@ namespace PhaseCalculator
             return false;
         }
 
-        visPhaseBuffer.swap(other);
+        while (!visPhaseBuffer.empty())
+        {
+            other.push(visPhaseBuffer.front());
+            visPhaseBuffer.pop();
+        }
         return true;
     }
 

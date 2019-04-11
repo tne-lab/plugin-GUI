@@ -236,7 +236,7 @@ namespace PhaseCalculator
         Band getBand() const;
 
         // swaps other with the visPhaseBuffer if it can acquire a TryLock. returns true if successful.
-        bool tryToSwapVisPhaseBuffer(std::queue<double>& other);
+        bool tryToReadVisPhases(std::queue<double>& other);
 
         // for visualizer continuous channel
         void saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType) override;
