@@ -756,10 +756,20 @@ namespace PhaseCalculator
         return band;
     }
 
-    std::queue<double>& Node::getVisPhaseBuffer(ScopedPointer<ScopedLock>& lock)
+    bool Node::tryToReadVisPhases(std::queue<double>& other)
     {
-        lock = new ScopedLock(visPhaseBufferCS);
-        return visPhaseBuffer;
+        const ScopedTryLock lock(visPhaseBufferCS);
+        if (!lock.isLocked())
+        {
+            return false;
+        }
+
+        while (!visPhaseBuffer.empty())
+        {
+            other.push(visPhaseBuffer.front());
+            visPhaseBuffer.pop();
+        }
+        return true;
     }
 
     void Node::saveCustomChannelParametersToXml(XmlElement* channelElement,

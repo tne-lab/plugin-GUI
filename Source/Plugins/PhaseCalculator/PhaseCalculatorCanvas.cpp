@@ -234,13 +234,14 @@ namespace PhaseCalculator
         }
 
         // get new angles from visualization phase buffer
-        ScopedPointer<ScopedLock> bufferLock;
-        std::queue<double>& buffer = processor->getVisPhaseBuffer(bufferLock);
-
-        while (!buffer.empty())
+        if (processor->tryToReadVisPhases(tempPhaseBuffer))
         {
-            addAngle(buffer.front());
-            buffer.pop();
+            // add new angles to rose plot
+            while (!tempPhaseBuffer.empty())
+            {
+                addAngle(tempPhaseBuffer.front());
+                tempPhaseBuffer.pop();
+            }
         }
     }
 

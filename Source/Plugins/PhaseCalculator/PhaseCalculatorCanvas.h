@@ -171,6 +171,9 @@ namespace PhaseCalculator
 
         Node* processor;
 
+        // to swap with the queue of phases from the Node
+        std::queue<double> tempPhaseBuffer;
+
         ScopedPointer<Viewport>  viewport;
         ScopedPointer<Component> canvas;
         ScopedPointer<Component> rosePlotOptions;
