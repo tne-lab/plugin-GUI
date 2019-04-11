@@ -173,9 +173,9 @@ public:
     public:
         explicit ScopedLockout(AtomicSynchronizer& o)
             : owner         (&o)
-            , hasReadLock  (o.checkoutReader())
-            , hasWriteLock (o.checkoutWriter())
-            , valid        (hasReadLock && hasWriteLock)
+            , hasReadLock   (o.checkoutReader())
+            , hasWriteLock  (o.checkoutWriter())
+            , valid         (hasReadLock && hasWriteLock)
         {}
 
         ~ScopedLockout()
@@ -355,10 +355,13 @@ public:
     template<typename... Args>
     AtomicallyShared(Args&&... args)
     {
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < 2; ++i)
         {
-            data.emplace_back(std::forward<Args>(args)...);
+            data.emplace_back(args...);
         }
+
+        // move into the last entry, if possible
+        data.emplace_back(std::forward<Args>(args)...);
     }
 
     bool reset()
