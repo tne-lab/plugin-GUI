@@ -73,18 +73,31 @@ void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region
     fftPlan.execute();
 
     //// Use freqData to find generate spectrum and get power ////
-	// Multiple fft data by wavelet
 	for (int freq = 1; freq < nFreqs; freq++)
 	{
-		freqData.set(freq, freqData.getAsComplex(freq) * waveletArray.getUnchecked(freq).getAsComplex(freq));
-	}
-	// Inverse FFT on data multiplied by wavelet
-	ifftPlan.execute();
-	// Save the channel spectrum
-	spectrumBuffer.set(channel, convOutput);
+		// Multiple fft data by wavelet
+		for (int n = 0; n < nfft; n++)
+		{
+			freqData.set(n, freqData.getAsComplex(n) * waveletArray.getUnchecked(freq).getAsComplex(n));
+		}
+		// Inverse FFT on data multiplied by wavelet
+		ifftPlan.execute();
 
-	// Save power
-	powerBuffer.set(channel, pow(abs(convOutput), 2));
+		// Loop over time of interest
+		for (int time = 0; time < nTimes; time += stepLen)
+		{
+			//double pow = convOutput.getPower(time);
+			if (group1Array.contains(channel))
+			{
+				pxxs.at(channel).at(freq).at(time).addValue(pow);
+			}
+			else
+			{
+				pyys.at(channel).at(freq).at(time).addValue(pow);
+			}
+		}
+	}
+	
 
 	/// Set spectrum and power
 	//spectrumChan = ifft(fft(chan) * waveletSpectrum)
@@ -215,9 +228,13 @@ void CumulativeTFR::generateWavelet(int nfft, int nFreqs, int segLen)
             //// Sine wave //// Does this need to be complex?
             sine.assign(position, sin(position * freq * (M_PI * 2) - M_PI_2)); // Shift by pi/2 to put peak at time 0
 
-            //// Wavelet ////
-            waveletIn.set(position,sine.at(position) * hann.at(position));
+            
         } 
+		// Normalize Hann window Frobenius 
+
+		//// Wavelet ////
+		// for loop here
+		waveletIn.set(position, sine.at(position) * hann.at(position));
 		// Move into fft array
 		for (int i = 0; i < nfft; i++)
 		{
