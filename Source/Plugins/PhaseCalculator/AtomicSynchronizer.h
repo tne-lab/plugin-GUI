@@ -173,19 +173,19 @@ public:
     public:
         explicit ScopedLockout(AtomicSynchronizer& o)
             : owner         (&o)
-            , haveReadLock  (o.checkoutReader())
-            , haveWriteLock (o.checkoutWriter())
-            , valid         (haveReadLock && haveWriteLock)
+            , hasReadLock  (o.checkoutReader())
+            , hasWriteLock (o.checkoutWriter())
+            , valid        (hasReadLock && hasWriteLock)
         {}
 
         ~ScopedLockout()
         {
-            if (haveReadLock)
+            if (hasReadLock)
             {
                 owner->returnReader();
             }
 
-            if (haveWriteLock)
+            if (hasWriteLock)
             {
                 owner->returnWriter();
             }
@@ -198,8 +198,8 @@ public:
 
     private:
         AtomicSynchronizer* owner;
-        const bool haveReadLock;
-        const bool haveWriteLock;
+        const bool hasReadLock;
+        const bool hasWriteLock;
         const bool valid;
     };
 
@@ -232,6 +232,11 @@ public:
         readerIndex = -1;
 
         return true;
+    }
+
+    bool hasUpdate() const
+    {
+        return readyToReadIndex != -1;
     }
 
 private:
@@ -380,6 +385,12 @@ public:
 
         return true;
     }
+
+    bool hasUpdate() const
+    {
+        return sync.hasUpdate();
+    }
+
 
     class ScopedWritePtr
     {

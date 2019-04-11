@@ -397,8 +397,11 @@ namespace PhaseCalculator
             acInfo->history.enqueue(wpIn, nSamples);
 
             // if history is full, copy to shared space to allow AR model to be fit
-            if (acInfo->history.isFull())
+            uint32 now = Time::getMillisecondCounter();
+            if (acInfo->history.isFull() &&
+                (!acInfo->arModeler.hasBeenFit() || now - acInfo->arLastCalcTime >= calcInterval))
             {
+                acInfo->arLastCalcTime = now;
                 AtomicScopedWritePtr<Array<double>> shWritePtr(acInfo->sharedHistory);
                 if (!shWritePtr.isValid())
                 {
@@ -631,26 +634,20 @@ namespace PhaseCalculator
         uint32 startTime, endTime;
         while (!threadShouldExit())
         {
-            startTime = Time::getMillisecondCounter();
-
             for (int chan : activeChans)
             {
-                // try to get shared history
-                AtomicScopedReadPtr<Array<double>> shPtr(channelInfo[chan]->acInfo->sharedHistory);
-                if (!shPtr.isValid())
+                if (channelInfo[chan]->acInfo->sharedHistory.hasUpdate())
                 {
-                    continue;
+                    AtomicScopedReadPtr<Array<double>> shPtr(channelInfo[chan]->acInfo->sharedHistory);
+                    if (!shPtr.isValid())
+                    {
+                        jassertfalse; // hasUpdate was wrong?
+                        continue;
+                    }
+
+                    // calculate parameters
+                    channelInfo[chan]->acInfo->arModeler.fitModel(*shPtr);
                 }
-
-                // calculate parameters
-                channelInfo[chan]->acInfo->arModeler.fitModel(*shPtr);
-            }
-
-            endTime = Time::getMillisecondCounter();
-            int remainingInterval = calcInterval - (endTime - startTime);
-            if (remainingInterval >= 10) // avoid WaitForSingleObject
-            {
-                sleep(remainingInterval);
             }
         }
     }

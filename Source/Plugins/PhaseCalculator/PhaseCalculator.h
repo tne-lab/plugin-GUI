@@ -131,6 +131,9 @@ namespace PhaseCalculator
 
         ARModeler arModeler;
 
+        // for timing AR calculation
+        uint32 arLastCalcTime;
+
         Array<double> htState;
 
         // number of samples by which lastComputedSample precedes the start of the next buffer
