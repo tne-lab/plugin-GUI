@@ -53,16 +53,15 @@ public:
     vector<vector<double>> getCurrentStdCoherence();
 
 private:
-    void CumulativeTFR::generateWavelet(int nfft, int nFreqs, int segLen);
+	// Generate wavelet call in update settings if segLen changes
+    void CumulativeTFR::generateWavelet(int nfft, int nFreqs);
     // calc pxys
 	double CumulativeTFR::calcCrssspctrm();
+
     int nGroup1Chans;
     int nGroup2Chans;
     int nFreqs;
     int nTimes;
-    
-    // Keeps track of which buffer we are setting
-    double curTime;
 
     // Time of interest
     Array<int> toi;
