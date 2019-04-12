@@ -88,8 +88,11 @@ namespace PhaseCalculator
 
         for (int nLeft = nToAdd; nLeft > 0; --nLeft)
         {
-            data[headOffset] = double(*(source++));
-            headOffset = (headOffset ? headOffset : length) - 1;
+            data[headOffset--] = double(*(source++));
+            if (headOffset < 0)
+            {
+                headOffset = length - 1;
+            }
         }
 
         freeSpace = jmax(0, freeSpace - nToAdd);
@@ -252,7 +255,7 @@ namespace PhaseCalculator
     Node::Node()
         : GenericProcessor      ("Phase Calculator")
         , Thread                ("AR Modeler")
-        , calcInterval          (50)
+        , arInterval            (50)
         , arOrder               (20)
         , outputMode            (PH)
         , visEventChannel       (-1)
@@ -311,8 +314,7 @@ namespace PhaseCalculator
     {
         switch (parameterIndex) {
         case RECALC_INTERVAL:
-            calcInterval = int(newValue);
-            notify(); // start next thread iteration now (if applicable)
+            arInterval = int(newValue);
             break;
 
         case AR_ORDER:
@@ -374,8 +376,39 @@ namespace PhaseCalculator
             checkForEvents();
         }
 
-        // iterate over active input channels
         Array<int> activeChans = getActiveInputs();
+
+        // update AR models if it's time to
+        uint32 now = Time::getMillisecondCounter();
+        if (now - lastARUpdate >= arInterval)
+        {
+            bool anyUpdated = false;
+            for (int chan : activeChans)
+            {
+                ActiveChannelInfo* acInfo = channelInfo[chan]->acInfo;
+                if (acInfo->history.isFull())
+                {
+                    AtomicScopedWritePtr<Array<double>> shWritePtr(acInfo->sharedHistory);
+                    if (!shWritePtr.isValid())
+                    {
+                        jassertfalse;
+                    }
+                    else
+                    {
+                        anyUpdated = true;
+                        acInfo->history.unwrapAndCopy(shWritePtr->getRawDataPointer());
+                    }
+                }
+            }
+
+            if (anyUpdated)
+            {
+                lastARUpdate = now;
+                notify();
+            }
+        }
+
+        // process each active input channel
         int numActiveChans = activeChans.size();
         for (int ac = 0; ac < numActiveChans; ++ac)
         {
@@ -395,24 +428,6 @@ namespace PhaseCalculator
 
             // enqueue as much new data as can fit into history
             acInfo->history.enqueue(wpIn, nSamples);
-
-            // if history is full, copy to shared space to allow AR model to be fit
-            uint32 now = Time::getMillisecondCounter();
-            if (acInfo->history.isFull() &&
-                (!acInfo->arModeler.hasBeenFit() || now - acInfo->arLastCalcTime >= calcInterval))
-            {
-                acInfo->arLastCalcTime = now;
-                AtomicScopedWritePtr<Array<double>> shWritePtr(acInfo->sharedHistory);
-                if (!shWritePtr.isValid())
-                {
-                    jassertfalse;
-                }
-                else
-                {
-                    acInfo->history.unwrapAndCopy(shWritePtr->getRawDataPointer());
-                }
-            }
-            // don't combine these if-statements - the shWritePtr should go out of scope here!
 
             // calc phase and write out (only if AR model has been calculated)
             if (acInfo->history.isFull() && acInfo->arModeler.hasBeenFit())
@@ -585,6 +600,8 @@ namespace PhaseCalculator
         {
             startThread(arPriority);
 
+            lastARUpdate = Time::getMillisecondCounter();
+
             // have to manually enable editor, I guess...
             Editor* editor = static_cast<Editor*>(getEditor());
             editor->enable();
@@ -596,6 +613,7 @@ namespace PhaseCalculator
     bool Node::disable()
     {
         signalThreadShouldExit();
+        notify();
 
         Editor* editor = static_cast<Editor*>(getEditor());
         editor->disable();
@@ -631,13 +649,16 @@ namespace PhaseCalculator
     {
         Array<int> activeChans = getActiveInputs();
 
+        wait(-1);
+
         while (!threadShouldExit())
         {
             for (int chan : activeChans)
             {
-                if (channelInfo[chan]->acInfo->sharedHistory.hasUpdate())
+                ActiveChannelInfo* acInfo = channelInfo[chan]->acInfo;
+                if (acInfo->sharedHistory.hasUpdate())
                 {
-                    AtomicScopedReadPtr<Array<double>> shPtr(channelInfo[chan]->acInfo->sharedHistory);
+                    AtomicScopedReadPtr<Array<double>> shPtr(acInfo->sharedHistory);
                     if (!shPtr.isValid())
                     {
                         jassertfalse; // hasUpdate was wrong?
@@ -645,9 +666,11 @@ namespace PhaseCalculator
                     }
 
                     // calculate parameters
-                    channelInfo[chan]->acInfo->arModeler.fitModel(*shPtr);
+                    acInfo->arModeler.fitModel(*shPtr);
                 }
             }
+
+            wait(-1);
         }
     }
 

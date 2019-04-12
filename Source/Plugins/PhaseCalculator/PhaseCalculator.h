@@ -131,9 +131,6 @@ namespace PhaseCalculator
 
         ARModeler arModeler;
 
-        // for timing AR calculation
-        uint32 arLastCalcTime;
-
         Array<double> htState;
 
         // number of samples by which lastComputedSample precedes the start of the next buffer
@@ -358,7 +355,7 @@ namespace PhaseCalculator
         // ---- customizable parameters ------
 
         // time to wait between AR model recalculations in ms
-        int calcInterval;
+        int arInterval;
 
         // order of the AR model
         int arOrder;
@@ -389,6 +386,9 @@ namespace PhaseCalculator
         Array<int> htInds;
         Array<std::complex<double>> htOutput;
         std::queue<double> tempPhaseBuffer;
+
+        // for timing AR calculation
+        uint32 lastARUpdate;
 
         // approximate multiplier for the imaginary component output of the HT (depends on filter band)
         double htScaleFactor;

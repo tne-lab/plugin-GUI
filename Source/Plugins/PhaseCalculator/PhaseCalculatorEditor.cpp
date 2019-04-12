@@ -111,7 +111,7 @@ namespace PhaseCalculator
         recalcIntervalEditable->setBounds(filterWidth + 5, 44, 55, 18);
         recalcIntervalEditable->setColour(Label::backgroundColourId, Colours::grey);
         recalcIntervalEditable->setColour(Label::textColourId, Colours::white);
-        recalcIntervalEditable->setText(String(parentNode->calcInterval), dontSendNotification);
+        recalcIntervalEditable->setText(String(parentNode->arInterval), dontSendNotification);
         recalcIntervalEditable->setTooltip(recalcIntervalTooltip);
         addAndMakeVisible(recalcIntervalEditable);
 
@@ -181,7 +181,7 @@ namespace PhaseCalculator
         if (labelThatHasChanged == recalcIntervalEditable)
         {
             int intInput;
-            bool valid = updateControl(labelThatHasChanged, 0, INT_MAX, processor->calcInterval, intInput);
+            bool valid = updateControl(labelThatHasChanged, 0, INT_MAX, processor->arInterval, intInput);
 
             if (valid)
             {
@@ -350,7 +350,7 @@ namespace PhaseCalculator
         Node* processor = (Node*)(getProcessor());
 
         XmlElement* paramValues = xml->createNewChildElement("VALUES");
-        paramValues->setAttribute("calcInterval", processor->calcInterval);
+        paramValues->setAttribute("calcInterval", processor->arInterval);
         paramValues->setAttribute("arOrder", processor->arOrder);
         paramValues->setAttribute("lowCut", processor->lowCut);
         paramValues->setAttribute("highCut", processor->highCut);
