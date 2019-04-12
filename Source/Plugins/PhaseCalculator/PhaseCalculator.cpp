@@ -92,8 +92,11 @@ namespace PhaseCalculator
 
         for (int nLeft = nToAdd; nLeft > 0; --nLeft)
         {
-            data[headOffset] = double(*(source++));
-            headOffset = (headOffset ? headOffset : length) - 1;
+            data[headOffset--] = double(*(source++));
+            if (headOffset < 0)
+            {
+                headOffset = length - 1;
+            }
         }
 
         freeSpace = jmax(0, freeSpace - nToAdd);
