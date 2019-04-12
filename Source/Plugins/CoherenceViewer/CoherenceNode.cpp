@@ -148,7 +148,7 @@ void CoherenceNode::run()
 				// For loop over combinations
 				for (int comb = 0; comb < nGroupCombs; ++comb)
 				{
-					curMeanCoherence.assign(comb, TFRMeanCoh.at(comb));
+					curMeanCoherence.assign(comb, TFRMeanCoh.at(comb)); // incorrect, cant do idexed assign for vector
 				}
 			}
             
@@ -157,6 +157,7 @@ void CoherenceNode::run()
             // Reset audio buffer for new segment
             for (int i = 0; i < 3; i++)
             {
+				// Believe this is also incorrect. Need change up based on new atomic sync
                 dataBuffer.assign(i, AudioBuffer<float>(nGroup1Chans + nGroup2Chans, segLen*Fs));
             }
 

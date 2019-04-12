@@ -79,11 +79,19 @@ void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region
 		}
 		// Inverse FFT on data multiplied by wavelet
 		ifftPlan.execute();
+		// Save convOutput for crss later
+		spectrumBuffer.set(chan, convInput);
 
+		// add time trimmer and setup actual indices of data based on times
+		nSamplesWin = windowLen * Fs;
+		for (int time = 0; time < nTimes; time++)
+		{
+			if (timeArray[time] >= (nSamples . / 2)) & (timeboi <    ndatsample - (nsamplefreqoi . / 2)
+		}
 		// Loop over time of interest
 		for (int time = 0; time < nTimes; time += stepLen)
 		{
-			double pow = convOutput.getPower(time);
+			double pow = powerAtWindow(convOutput, time); // integral of window with time at center
 			// Region either 1 or 2. 1 => pxx, 2 => pyy
 			if (region == 1)
 			{
@@ -99,11 +107,6 @@ void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region
 
 std::vector<std::vector<double>> CumulativeTFR::getCurrentMeanCoherence()
 {
-    // Calculate pxys
-    calcCrssspctrm();
-	// Make sure it hasn't been called already
-	updateCoherenceStats();
-
     return meanCoherence;
 }
 
@@ -168,15 +171,18 @@ double CumulativeTFR::calcCrssspctrm()
             for (int chanY = 0; chanY < nGroup2Chans; chanY++)
             {
                 // Get crss from specturm of both chanX and chanY
-				for (int i = 0; i < nfft; i++) // Time of interest here instead of every point
+				for (int time = 0; time < nTimes; time += stepLen) // Time of interest here instead of every point
 				{
-					crss = spectrumBuffer[chanX].getAsComplex(i) * conj(spectrumBuffer[chanY].getAsComplex(i));
+					crss = crssAtWindow(chanX, chanY, time)
+					//crss = spectrumBuffer[chanX].getAsComplex(i) * conj(spectrumBuffer[chanY].getAsComplex(i));
 					pxys.at(comb).at(freq).at(time).addValue(crss);
 				}
                 comb++;              
             }
         }
     }
+	// Update coherence now that crss is found
+	updateCoherenceStats();
 }
 
 

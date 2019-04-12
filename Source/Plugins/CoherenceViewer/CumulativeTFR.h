@@ -81,6 +81,8 @@ private:
     FFTWPlan fftPlan;
     FFTWPlan ifftPlan;
 
+	#Array<AudioBuffer<double>> spectrumBuffer;
+
     // # group 1 channels x # frequencies x # times
     vector<vector<vector<RealAccum>>> pxxs;
     vector<vector<vector<RealAccum>>> pyys;
