@@ -84,8 +84,8 @@ private:
     AtomicSynchronizer coherenceSync;   // writer = thread, reader = visualizer (message thread)
     
     // group of 3, controlled by coherenceSync:
-    std::vector<std::vector<double>> meanCoherence;
-    std::vector<AudioBuffer<float>> dataBuffer; // Need to figure out size of this buffer. 8 seconds long
+    Array<std::vector<double>> meanCoherence;
+    Array<AudioBuffer<float>> dataBuffer; // Need to figure out size of this buffer. 8 seconds long
 
     AtomicWriterPtr dataWriter;
     AtomicReaderPtr coherenceReader;

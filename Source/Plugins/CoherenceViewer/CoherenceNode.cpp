@@ -91,12 +91,12 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
             // Update num samples added
             nSamplesAdded.set(activeChan, nSamplesAdded[activeChan] + nSamples);
 
+			// Think I push update here? Still unsure about sync stuff
+			dataWriter->pushUpdate();
+
             // channel buf is full. Let thread know.
             if (nSamplesAdded[activeChan] >= segLen * Fs) 
-            {
-                // Think I push update here? Still unsure about sync stuff
-                dataWriter->pushUpdate();
-                
+            {             
                 // Let thread know it can start on thsi chan
                 CHANNEL_READY.set(activeChan, true);
 
@@ -131,7 +131,7 @@ void CoherenceNode::run()
                 int curDataIndex = dataReader->pullUpdate();
                 if (curDataIndex != -1)
                 {
-                    TFR->addTrial(dataBuffer.at(curDataIndex), activeChan);
+                    TFR->addTrial(dataBuffer.getUnchecked(curDataIndex), activeChan,region);
                 }
             }
         }
@@ -141,15 +141,16 @@ void CoherenceNode::run()
         {
             //// Send updated coherence  ////
             int curCohIndex = coherenceWriter->getIndexToUse();
-            // For loop over combinations
-            for (int comb = 0; comb < nGroupCombs; ++comb)
-            {
-                if (curCohIndex != -1)
-                {
-                    std::vector<double> curMeanCoherence = meanCoherence.at(curCohIndex);
-                    curMeanCoherence.assign(comb, TFR->getCurrentMeanCoherence().at(comb)); // FIX ME !
-                }
-            }
+			if (curCohIndex != -1)
+			{
+				std::vector<double> curMeanCoherence = meanCoherence.getUnchecked(curCohIndex); // sync probably changes here
+				std::vector<std::vector<double>> TFRMeanCoh = TFR->getCurrentMeanCoherence(); 
+				// For loop over combinations
+				for (int comb = 0; comb < nGroupCombs; ++comb)
+				{
+					curMeanCoherence.assign(comb, TFRMeanCoh.at(comb));
+				}
+			}
             
             coherenceWriter->pushUpdate();
             

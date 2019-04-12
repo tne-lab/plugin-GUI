@@ -171,7 +171,7 @@ double CumulativeTFR::calcCrssspctrm()
 				for (int i = 0; i < nfft; i++) // Time of interest here instead of every point
 				{
 					crss = spectrumBuffer[chanX].getAsComplex(i) * conj(spectrumBuffer[chanY].getAsComplex(i));
-					pxys.at(comb).at(freq).at(curTime).addValue(crss);
+					pxys.at(comb).at(freq).at(time).addValue(crss);
 				}
                 comb++;              
             }
@@ -187,6 +187,7 @@ void CumulativeTFR::generateWavelet(int nfft, int nFreqs)
 	std::vector<double> cosWave(nfft);
     
 	waveletArray.resize(nFreqs);
+	const double PI = 3.14;
     for (int freq = 1; freq < nFreqs; freq++)
     {
 		FFTWArray waveletIn(nfft);
@@ -196,23 +197,23 @@ void CumulativeTFR::generateWavelet(int nfft, int nFreqs)
             // Create first half hann function
             if (sin(position) >= 0)
             {
-                hann.assign(position, pow(cos((position*freq + M_PI)),2)); // Shift half over cos^2(pi*x*freq/(n+1))
+                hann.assign(position, pow(cos((position*freq + PI)),2)); // Shift half over cos^2(pi*x*freq/(n+1))
             }
             // Pad with zeroes
-            else if (position <= (nfft - (M_PI_2 / freq))) // 0's until one half cycle left
+            else if (position <= (nfft - (PI/2 / freq))) // 0's until one half cycle left
             {
                 hann.assign(position, -1);
             }
 			// Finish off hann function
             else
             {
-				int hannPos = (position - int(nfft - (M_PI_2 / freq))); // Shift hann to be at position 0 with one half cycle left
+				int hannPos = (position - int(nfft - (PI/2 / freq))); // Shift hann to be at position 0 with one half cycle left
 				hann.assign(position, pow(cos((hannPos*freq)), 2)); // check this math
             }
 
             //// Sine wave //// Does this need to be complex?
-            sinWave.assign(position, sin(position * freq * (M_PI * 2) - M_PI_2)); // Shift by pi/2 to put peak at time 0
-			cosWave.assign(position, cos(position * freq * (M_PI * 2) - M_PI_2));		
+            sinWave.assign(position, sin(position * freq * (PI * 2) - PI/2)); // Shift by pi/2 to put peak at time 0
+			cosWave.assign(position, cos(position * freq * (PI * 2) - PI/2));		
         } 	
 		// Normalize Hann window Frobenius 
 
