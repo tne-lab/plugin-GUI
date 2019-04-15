@@ -25,10 +25,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define ATOMIC_SYNCHRONIZER_H_INCLUDED
 
 #include <atomic>
-#include <vector>
 #include <utility>
 #include <cassert>
 #include <cstdlib>
+#include <new>
 
 /*
  * The purpose of AtomicSynchronizer is to allow one "writer" thread to continally
@@ -91,8 +91,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *        create two write indices to the same synchronizer.
  *
  *      * To read, use an AtomicSynchronizer::ScopedReadIndex instead of an AtomicScopedReadPtr.
- *        This works how you would expect and also has a pullUpdate() method. Remember to check
- *        whether it is valid before using if you're not using hasUpdate().
+ *        This works how you would expect and also has a pullUpdate() method. Check whether it is
+ *        valid before using by calling isValid() if you're not using hasUpdate().
  *
  *      * AtomicSynchronizer has hasUpdate() and reset() methods as well.
  *
@@ -103,6 +103,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
 
+template<int maxReaders = 1>
 class AtomicSynchronizer {
 
 public:
@@ -169,7 +170,7 @@ public:
         {
             if (valid)
             {
-                owner->updateReaderIndex();
+                getLatest();
             }
             else
             {
@@ -185,40 +186,88 @@ public:
         {
             if (valid)
             {
+                finishRead();
                 owner->returnReader();
             }
+        }
+
+        bool hasUpdate() const
+        {
+            int newLatest = owner->latest.load(std::memory_order_relaxed);
+            return valid && newLatest != -1 && newLatest != index;
+            // even if the latest is different by the time it's loaded, it won't be
+            // the one that this reader is currently reading.
         }
 
         // update the index, if a new version is available
         void pullUpdate()
         {
-            if (valid)
+            if (!valid || !hasUpdate())
             {
-                owner->updateReaderIndex();
+                return;
             }
+            
+            finishRead();
+            getLatest();
         }
 
         operator int() const
         {
             if (valid)
             {
-                return owner->readerIndex;
+                return index;
             }            
             return -1;
         }
 
         bool isValid() const
         {
-            return valid;
+            return valid && index != -1;
         }
 
     private:
+        // signal that we are not longer reading from the `index`th instance
+        void finishRead()
+        {
+            if (index != -1)
+            {
+                // decrement reader count for current instance
+                int oldReaders = owner->readersOf[index].fetch_sub(1, std::memory_order_relaxed);
+                assert(oldReaders > 0 && oldReaders <= maxReaders);
+            }
+            index = -1;
+        }
+
+        // update index to refer to the latest update
+        void getLatest()
+        {
+            index = owner->latest.load(std::memory_order_relaxed);
+
+            if (index != -1)
+            {
+                int latestReaders = 0;
+                while (!owner->readersOf[index].compare_exchange_weak(latestReaders, latestReaders + 1,
+                    std::memory_order_relaxed))
+                {
+                    if (latestReaders == -1)
+                    {
+                        // can't read this anymore, it's being written to
+                        // another latest must have been designated
+                        index = owner->latest.load(std::memory_order_relaxed);
+                        assert(index != -1); // should never be -1 again if it wasn't before
+                        latestReaders = 0;
+                    }
+                }
+            }
+        }
+
         AtomicSynchronizer* owner;
-        const bool valid;
+        bool valid;
+        int index;
     };
 
 
-    // Registers as both a reader and a writer, so no other reader or writer
+    // Registers as a writer and maxReader readers, so no other reader or writer
     // can exist while it's held. Use to access all the underlying data without
     // conern for who has access to what, e.g. for updating settings, resizing, etc.
     class ScopedLockout
@@ -226,7 +275,7 @@ public:
     public:
         explicit ScopedLockout(AtomicSynchronizer& o)
             : owner         (&o)
-            , hasReadLock   (o.checkoutReader())
+            , hasReadLock   (o.checkoutAllReaders())
             , hasWriteLock  (o.checkoutWriter())
             , valid         (hasReadLock && hasWriteLock)
         {}
@@ -235,7 +284,10 @@ public:
         {
             if (hasReadLock)
             {
-                owner->returnReader();
+                for (int i = 0; i < maxReaders; ++i)
+                {
+                    owner->returnReader();
+                }
             }
 
             if (hasWriteLock)
@@ -278,23 +330,21 @@ public:
             return false;
         }
 
-        readyToReadIndex = -1;
-        readyToWriteIndex = 0;
-        readyToWriteIndex2 = 1;
-        writerIndex = 2;
-        readerIndex = -1;
+        writerIndex = 0;
+        latest = -1;
+
+        readersOf[0] = -1;
+        for (int i = 1; i < size; ++i)
+        {
+            readersOf[i] = 0;
+        }
 
         return true;
     }
 
-    bool hasUpdate() const
-    {
-        return readyToReadIndex != -1;
-    }
-
 private:
 
-    // Registers a writer and updates the writer index. If a writer already exists,
+    // Registers a writer. If a writer already exists,
     // returns false, else returns true. returnWriter should be called to release.
     bool checkoutWriter()
     {
@@ -310,16 +360,31 @@ private:
 
     void returnWriter()
     {
-        nWriters = 0;
+        int oldNWriters = nWriters.exchange(0, std::memory_order_relaxed);
+        assert(oldNWriters == 1);
     }
 
-    // Registers a reader and updates the reader index. If a reader already exists,
+    // Registers a reader and updates the reader index. If maxReaders readers already exist,
     // returns false, else returns true. returnReader should be called to release.
     bool checkoutReader()
     {
-        // ensure there is not already a reader
+        // ensure there are not already maxReaders readers
         int currReaders = 0;
-        if (!nReaders.compare_exchange_strong(currReaders, 1, std::memory_order_relaxed))
+        while (!nReaders.compare_exchange_weak(currReaders, currReaders + 1, std::memory_order_relaxed))
+        {
+            if (currReaders >= maxReaders)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool checkoutAllReaders()
+    {
+        int currReaders = 0;
+        if (!nReaders.compare_exchange_strong(currReaders, maxReaders, std::memory_order_relaxed))
         {
             return false;
         }
@@ -329,71 +394,50 @@ private:
 
     void returnReader()
     {
-        nReaders = 0;
+        int oldNReaders = nReaders.fetch_sub(1, std::memory_order_relaxed);
+        assert(oldNReaders > 0 && oldNReaders <= maxReaders);
     }
 
-    // should only be called by a writer
+    // should only be called by the writer
     void pushWrite()
     {
         // It's an invariant that writerIndex != -1
         // except within this method, and this method is not reentrant.
         assert(writerIndex != -1);
 
-        writerIndex = readyToReadIndex.exchange(writerIndex, std::memory_order_relaxed);
+        readersOf[writerIndex].store(0, std::memory_order_relaxed);
+        latest.store(writerIndex, std::memory_order_relaxed);
 
-        if (writerIndex == -1)
+        // at this point, the sum of readersOf must be in the range [0, maxReaders] and all entries
+        // are positive. since the length of readersOf is size == maxReaders + 2, at least 2 entries
+        // must equal 0. one of these may be writerIndex a.k.a. latest, which we skip. so there must
+        // be at least one instance that can be identified to write to next in the following loop.
+
+        int newWriterIndex = -1;
+        for (int i = 0; i < size; ++i)
         {
-            // attempt to pull an index from readyToWriteIndex
-            writerIndex = readyToWriteIndex.exchange(-1, std::memory_order_relaxed);
+            if (i == writerIndex) { continue; } // don't overwrite what we just wrote!
 
-            if (writerIndex == -1)
+            int expected = 0;
+            if (readersOf[i].compare_exchange_strong(expected, -1, std::memory_order_relaxed))
             {
-                writerIndex = readyToWriteIndex2.exchange(-1, std::memory_order_relaxed);
+                newWriterIndex = i;
+                break;
             }
         }
 
-        // There are only 5 slots, so writerIndex, readyToWriteIndex, and
-        // readyToWriteIndex2 cannot all be empty. There can't be a race condition
-        // where one of these slots is now nonempty, because only the writer can
-        // set any of them to -1 (and there's only one writer).
-        assert(writerIndex != -1);
+        assert(newWriterIndex != -1);
+        writerIndex = newWriterIndex;
     }
 
-    // should only be called by a reader
-    void updateReaderIndex()
-    {
-        // Check readyToReadIndex for newly pushed update
-        // It can still be updated after checking, but it cannot be emptied because the 
-        // writer cannot push -1 to readyToReadIndex.
-        if (readyToReadIndex != -1)
-        {
-            if (readerIndex != -1)
-            {
-                // Great, there's a new update, first have to put current
-                // readerIndex somewhere though.
+    static const int size = maxReaders + 2;
 
-                // Attempt to put index into readyToWriteIndex
-                int expected = -1;
-                if (!readyToWriteIndex.compare_exchange_strong(expected, readerIndex,
-                    std::memory_order_relaxed))
-                {
-                    // readyToWriteIndex is already occupied
-                    // readyToWriteIndex2 must be free at this point. newIndex, readerIndex, and
-                    // readyToWriteIndex all contain something.
-                    readyToWriteIndex2.exchange(readerIndex, std::memory_order_relaxed);
-                }
-            }
-            readerIndex = readyToReadIndex.exchange(-1, std::memory_order_relaxed);
-        }
-    }
+    int writerIndex;
 
-    // shared indices
-    std::atomic<int> readyToReadIndex;  // assigned by the writer; can be read by the reader
-    std::atomic<int> readyToWriteIndex; // assigned by the reader; can by modified by the writer
-    std::atomic<int> readyToWriteIndex2; // another slot similar to readyToWriteIndex
-
-    int writerIndex; // index the writer may currently be writing to
-    int readerIndex; // index the reader may currently be reading from
+    std::atomic<int> latest;
+    std::atomic<int> readersOf[size];
+    // If readersOf[i] == -1, this indicates that it's being written to.
+    // In other words, readersOf[writerIndex] == -1 (but readers should not access writerIndex directly).
 
     std::atomic<int> nWriters;
     std::atomic<int> nReaders;
@@ -401,20 +445,31 @@ private:
 
 
 // class to actually hold data controlled by an AtomicSynchronizer
-template<typename T>
+template<typename T, int maxReaders = 1>
 class AtomicallyShared
 {
 public:
     template<typename... Args>
     AtomicallyShared(Args&&... args)
+        : rawData   (new char[size * sizeof(T)])
+        , data      (reinterpret_cast<T*>(rawData))
     {
-        for (int i = 0; i < 2; ++i)
+        for (int i = 0; i < size - 1; ++i)
         {
-            data.emplace_back(args...);
+            new(data + i) T(args...);
         }
 
         // move into the last entry, if possible
-        data.emplace_back(std::forward<Args>(args)...);
+        new(data + size - 1) T(std::forward<Args>(args)...);
+    }
+
+    ~AtomicallyShared()
+    {
+        for (int i = 0; i < size; ++i)
+        {
+            (data + i)->~T();
+        }
+        delete[] rawData;
     }
 
     bool reset()
@@ -428,30 +483,24 @@ public:
     template<typename UnaryFunction>
     bool apply(UnaryFunction f)
     {
-        AtomicSynchronizer::ScopedLockout lock(sync);
+        AtomicSynchronizer<maxReaders>::ScopedLockout lock(sync);
         if (!lock.isValid())
         {
             return false;
         }
-
-        for (T& obj : data)
+        
+        for (int i = 0; i < size; ++i)
         {
-            f(obj);
+            f(data[i]);
         }
 
         return true;
     }
 
-    bool hasUpdate() const
-    {
-        return sync.hasUpdate();
-    }
-
-
     class ScopedWritePtr
     {
     public:
-        ScopedWritePtr(AtomicallyShared<T>& o)
+        ScopedWritePtr(AtomicallyShared<T, maxReaders>& o)
             : owner (&o)
             , ind   (o.sync)
             , valid (ind.isValid())
@@ -486,20 +535,25 @@ public:
         }
 
     private:
-        AtomicallyShared<T>* owner;
-        AtomicSynchronizer::ScopedWriteIndex ind;
+        AtomicallyShared<T, maxReaders>* owner;
+        typename AtomicSynchronizer<maxReaders>::ScopedWriteIndex ind;
         const bool valid;
     };
 
     class ScopedReadPtr
     {
     public:
-        ScopedReadPtr(AtomicallyShared<T>& o)
-            : owner(&o)
-            , ind(o.sync)
+        ScopedReadPtr(AtomicallyShared<T, maxReaders>& o)
+            : owner (&o)
+            , ind   (o.sync)
             // if the ind is valid, but is equal to -1, this pointer is still invalid (for now)
             , valid(ind != -1)
         {}
+
+        bool hasUpdate() const
+        {
+            return ind.hasUpdate();
+        }
 
         void pullUpdate()
         {
@@ -532,20 +586,22 @@ public:
         }
 
     private:
-        AtomicallyShared<T>* owner;
-        AtomicSynchronizer::ScopedReadIndex ind;
+        AtomicallyShared<T, maxReaders>* owner;
+        typename AtomicSynchronizer<maxReaders>::ScopedReadIndex ind;
         bool valid;
     };
 
 private:
-    std::vector<T> data;
-    AtomicSynchronizer sync;
+    static const int size = maxReaders + 2;
+    char* rawData;
+    T* data;
+    AtomicSynchronizer<maxReaders> sync;
 };
 
-template<typename T>
-using AtomicScopedWritePtr = typename AtomicallyShared<T>::ScopedWritePtr;
+template<typename T, int maxReaders = 1>
+using AtomicScopedWritePtr = typename AtomicallyShared<T, maxReaders>::ScopedWritePtr;
 
-template<typename T>
-using AtomicScopedReadPtr = typename AtomicallyShared<T>::ScopedReadPtr;
+template<typename T, int maxReaders = 1>
+using AtomicScopedReadPtr = typename AtomicallyShared<T, maxReaders>::ScopedReadPtr;
 
 #endif // ATOMIC_SYNCHRONIZER_H_INCLUDED

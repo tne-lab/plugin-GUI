@@ -380,7 +380,7 @@ namespace PhaseCalculator
 
         // update AR models if it's time to
         uint32 now = Time::getMillisecondCounter();
-        if (now - lastARUpdate >= arInterval)
+        if (int32(now - lastARUpdate) >= arInterval)
         {
             bool anyUpdated = false;
             for (int chan : activeChans)
@@ -396,10 +396,12 @@ namespace PhaseCalculator
                     }
                     else
                     {
+                        std::cout << "Writing history to " << &*shWritePtr << std::endl;
                         acInfo->history.unwrapAndCopy(shWritePtr->getRawDataPointer());
 
                         anyUpdated = true;
                         shWritePtr.pushUpdate();
+                        std::cout << "New write ptr is " << &*shWritePtr << std::endl;
                     }
                 }
             }
@@ -651,22 +653,36 @@ namespace PhaseCalculator
     void Node::run()
     {
         Array<int> activeChans = getActiveInputs();
+        int nActiveChans = activeChans.size();
+
+        OwnedArray<AtomicScopedReadPtr<Array<double>>> shPtrs;
+        for (int i = 0; i < nActiveChans; ++i)
+        {
+            int chan = activeChans[i];
+            shPtrs.add(new AtomicScopedReadPtr<Array<double>>(channelInfo[chan]->acInfo->sharedHistory));
+        }
 
         wait(-1);
 
         while (!threadShouldExit())
         {
-            for (int chan : activeChans)
+            for (int i = 0; i < nActiveChans; ++i)
             {
+                int chan = activeChans[i];
+
                 ActiveChannelInfo* acInfo = channelInfo[chan]->acInfo;
-                if (acInfo->sharedHistory.hasUpdate())
+                auto& shPtr = *shPtrs[i];
+                
+                if (shPtr.hasUpdate())
                 {
-                    AtomicScopedReadPtr<Array<double>> shPtr(acInfo->sharedHistory);
+                    shPtr.pullUpdate();
                     if (!shPtr.isValid())
                     {
                         jassertfalse; // hasUpdate was wrong?
                         continue;
                     }
+
+                    std::cout << "Reading history from " << &*shPtr << std::endl;
 
                     // calculate parameters
                     acInfo->arModeler.fitModel(*shPtr);
