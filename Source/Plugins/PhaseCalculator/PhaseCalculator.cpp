@@ -391,12 +391,15 @@ namespace PhaseCalculator
                     AtomicScopedWritePtr<Array<double>> shWritePtr(acInfo->sharedHistory);
                     if (!shWritePtr.isValid())
                     {
+                        // there's already a writer? shouldn't happen.
                         jassertfalse;
                     }
                     else
                     {
-                        anyUpdated = true;
                         acInfo->history.unwrapAndCopy(shWritePtr->getRawDataPointer());
+
+                        anyUpdated = true;
+                        shWritePtr.pushUpdate();
                     }
                 }
             }

@@ -135,11 +135,13 @@ namespace PhaseCalculator
                 AtomicScopedWritePtr<Array<double>> coefPtr(coefficients);
                 if (!coefPtr.isValid())
                 {
-                    jassertfalse;
+                    jassertfalse; // there's already a writer? shouldn't happen.
                     return;
                 }
 
                 coefPtr->swapWith(j_coef_temp);
+
+                coefPtr.pushUpdate();
             }
 
             hasBeenUsed = true;

@@ -31,21 +31,76 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cstdlib>
 
 /*
- * AtomicSynchronizer: Facilitates the exchange of a resource between two threads
- * safely without using locks. One thread updates the resource and pushes updates
- * using an AtomicWriter; the other only reads the resource, and receives updates
- * when available using the corresponding AtomicReader. Directions for use:
+ * The purpose of AtomicSynchronizer is to allow one "writer" thread to continally
+ * update some arbitrary piece of information and one "reader" thread to retrieve
+ * the latest version of that information that has been "pushed" by the writer,
+ * without either thread having to wait to acquire a mutex or allocate memory
+ * on the heap (aside from internal allocations depending on the data structure used).
+ * For one reader and one writer, this requires three instances of whatever data type is
+ * being shared to be allocated upfront. During operation, "pushing" from the writer and
+ * "pulling" to the reader are accomplished by exchanging atomic indices between slots
+ * indicating what each instance is to be used for, rather than any actual copying or allocation.
  *
- * - The owner of an AtomicSynchronizer manages the actual objects being exchanged
- *   itself. It should allocate 3 instances of the resource type, probably in an
- *   array. The AtomicReader and AtomicWriter simply instruct their users on which
- *   instance is safe to access at any given time.
+ * There are two interfaces to choose from:
  *
- * - After creating an AtomicSynchronizer, one thread should obtain a pointer to its
- *   Reader by calling getReader, and the other can obtain a pointer to the Writer by
- *   getWriter. Each of the Reader and Writer should only be used in ONE thread and are
- *   not themselves thread-safe (but the simultaneous operation of one Reader and one
- *   Writer is safe).
+ *  - In most cases, the AtomicSynchronizer logic can be wrapped together with data
+ *    allocation and lifetime management by using the AtomicallyShared<T> class template.
+ *    Here, T is the type of data that needs to be exchanged.
+ *
+ *      * The constructor for an AtomicallyShared<T> simply takes whatever arguments
+ *        would be used to construct each T object and constructs 3 copies. (If a constructor
+ *        with move semantics would be used, this is called for one of the 3 copies, and the
+ *        other 2 use copying constructors instead.)
+ *
+ *      * Any configuration that applies to all 3 copies can by done by calling the "apply" method
+ *        with a function pointer or lambda, as long as there are no active readers or writers.
+ *
+ *      * To write, construct an AtomicScopedWritePtr<T> with the AtomicallyShared<T>&
+ *        as an argument. This can be used as a normal pointer. It can be acquired, written to,
+ *        and released multiple times and will keep referring to the same instance until the
+ *        pushUpdate() method is called, at which point this instance is released for reading
+ *        and a new one is acquired for writing (which might need to be cleared/reset first).
+ *        
+ *      * To read, construct an AtomicScopedReadPtr<T> with the AtomicallyShared<T>& as
+ *        an argument. This can be used as a normal pointer, and if you want to get the
+ *        latest update from the writer without destroying the read ptr and constructing
+ *        a new one, you can call the pullUpdate() method.
+ *
+ *      * If you attempt to create two write pointers to the same AtomicallyShared object, the
+ *        second one will be effectively null; you can check for this with the isValid() method
+ *        (if isValid() ever returns false, this should be considered a bug). The same is true
+ *        of read pointers, except that a read pointer acquired before any writes have occurred
+ *        is also invalid (since there's nothing to read), so the isValid() check is necessary
+ *        even if you know for sure there is only ever one read pointer at once.
+ *
+ *      * The hasUpdate() method on an AtomicallyShared<T> returns true if there is new data
+ *        from the writer that has not been read yet. After a call to hasUpdate() returns
+ *        true, the next constructed read ptr (if none currently exist) or current read ptr
+ *        after a subsequent call to pullUpdate() is guaranteed to be valid.
+ *
+ *      * The reset() method brings you back to the state where no writes have been performed yet.
+ *        Must be called when no read or write pointers exist.
+ *
+ *  - Using an AtomicSynchronizer directly works similarly; the main difference is that you
+ *    are responsible for allocating and accessing the data, and the AtomicSynchronizer just
+ *    tells you which index to use (0, 1, or 2) as the reader or writer.
+ *
+ *      * To write, use an AtomiSynchronizer::ScopedWriteIndex instead of an AtomicScopedWritePtr.
+ *        This can be converted to int to use directly as an index, and has a pushUpdate() method
+ *        that works the same way as for the write pointer. The index can be -1 if you try to
+ *        create two write indices to the same synchronizer.
+ *
+ *      * To read, use an AtomicSynchronizer::ScopedReadIndex instead of an AtomicScopedReadPtr.
+ *        This works how you would expect and also has a pullUpdate() method. Remember to check
+ *        whether it is valid before using if you're not using hasUpdate().
+ *
+ *      * AtomicSynchronizer has hasUpdate() and reset() methods as well.
+ *
+ *      * ScopedLockout is just a try-lock for both readers and writers; it will be "valid"
+ *        iff no read or write indices exist at the point of construction. By constructing
+ *        one of these and proceeding only if it is valid, you can make changes to each data
+ *        instance outside of the reader/writer framework (instead of AtomicallyShared<T>::apply).
+ *
  */
 
 class AtomicSynchronizer {
@@ -68,12 +123,10 @@ public:
         ScopedWriteIndex(const ScopedWriteIndex&) = delete;
         ScopedWriteIndex& operator=(const ScopedWriteIndex&) = delete;
 
-        // push a write to the reader, then release write privileges
         ~ScopedWriteIndex()
         {
             if (valid)
             {
-                owner->pushWrite();
                 owner->returnWriter();
             }
         }
