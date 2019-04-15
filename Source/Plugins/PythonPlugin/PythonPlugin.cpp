@@ -117,10 +117,9 @@ PythonPlugin::PythonPlugin(const String &processorName)
 #else
     Py_SetProgramName ((char *)"PythonPlugin");
 #endif
-    Py_Initialize ();
-    PyEval_InitThreads();
-
-    
+    Py_InitializeEx(1);
+    //PyEval_InitThreads(); depreciated
+    PyGILState_Ensure();
     PyRun_SimpleString("import sys");
     PyRun_SimpleString("sys.setcheckinterval(10000)");
 #ifdef PYTHON_DEBUG
@@ -132,14 +131,18 @@ PythonPlugin::PythonPlugin(const String &processorName)
 
 PythonPlugin::~PythonPlugin()
 {
+    PyEval_RestoreThread(GUIThreadState);
+    //Py_XDECREF(initF); // Somehow delete py object?
+    Py_FinalizeEx();
+    
 #ifdef _WIN32
 	//Close libary
-	PyGILState_Ensure();
-	FreeLibrary((HMODULE)plugin);
+    FreeLibrary((HMODULE)plugin);
 #else
 	dlclose(plugin);
 #endif
 }
+
 
 void PythonPlugin::createEventChannels()
 {
@@ -673,10 +676,11 @@ void PythonPlugin::setFile(String fullpath)
 #endif
     std::cout << "in setFile pthread_threadid_np()=" << tid << std::endl;
 #endif
-    
+    filePath = fullpath;
+    String initPlugin = filePath.fromLastOccurrenceOf(String("\\"), false, true);
+
 #ifdef _WIN32
 	//Load plugin
-    filePath = fullpath;
 	std::string path = filePath.toStdString();
     plugin = LoadLibraryA(path.c_str());
 #else
@@ -701,7 +705,7 @@ void PythonPlugin::setFile(String fullpath)
 
     //String initPlugin = filePath.fromLastOccurrenceOf(String("/"), false, true);
     //Path is dif in windows..
-    String initPlugin = filePath.fromLastOccurrenceOf(String("\\"), false, true);
+    //String initPlugin = filePath.fromLastOccurrenceOf(String("\\"), false, true);
     
     initPlugin = initPlugin.upToFirstOccurrenceOf(String("."), false, true);
     
@@ -717,7 +721,7 @@ void PythonPlugin::setFile(String fullpath)
     void *initializer;
     
 #ifdef _WIN32
-	initializer = GetProcAddress((HMODULE)plugin, initPluginName.getCharPointer());
+    initializer =  GetProcAddress((HMODULE)plugin, initPluginName.getCharPointer());
 #else
 	initializer = dlsym(plugin, initPluginName.getCharPointer());
 #endif
@@ -739,8 +743,11 @@ void PythonPlugin::setFile(String fullpath)
         return;
     }
 
-    initfunc_t initF = (initfunc_t) initializer;
-	void *cfunc;
+    initF = (initfunc_t) initializer;
+
+    
+	
+    void *cfunc;
 #ifdef _WIN32
     cfunc = GetProcAddress((HMODULE)plugin, "pluginisready");
 #else
@@ -983,6 +990,7 @@ void PythonPlugin::setFile(String fullpath)
 // now the API should be fully loaded
     
     PyEval_RestoreThread(GUIThreadState);
+
     // initialize the plugin
 #ifdef PYTHON_DEBUG
     std::cout << "before initplugin" << std::endl; // DEBUG

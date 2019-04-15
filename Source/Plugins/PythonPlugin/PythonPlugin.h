@@ -191,6 +191,7 @@ private:
     //
     // float threshold;
     // bool state;
+    initfunc_t initF;
     int numPythonParams = 0;
     ParamConfig *params;
     Component **paramsControl;
