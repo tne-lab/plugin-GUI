@@ -396,12 +396,10 @@ namespace PhaseCalculator
                     }
                     else
                     {
-                        std::cout << "Writing history to " << &*shWritePtr << std::endl;
                         acInfo->history.unwrapAndCopy(shWritePtr->getRawDataPointer());
 
                         anyUpdated = true;
                         shWritePtr.pushUpdate();
-                        std::cout << "New write ptr is " << &*shWritePtr << std::endl;
                     }
                 }
             }
@@ -681,8 +679,6 @@ namespace PhaseCalculator
                         jassertfalse; // hasUpdate was wrong?
                         continue;
                     }
-
-                    std::cout << "Reading history from " << &*shPtr << std::endl;
 
                     // calculate parameters
                     acInfo->arModeler.fitModel(*shPtr);
