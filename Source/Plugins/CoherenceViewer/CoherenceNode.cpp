@@ -131,7 +131,16 @@ void CoherenceNode::run()
                 int curDataIndex = dataReader->pullUpdate();
                 if (curDataIndex != -1)
                 {
-                    TFR->addTrial(dataBuffer.getUnchecked(curDataIndex), activeChan, region);
+                    int groupNum = getChanGroup(activeChan);
+                    if (groupNum != -1)
+                    {
+                        TFR->addTrial(dataBuffer.getUnchecked(curDataIndex), activeChan, groupNum);
+                    }
+                    else
+                    {
+                        // channel isn't part of group 1 or 2
+                        jassert("ungrouped channel");
+                    }
                 }
             }
         }
@@ -194,7 +203,8 @@ void CoherenceNode::updateSettings()
     nSamplesAdded.insertMultiple(-1, 0, nGroup1Chans + nGroup2Chans);
     
     // Overwrite TFR 
-	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs);
+	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, foi, toi, segLen, winLen, stepLen, interpRatio);
+    TFR-
 }
 
 void CoherenceNode::setParameter(int parameterIndex, float newValue)
@@ -203,6 +213,22 @@ void CoherenceNode::setParameter(int parameterIndex, float newValue)
     
 
     updateSettings();
+}
+
+int CoherenceNode::getChanGroup(int chan)
+{
+    if (group1Channels.contains(chan))
+    {
+        return 1;
+    }
+    else if (group2Channels.contains(chan))
+    {
+        return 2;
+    }
+    else
+    {
+        return -1; // Channel isn't in group 1 or 2. Error!
+    }
 }
 
 bool CoherenceNode::enable()

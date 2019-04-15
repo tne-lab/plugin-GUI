@@ -93,6 +93,10 @@ private:
 	CumulativeTFR* TFR;
     Array<bool> CHANNEL_READY;
 
+    // Time and freq of interest
+    Array<float> toi;
+    Array<float> foi;
+
     // Segment Length
     int segLen;  // 8 seconds
     // Window Length
@@ -107,7 +111,7 @@ private:
     Array<int> group2Channels;
 
     // returns the region for the requested channel
-    int getRegion(int chan);
+    int getChanGroup(int chan);
 
     ///// TFR vars
     // Number of channels for region 1
@@ -129,7 +133,7 @@ private:
     int nGroupCombs;
 
     // from 0 to 10
-    static const int COH_PRIORITY = 3;
+    static const int COH_PRIORITY = 5;
 
 
 

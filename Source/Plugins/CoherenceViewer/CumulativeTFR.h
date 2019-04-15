@@ -42,8 +42,8 @@ class CumulativeTFR
 
 public:
     CumulativeTFR(int ng1, int ng2, int nf, int nt,
-        int Fs,
-        double fftSec = 10.0);
+        int Fs, Array<float> foi, Array<float> toi,
+        int segLen = 8, int winLen = 2, int stepLen = 0.25, float interpRatio = 2, double fftSec = 10.0);
 
     // Handle a new buffer of data. Preform FFT and create pxxs, pyys.
     void addTrial(AudioBuffer<float> dataBuffer, int chan, int region);
@@ -54,7 +54,7 @@ public:
 
 private:
 	// Generate wavelet call in update settings if segLen changes
-    void CumulativeTFR::generateWavelet(int nfft, int nFreqs);
+    void CumulativeTFR::generateWavelet();
     // calc pxys
 	double CumulativeTFR::calcCrssspctrm();
 
@@ -62,12 +62,16 @@ private:
     int nGroup2Chans;
     int nFreqs;
     int nTimes;
-    int Fs;
+    const int Fs;
+    int segmentLen = 8;
+    int windowLen = 2;
+    float stepLen = 0.1;
+    int interpRatio = 2;
 
     // Time of interest
-    Array<int> toi;
+    Array<float> toi;
     // Freq of interest
-    Array<int> foi;
+    Array<float> foi;
 
 	Array<FFTWArray> spectrumBuffer;
 	Array<FFTWArray> waveletArray;

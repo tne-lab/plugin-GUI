@@ -24,7 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "CumulativeTFR.h"
 #include <cmath>
 
-CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, double fftSec)
+CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<float> foi, Array<float> toi, int segLen, int winLen, int stepLen, float interpRatio, double fftSec)
     : nGroup1Chans  (ng1)
     , nGroup2Chans  (ng2)
     , nFreqs        (nf)
@@ -45,16 +45,19 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, double ff
     , pxys          (ng1 * ng2,
                     vector<vector<ComplexAccum>>(nf,
                     vector<ComplexAccum>(nt)))
-{}
+    , segmentLen    (segLen)
+    , windowLen     (winLen)
+    , stepLen       (stepLen)
+    , interpRatio   (interpRatio)
+    , foi           (foi)
+    , toi           (toi)
+{
+    generateWavelet();
+}
 
 void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region)
 {
     const float* rpChan = dataBuffer.getReadPointer(chan);
-
-    int segmentLen = 8;
-    int windowLen = 2;
-    float stepLen = 0.1;
-    int interpRatio = 2;
 
     float winsPerSegment = (segmentLen - windowLen) / stepLen;
 
@@ -84,10 +87,15 @@ void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region
 		spectrumBuffer.set(chan, convInput);
 
 		// add time trimmer and setup actual indices of data based on times
-		nSamplesWin = windowLen * Fs;
+		int nSamplesWin = windowLen * Fs;
 		for (int time = 0; time < nTimes; time++)
 		{
-			if (timeArray[time] >= (nSamples . / 2)) & (timeboi <    ndatsample - (nsamplefreqoi . / 2)
+            // remove samples that are one half window length from the ends
+            // Change this so it only happens once!
+            if (toi[time] < (nSamplesWin / 2) && (toi[time] > nfft - (nSamplesWin / 2))) 
+            {
+                toi.remove(time);
+            }
 		}
 		
         // Loop over time of interest
@@ -187,12 +195,11 @@ double CumulativeTFR::calcCrssspctrm()
 }
 
 
-void CumulativeTFR::generateWavelet(int nfft, int nFreqs) 
+void CumulativeTFR::generateWavelet() 
 {
     std::vector<double> hann(nfft);
     std::vector<double> sinWave(nfft);
 	std::vector<double> cosWave(nfft);
-    int windowSize = 2;
     
 	waveletArray.resize(nFreqs);
 	const double PI = 3.14;
@@ -203,19 +210,20 @@ void CumulativeTFR::generateWavelet(int nfft, int nFreqs)
         {
             //// Hann Window //// = sin^2(PI*n/N) where N=length of window
             // Create first half hann function
-            if (position <= windowSize/2) // pi/2 over freq is the first quarter cycle 
+            if (position <= windowLen/2) 
             {
-                hann[position] = pow(sin(position*PI/windowSize + PI/2),2); // Shift half over cos^2(pi*x*freq/(n+1))
+                hann[position] = pow(sin(position*PI / windowLen + PI / 2), 2); // Shift half over cos^2(pi*x*freq/(n+1))
             }
             // Pad with zeroes
-            else if (position <= (nfft - windowSize / 2)) // 0's until one half cycle left
+            else if (position <= (nfft - windowLen / 2)) // 0's until one half cycle left
             {
                 hann[position] = 0;
             }
 			// Finish off hann function
             else
             {
-				hann[position] = pow(sin((position*PI/windowSize - PI/2)), 2); 
+                int hannPosition = position - (nfft - windowLen / 2); // Move start of wave to nfft - windowSize/2
+                hann[position] = pow(sin((hannPosition*PI / windowLen)), 2);
             }
 
             //// Sine wave //// Does this need to be complex?
