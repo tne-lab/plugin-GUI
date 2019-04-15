@@ -62,6 +62,7 @@ private:
     int nGroup2Chans;
     int nFreqs;
     int nTimes;
+    int Fs;
 
     // Time of interest
     Array<int> toi;
@@ -81,7 +82,7 @@ private:
     FFTWPlan fftPlan;
     FFTWPlan ifftPlan;
 
-	#Array<AudioBuffer<double>> spectrumBuffer;
+	//Array<AudioBuffer<double>> spectrumBuffer;
 
     // # group 1 channels x # frequencies x # times
     vector<vector<vector<RealAccum>>> pxxs;

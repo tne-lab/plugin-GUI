@@ -106,6 +106,9 @@ private:
     Array<int> group1Channels;
     Array<int> group2Channels;
 
+    // returns the region for the requested channel
+    int getRegion(int chan);
+
     ///// TFR vars
     // Number of channels for region 1
     int nGroup1Chans;

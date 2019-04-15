@@ -29,6 +29,7 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, double ff
     , nGroup2Chans  (ng2)
     , nFreqs        (nf)
     , nTimes        (nt)
+    , Fs            (Fs)
     , nfft          (int(fftSec * Fs))
     , convInput     (nfft)
     , freqData      (nfft)
@@ -88,18 +89,19 @@ void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region
 		{
 			if (timeArray[time] >= (nSamples . / 2)) & (timeboi <    ndatsample - (nsamplefreqoi . / 2)
 		}
-		// Loop over time of interest
+		
+        // Loop over time of interest
 		for (int time = 0; time < nTimes; time += stepLen)
 		{
-			double pow = powerAtWindow(convOutput, time); // integral of window with time at center
+			double power = pow(abs(convOutput.getAsComplex(time)),2); 
 			// Region either 1 or 2. 1 => pxx, 2 => pyy
 			if (region == 1)
 			{
-				pxxs.at(chan).at(freq).at(time).addValue(pow);
+				pxxs.at(chan).at(freq).at(time).addValue(power);
 			}
 			else
 			{
-				pyys.at(chan).at(freq).at(time).addValue(pow);
+				pyys.at(chan).at(freq).at(time).addValue(power);
 			}
 		}
 	}
@@ -173,8 +175,7 @@ double CumulativeTFR::calcCrssspctrm()
                 // Get crss from specturm of both chanX and chanY
 				for (int time = 0; time < nTimes; time += stepLen) // Time of interest here instead of every point
 				{
-					crss = crssAtWindow(chanX, chanY, time)
-					//crss = spectrumBuffer[chanX].getAsComplex(i) * conj(spectrumBuffer[chanY].getAsComplex(i));
+					crss = spectrumBuffer[chanX].getAsComplex(time) * conj(spectrumBuffer[chanY].getAsComplex(time));
 					pxys.at(comb).at(freq).at(time).addValue(crss);
 				}
                 comb++;              
@@ -191,6 +192,7 @@ void CumulativeTFR::generateWavelet(int nfft, int nFreqs)
     std::vector<double> hann(nfft);
     std::vector<double> sinWave(nfft);
 	std::vector<double> cosWave(nfft);
+    int windowSize = 2;
     
 	waveletArray.resize(nFreqs);
 	const double PI = 3.14;
@@ -199,27 +201,26 @@ void CumulativeTFR::generateWavelet(int nfft, int nFreqs)
 		FFTWArray waveletIn(nfft);
         for (int position = 0; position < nfft; position++)
         {
-            //// Hann Window ////
+            //// Hann Window //// = sin^2(PI*n/N) where N=length of window
             // Create first half hann function
-            if (sin(position) >= 0)
+            if (position <= windowSize/2) // pi/2 over freq is the first quarter cycle 
             {
-                hann.assign(position, pow(cos((position*freq + PI)),2)); // Shift half over cos^2(pi*x*freq/(n+1))
+                hann[position] = pow(sin(position*PI/windowSize + PI/2),2); // Shift half over cos^2(pi*x*freq/(n+1))
             }
             // Pad with zeroes
-            else if (position <= (nfft - (PI/2 / freq))) // 0's until one half cycle left
+            else if (position <= (nfft - windowSize / 2)) // 0's until one half cycle left
             {
-                hann.assign(position, -1);
+                hann[position] = 0;
             }
 			// Finish off hann function
             else
             {
-				int hannPos = (position - int(nfft - (PI/2 / freq))); // Shift hann to be at position 0 with one half cycle left
-				hann.assign(position, pow(cos((hannPos*freq)), 2)); // check this math
+				hann[position] = pow(sin((position*PI/windowSize - PI/2)), 2); 
             }
 
             //// Sine wave //// Does this need to be complex?
-            sinWave.assign(position, sin(position * freq * (PI * 2) - PI/2)); // Shift by pi/2 to put peak at time 0
-			cosWave.assign(position, cos(position * freq * (PI * 2) - PI/2));		
+            sinWave[position] = sin(position * freq * (2*PI)); // Shift by pi/2 to put peak at time 0
+			cosWave[position] = cos(position * freq * (2*PI));		
         } 	
 		// Normalize Hann window Frobenius 
 

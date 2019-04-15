@@ -49,7 +49,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
 {  
     //// Get current coherence vector ////
     int coherenceIndex = coherenceReader->pullUpdate();
-    std::vector<double> curCoherence = meanCoherence.at(coherenceIndex);
+    std::vector<double> curCoherence = meanCoherence[coherenceIndex];
 
     // Do something with coherence!
 
@@ -58,7 +58,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
     // Get our current index for data buffer
     int curDataBufferIndex = dataWriter->getIndexToUse();
     // Get our data buffer, index from our atomic sync object
-    AudioBuffer<float>curBuffer = dataBuffer.at(curDataBufferIndex);
+    AudioBuffer<float>curBuffer = dataBuffer[curDataBufferIndex];
     
 
     //for loop over active channels and update buffer with new data
@@ -131,7 +131,7 @@ void CoherenceNode::run()
                 int curDataIndex = dataReader->pullUpdate();
                 if (curDataIndex != -1)
                 {
-                    TFR->addTrial(dataBuffer.getUnchecked(curDataIndex), activeChan,region);
+                    TFR->addTrial(dataBuffer.getUnchecked(curDataIndex), activeChan, region);
                 }
             }
         }
@@ -148,7 +148,12 @@ void CoherenceNode::run()
 				// For loop over combinations
 				for (int comb = 0; comb < nGroupCombs; ++comb)
 				{
-					curMeanCoherence.assign(comb, TFRMeanCoh.at(comb)); // incorrect, cant do idexed assign for vector
+                    for (int freq = 0; freq < nFreqs; freq++)
+                    {
+                        // freq lookup list
+                        curMeanCoherence[comb] = TFRMeanCoh[comb][freq]; // incorrect, cant do idexed assign for vector
+                    }
+					
 				}
 			}
             
@@ -158,7 +163,7 @@ void CoherenceNode::run()
             for (int i = 0; i < 3; i++)
             {
 				// Believe this is also incorrect. Need change up based on new atomic sync
-                dataBuffer.assign(i, AudioBuffer<float>(nGroup1Chans + nGroup2Chans, segLen*Fs));
+                dataBuffer[i] = AudioBuffer<float>(nGroup1Chans + nGroup2Chans, segLen*Fs);
             }
 
             // check if this actually works, kind of hacky.
@@ -180,8 +185,8 @@ void CoherenceNode::updateSettings()
     // Init group of 3 vectors that are synced with data/coherencesync
     for (int i = 0; i < 3; i++)
     {
-        dataBuffer.push_back(AudioBuffer<float>(nGroup1Chans + nGroup2Chans, segLen*Fs));
-        meanCoherence.push_back(std::vector<double>(nFreqs)); // Freq or channels here..?
+        dataBuffer.add(AudioBuffer<float>(nGroup1Chans + nGroup2Chans, segLen*Fs));
+        meanCoherence.add(std::vector<double>(nFreqs)); // Freq or channels here..?
     }
 
     // Array of samples per channel and if ready to go
