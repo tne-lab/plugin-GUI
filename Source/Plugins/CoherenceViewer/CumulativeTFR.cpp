@@ -55,17 +55,14 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<flo
     generateWavelet();
 }
 
-void CumulativeTFR::addTrial(AudioBuffer<float> dataBuffer, int chan, int region)
+void CumulativeTFR::addTrial(const float* rpChan, int chan, int region)
 {
-    const float* rpChan = dataBuffer.getReadPointer(chan);
-
     float winsPerSegment = (segmentLen - windowLen) / stepLen;
 
     //// Update convInput ////
 
     // copy dataBuffer to fft input
-    int dataSize = dataBuffer.getNumSamples();
-    for (int i = 0; i < dataSize; i++)
+    for (int i = 0; i < nfft; i++)
     {
         convInput.set(i, rpChan[i]);
     }

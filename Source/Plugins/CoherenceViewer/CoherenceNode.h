@@ -84,13 +84,15 @@ private:
     AtomicSynchronizer coherenceSync;   // writer = thread, reader = visualizer (message thread)
     
     // group of 3, controlled by coherenceSync:
-    Array<std::vector<double>> meanCoherence;
-    Array<AudioBuffer<float>> dataBuffer; // Need to figure out size of this buffer. 8 seconds long
+    //Array<std::vector<double>> meanCoherence;
+    //Array<AudioBuffer<float>> dataBuffer; // Need to figure out size of this buffer. 8 seconds long
+    AtomicallyShared<AudioBuffer<float>> dataBuffer;
+    AtomicallyShared<std::vector<std::vector<double>>> meanCoherence;
 
-    AtomicWriterPtr dataWriter;
-    AtomicReaderPtr coherenceReader;
-
-	CumulativeTFR* TFR;
+    AtomicScopedWritePtr<AudioBuffer<float>> dataWriter;
+    AtomicScopedReadPtr<std::vector<std::vector<double>>> coherenceReader;
+    
+    CumulativeTFR* TFR;
     Array<bool> CHANNEL_READY;
 
     // Time and freq of interest

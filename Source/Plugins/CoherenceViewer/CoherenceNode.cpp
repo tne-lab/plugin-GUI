@@ -27,8 +27,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 CoherenceNode::CoherenceNode()
     : GenericProcessor  ("Coherence")
     , Thread            ("Coherence Calc")
-    , dataWriter        (dataSync.getWriter())
-    , coherenceReader   (coherenceSync.getReader())
+    , dataWriter        (dataBuffer)
+    , coherenceReader   (meanCoherence)
     , segLen            (8)
     , nFreqs            (30)
     , nTimes            (10)
@@ -48,17 +48,16 @@ AudioProcessorEditor* CoherenceNode::createEditor()
 void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
 {  
     //// Get current coherence vector ////
-    int coherenceIndex = coherenceReader->pullUpdate();
-    std::vector<double> curCoherence = meanCoherence[coherenceIndex];
-
+    coherenceReader.pullUpdate();
+    
     // Do something with coherence!
 
     ///// Add incoming data to data buffer. Let thread get the ok to start at 8seconds ////
     
     // Get our current index for data buffer
-    int curDataBufferIndex = dataWriter->getIndexToUse();
+    
     // Get our data buffer, index from our atomic sync object
-    AudioBuffer<float>curBuffer = dataBuffer[curDataBufferIndex];
+    ;
     
 
     //for loop over active channels and update buffer with new data
@@ -87,16 +86,15 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
             }
 
             // Add to buffer the new samples. Use copyFrom ?
-            curBuffer.addFrom(activeChan, nSamplesAdded[activeChan], rpIn, nSamples); 
+            dataWriter->addFrom(activeChan, nSamplesAdded[activeChan], rpIn, nSamples);
             // Update num samples added
             nSamplesAdded.set(activeChan, nSamplesAdded[activeChan] + nSamples);
-
-			// Think I push update here? Still unsure about sync stuff
-			dataWriter->pushUpdate();
 
             // channel buf is full. Let thread know.
             if (nSamplesAdded[activeChan] >= segLen * Fs) 
             {             
+                dataWriter.pushUpdate();
+
                 // Let thread know it can start on thsi chan
                 CHANNEL_READY.set(activeChan, true);
 
@@ -112,8 +110,8 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
 
 void CoherenceNode::run()
 {
-    AtomicReaderPtr dataReader = dataSync.getReader();
-    AtomicWriterPtr coherenceWriter = coherenceSync.getWriter();
+    AtomicScopedWritePtr<std::vector<std::vector<double>>> coherenceWriter(meanCoherence);
+    AtomicScopedReadPtr<AudioBuffer<float>> dataReader(dataBuffer);
     
     while (!threadShouldExit())
     {
@@ -125,16 +123,17 @@ void CoherenceNode::run()
         for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
         {
             // Channel buf is full and ready to be processed
+            // Change to dataBuffer hasUpdate?
             if (CHANNEL_READY[activeChan]) 
             {
                 // get buffer and send it to TFR to fun real-time-coherence calcs
-                int curDataIndex = dataReader->pullUpdate();
-                if (curDataIndex != -1)
+                if (dataReader.isValid())
                 {
+                    dataReader.pullUpdate();
                     int groupNum = getChanGroup(activeChan);
                     if (groupNum != -1)
                     {
-                        TFR->addTrial(dataBuffer.getUnchecked(curDataIndex), activeChan, groupNum);
+                        TFR->addTrial(dataReader->getReadPointer(activeChan), activeChan, groupNum);
                     }
                     else
                     {
@@ -149,10 +148,8 @@ void CoherenceNode::run()
         if (!CHANNEL_READY.contains(false))
         {
             //// Send updated coherence  ////
-            int curCohIndex = coherenceWriter->getIndexToUse();
-			if (curCohIndex != -1)
+            if (coherenceWriter.isValid())
 			{
-				std::vector<double> curMeanCoherence = meanCoherence.getUnchecked(curCohIndex); // sync probably changes here
 				std::vector<std::vector<double>> TFRMeanCoh = TFR->getCurrentMeanCoherence(); 
 				// For loop over combinations
 				for (int comb = 0; comb < nGroupCombs; ++comb)
@@ -160,20 +157,17 @@ void CoherenceNode::run()
                     for (int freq = 0; freq < nFreqs; freq++)
                     {
                         // freq lookup list
-                        curMeanCoherence[comb] = TFRMeanCoh[comb][freq]; // incorrect, cant do idexed assign for vector
+                        coherenceWriter->at(comb).at(freq) = TFRMeanCoh[comb][freq];
                     }
 					
 				}
 			}
             
-            coherenceWriter->pushUpdate();
+            coherenceWriter.pushUpdate();
             
-            // Reset audio buffer for new segment
-            for (int i = 0; i < 3; i++)
-            {
-				// Believe this is also incorrect. Need change up based on new atomic sync
-                dataBuffer[i] = AudioBuffer<float>(nGroup1Chans + nGroup2Chans, segLen*Fs);
-            }
+
+            ////// CHANGE BELOW FOR NEW ATOMIC SYNC ////////////////////
+            dataBuffer = new AtomicallyShared<AudioBuffer<float>>(nGroup1Chans + nGroup2Chans, segLen * Fs);
 
             // check if this actually works, kind of hacky.
             CHANNEL_READY.clearQuick(); 
@@ -184,19 +178,13 @@ void CoherenceNode::run()
 
 void CoherenceNode::updateSettings()
 {
-    // Reset synchronizers
-    dataSync.reset();
-    coherenceSync.reset();
+    // Init group of 3 vectors that are synced with data/coherencesync    
+    dataBuffer = new AtomicallyShared<AudioBuffer<float>>(nGroup1Chans + nGroup2Chans, segLen * Fs);
+    meanCoherence = new AtomicallyShared<std::vector<std::vector<double>>>(nGroup1Chans + nGroup2Chans, nFreqs);
 
-    // Reset data buffer and meanCoherence vectors
-    dataBuffer.clear();
-    meanCoherence.clear();
-    // Init group of 3 vectors that are synced with data/coherencesync
-    for (int i = 0; i < 3; i++)
-    {
-        dataBuffer.add(AudioBuffer<float>(nGroup1Chans + nGroup2Chans, segLen*Fs));
-        meanCoherence.add(std::vector<double>(nFreqs)); // Freq or channels here..?
-    }
+    // Link writer/reader to newly created group of 3s
+    dataWriter = AtomicScopedWritePtr<AudioBuffer<float>>(dataBuffer);
+    coherenceReader = AtomicScopedReadPtr<std::vector<std::vector<double>>>(meanCoherence);
 
     // Array of samples per channel and if ready to go
     CHANNEL_READY.insertMultiple(-1, 0, nGroup1Chans + nGroup2Chans);
@@ -204,7 +192,6 @@ void CoherenceNode::updateSettings()
     
     // Overwrite TFR 
 	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, foi, toi, segLen, winLen, stepLen, interpRatio);
-    TFR-
 }
 
 void CoherenceNode::setParameter(int parameterIndex, float newValue)
