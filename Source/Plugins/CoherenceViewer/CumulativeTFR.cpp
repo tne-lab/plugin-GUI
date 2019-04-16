@@ -24,11 +24,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "CumulativeTFR.h"
 #include <cmath>
 
-CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<float> foi, int segLen, int winLen, int stepLen, float interpRatio, double fftSec)
+CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int Fs, Array<float> foi, int segLen, int winLen, int stepLen, float interpRatio, double fftSec)
     : nGroup1Chans  (ng1)
     , nGroup2Chans  (ng2)
     , nFreqs        (nf)
-    , nTimes        (nt)
     , Fs            (Fs)
     , nfft          (int(fftSec * Fs))
     , convInput     (nfft)
@@ -53,22 +52,9 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<flo
 {
     generateWavelet();
 
-    // Generate toi's so we can remove bad ones too close to 
-    for (float time = 0; time < nTimes; time+=stepLen)
-    {
-        toi.add(time);
-    }
-    // Trim toi's close to edge
+    // Trim time close to edge
     int nSamplesWin = windowLen * Fs;
-    for (int time = 0; time < nTimes; time++)
-    {
-        // remove samples that are one half window length from the ends
-        // Change this so it only happens once!
-        if (toi[time] < (nSamplesWin / 2) && (toi[time] > nfft - (nSamplesWin / 2)))
-        {
-            toi.remove(time);
-        }
-    }
+    trimTime = nSamplesWin / 2;
 }
 
 void CumulativeTFR::addTrial(FFTWArray fftIn, int chan, int region)
@@ -100,17 +86,17 @@ void CumulativeTFR::addTrial(FFTWArray fftIn, int chan, int region)
 		spectrumBuffer.set(chan, convInput);
 
         // Loop over time of interest
-		for (int time = 0; time < nTimes; time += stepLen)
+		for (float t = trimTime; t < nfft - trimTime; t+=stepLen)
 		{
-			double power = pow(abs(convOutput.getAsComplex(time)),2); 
+			double power = pow(abs(convOutput.getAsComplex(t)),2); 
 			// Region either 1 or 2. 1 => pxx, 2 => pyy
 			if (region == 1)
 			{
-				pxxs.at(chan).at(freq).at(time).addValue(power);
+				pxxs.at(chan).at(freq).at(t).addValue(power);
 			}
 			else
 			{
-				pyys.at(chan).at(freq).at(time).addValue(power);
+				pyys.at(chan).at(freq).at(t).addValue(power);
 			}
 		}
 	}
@@ -139,7 +125,7 @@ void CumulativeTFR::updateCoherenceStats()
                 // compute coherence at each time
                 RealAccum coh;
 
-                for (int t = 0; t < nTimes; ++t)
+                for (int t = trimTime; t < nfft - trimTime; t+=stepLen)
                 {
                     coh.addValue(singleCoherence(
                         pxxs[c1][f][t].getAverage(),
@@ -182,10 +168,10 @@ double CumulativeTFR::calcCrssspctrm()
             for (int chanY = 0; chanY < nGroup2Chans; chanY++)
             {
                 // Get crss from specturm of both chanX and chanY
-				for (int time = 0; time < nTimes; time += stepLen) // Time of interest here instead of every point
+				for (int t = trimTime; t < nfft - trimTime; t += stepLen) // Time of interest here instead of every point
 				{
-					crss = spectrumBuffer[chanX].getAsComplex(time) * conj(spectrumBuffer[chanY].getAsComplex(time));
-					pxys.at(comb).at(freq).at(time).addValue(crss);
+					crss = spectrumBuffer[chanX].getAsComplex(t) * conj(spectrumBuffer[chanY].getAsComplex(t));
+					pxys.at(comb).at(freq).at(t).addValue(crss);
 				}
                 comb++;              
             }
@@ -204,33 +190,39 @@ void CumulativeTFR::generateWavelet()
     
 	waveletArray.resize(nFreqs);
 	const double PI = 3.14;
+    // Hann window
+    FFTWArray waveletIn(nfft);
+    for (int position = 0; position < nfft; position++)
+    {
+        //// Hann Window //// = sin^2(PI*n/N) where N=length of window
+        // Create first half hann function
+        if (position <= windowLen / 2)
+        {
+            hann[position] = pow(sin(position*PI / windowLen + PI / 2), 2); // Shift half over cos^2(pi*x*freq/(n+1))
+        }
+        // Pad with zeroes
+        else if (position <= (nfft - windowLen / 2)) // 0's until one half cycle left
+        {
+            hann[position] = 0;
+        }
+        // Finish off hann function
+        else
+        {
+            int hannPosition = position - (nfft - windowLen / 2); // Move start of wave to nfft - windowSize/2
+            hann[position] = pow(sin((hannPosition*PI / windowLen)), 2);
+        }
+    }
+    
+    // Wavelet
     for (int freq = 1; freq < nFreqs; freq++)
     {
-		FFTWArray waveletIn(nfft);
         for (int position = 0; position < nfft; position++)
         {
-            //// Hann Window //// = sin^2(PI*n/N) where N=length of window
-            // Create first half hann function
-            if (position <= windowLen/2) 
-            {
-                hann[position] = pow(sin(position*PI / windowLen + PI / 2), 2); // Shift half over cos^2(pi*x*freq/(n+1))
-            }
-            // Pad with zeroes
-            else if (position <= (nfft - windowLen / 2)) // 0's until one half cycle left
-            {
-                hann[position] = 0;
-            }
-			// Finish off hann function
-            else
-            {
-                int hannPosition = position - (nfft - windowLen / 2); // Move start of wave to nfft - windowSize/2
-                hann[position] = pow(sin((hannPosition*PI / windowLen)), 2);
-            }
-
             //// Sine wave //// Does this need to be complex?
-            sinWave[position] = sin(position * freq * (2*PI)); // Shift by pi/2 to put peak at time 0
-			cosWave[position] = cos(position * freq * (2*PI));		
-        } 	
+            sinWave[position] = sin(position * freq * (2 * PI)); // Shift by pi/2 to put peak at time 0
+            cosWave[position] = cos(position * freq * (2 * PI));
+        }
+         	
 		// Normalize Hann window Frobenius 
 
 		//// Wavelet ////

@@ -32,6 +32,11 @@ CoherenceNode::CoherenceNode()
     , segLen            (8)
     , nFreqs            (30)
     , nTimes            (10)
+    , stepLen           (0.25)
+    , winLen            (2)
+    , interpRatio       (2)
+    , nGroup1Chans      (0)
+    , nGroup2Chans      (0)
     , Fs                (CoreServices::getGlobalSampleRate())
 {
     setProcessorType(PROCESSOR_TYPE_SINK);
@@ -94,9 +99,6 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
         nSamplesAdded = 0;
     }
 }
-
-
-
 
 void CoherenceNode::run()
 {
@@ -162,15 +164,32 @@ void CoherenceNode::updateSettings()
     // Array of samples per channel and if ready to go
     nSamplesAdded = 0;
     
+    // foi (need to update from editor)
+    foi.addArray({ 1, 2, 3, 4 , 5, 6});
+    nFreqs = foi.size();
+
+    // Set channels in group (need to update from editor)
+    group1Channels.addArray({ 0, 1 });
+    group2Channels.addArray({ 2, 3 });
+
+    // Set number of channels in each group
+    nGroup1Chans = group1Channels.size();
+    nGroup2Chans = group2Channels.size();
+    nGroupCombs = nGroup1Chans * nGroup2Chans;
+
+    // Seg/win/step/interp - move to params eventually
+    segLen = 8;
+    winLen = 2;
+    stepLen = 0.1;
+    interpRatio = 2;
+
     // Overwrite TFR 
-	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, foi, segLen, winLen, stepLen, interpRatio);
+	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, Fs, foi, segLen, winLen, stepLen, interpRatio);
 }
 
 void CoherenceNode::setParameter(int parameterIndex, float newValue)
 {
     // Set new region channels and such in here?
-    
-
     updateSettings();
 }
 

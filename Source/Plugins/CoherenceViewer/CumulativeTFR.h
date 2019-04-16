@@ -41,7 +41,7 @@ class CumulativeTFR
     using ComplexAccum = StatisticsAccumulator<std::complex<double>>;
 
 public:
-    CumulativeTFR(int ng1, int ng2, int nf, int nt,
+    CumulativeTFR(int ng1, int ng2, int nf,
         int Fs, Array<float> foi,
         int segLen = 8, int winLen = 2, int stepLen = 0.25, float interpRatio = 2, double fftSec = 10.0);
 
@@ -61,17 +61,18 @@ private:
     int nGroup1Chans;
     int nGroup2Chans;
     int nFreqs;
-    int nTimes;
     const int Fs;
-    int segmentLen = 8;
-    int windowLen = 2;
-    float stepLen = 0.1;
-    int interpRatio = 2;
+    int segmentLen;
+    int windowLen;
+    float stepLen;
+    int interpRatio;
 
     // Time of interest
     Array<float> toi;
     // Freq of interest
     Array<float> foi;
+
+    int trimTime;
 
 	Array<FFTWArray> spectrumBuffer;
 	Array<FFTWArray> waveletArray;
