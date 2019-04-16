@@ -42,7 +42,7 @@ class FFTWArray
 {
 public:
     // creation / deletion
-    FFTWArray(int complexLen)
+    FFTWArray(int complexLen = 0)
     {
         jassert(complexLen >= 0);
         length = complexLen;
@@ -169,7 +169,7 @@ class FFTWPlan
 {
 public:
     // r2c constructor
-    FFTWPlan(int n, FFTWArray* in, FFTWArray* out, unsigned int flags)
+    FFTWPlan(int n, FFTWArray* in, FFTWArray* out, unsigned int flags) : length(n)
     {
         double* ptr_in = in->getRealPointer();
         fftw_complex* ptr_out = reinterpret_cast<fftw_complex*>(out->getComplexPointer());
@@ -180,7 +180,7 @@ public:
     FFTWPlan(int n, FFTWArray* buf, unsigned int flags) : FFTWPlan(n, buf, buf, flags) {}
 
     // c2c constructor
-    FFTWPlan(int n, FFTWArray* in, FFTWArray* out, int sign, unsigned int flags)
+    FFTWPlan(int n, FFTWArray* in, FFTWArray* out, int sign, unsigned int flags) : length(n)
     {
         fftw_complex* ptr_in = reinterpret_cast<fftw_complex*>(in->getComplexPointer());
         fftw_complex* ptr_out = reinterpret_cast<fftw_complex*>(out->getComplexPointer());
@@ -200,9 +200,14 @@ public:
         fftw_execute(plan);
     }
 
+    int getLength()
+    {
+        return length;
+    }
+
 private:
     fftw_plan plan;
-
+    const int length;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FFTWPlan);
 };
 

@@ -42,11 +42,11 @@ class CumulativeTFR
 
 public:
     CumulativeTFR(int ng1, int ng2, int nf, int nt,
-        int Fs, Array<float> foi, Array<float> toi,
+        int Fs, Array<float> foi,
         int segLen = 8, int winLen = 2, int stepLen = 0.25, float interpRatio = 2, double fftSec = 10.0);
 
     // Handle a new buffer of data. Preform FFT and create pxxs, pyys.
-    void addTrial(const float* rpChan, int chan, int region);
+    void addTrial(FFTWArray fftIn, int chan, int region);
 
     // Functions to get coherence data
     vector<vector<double>> getCurrentMeanCoherence();

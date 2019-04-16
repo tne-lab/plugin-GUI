@@ -86,17 +86,16 @@ private:
     // group of 3, controlled by coherenceSync:
     //Array<std::vector<double>> meanCoherence;
     //Array<AudioBuffer<float>> dataBuffer; // Need to figure out size of this buffer. 8 seconds long
-    AtomicallyShared<AudioBuffer<float>> dataBuffer;
+    AtomicallyShared<FFTWArray> dataBuffer;
     AtomicallyShared<std::vector<std::vector<double>>> meanCoherence;
 
-    AtomicScopedWritePtr<AudioBuffer<float>> dataWriter;
+    AtomicScopedWritePtr<FFTWArray> dataWriter;
     AtomicScopedReadPtr<std::vector<std::vector<double>>> coherenceReader;
     
     CumulativeTFR* TFR;
     Array<bool> CHANNEL_READY;
 
-    // Time and freq of interest
-    Array<float> toi;
+    // freq of interest
     Array<float> foi;
 
     // Segment Length
@@ -127,7 +126,7 @@ private:
     // Fs (sampling rate?)
     float Fs;
 
-    Array<int> nSamplesAdded; // holds how many samples were added for each channel
+    int nSamplesAdded; // holds how many samples were added for each channel
     AudioBuffer<float> channelData; // Holds the segment buffer for each channel.
 
 

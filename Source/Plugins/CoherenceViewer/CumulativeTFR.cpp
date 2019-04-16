@@ -24,7 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "CumulativeTFR.h"
 #include <cmath>
 
-CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<float> foi, Array<float> toi, int segLen, int winLen, int stepLen, float interpRatio, double fftSec)
+CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<float> foi, int segLen, int winLen, int stepLen, float interpRatio, double fftSec)
     : nGroup1Chans  (ng1)
     , nGroup2Chans  (ng2)
     , nFreqs        (nf)
@@ -50,12 +50,28 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<flo
     , stepLen       (stepLen)
     , interpRatio   (interpRatio)
     , foi           (foi)
-    , toi           (toi)
 {
     generateWavelet();
+
+    // Generate toi's so we can remove bad ones too close to 
+    for (float time = 0; time < nTimes; time+=stepLen)
+    {
+        toi.add(time);
+    }
+    // Trim toi's close to edge
+    int nSamplesWin = windowLen * Fs;
+    for (int time = 0; time < nTimes; time++)
+    {
+        // remove samples that are one half window length from the ends
+        // Change this so it only happens once!
+        if (toi[time] < (nSamplesWin / 2) && (toi[time] > nfft - (nSamplesWin / 2)))
+        {
+            toi.remove(time);
+        }
+    }
 }
 
-void CumulativeTFR::addTrial(const float* rpChan, int chan, int region)
+void CumulativeTFR::addTrial(FFTWArray fftIn, int chan, int region)
 {
     float winsPerSegment = (segmentLen - windowLen) / stepLen;
 
@@ -64,7 +80,7 @@ void CumulativeTFR::addTrial(const float* rpChan, int chan, int region)
     // copy dataBuffer to fft input
     for (int i = 0; i < nfft; i++)
     {
-        convInput.set(i, rpChan[i]);
+        convInput.set(i, fftIn.getAsReal(i));
     }
 
     //// Execute fft ////
@@ -83,18 +99,6 @@ void CumulativeTFR::addTrial(const float* rpChan, int chan, int region)
 		// Save convOutput for crss later
 		spectrumBuffer.set(chan, convInput);
 
-		// add time trimmer and setup actual indices of data based on times
-		int nSamplesWin = windowLen * Fs;
-		for (int time = 0; time < nTimes; time++)
-		{
-            // remove samples that are one half window length from the ends
-            // Change this so it only happens once!
-            if (toi[time] < (nSamplesWin / 2) && (toi[time] > nfft - (nSamplesWin / 2))) 
-            {
-                toi.remove(time);
-            }
-		}
-		
         // Loop over time of interest
 		for (int time = 0; time < nTimes; time += stepLen)
 		{
