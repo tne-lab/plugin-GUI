@@ -200,7 +200,7 @@ public:
         {
             int newLatest = owner->latest.load(std::memory_order_relaxed);
             return valid && newLatest != -1 && newLatest != index;
-            // even if the latest is different by the time it's loaded, it won't be
+            // even if the latest is different by the time it's pulled, it won't be
             // the one that this reader is currently reading.
         }
 
@@ -237,7 +237,11 @@ public:
             if (index != -1)
             {
                 // decrement reader count for current instance
-                int oldReaders = owner->readersOf[index].fetch_sub(1, std::memory_order_relaxed);
+                // use seq_cst because we want to guarantee that if this happens while the writer
+                // is looking for an index to write to next, getLatest gets the actual latest index,
+                // and also that this index has already been decremented if that load happens too
+                // early to get the new latest index.
+                int oldReaders = owner->readersOf[index].fetch_sub(1, std::memory_order_seq_cst);
                 assert(oldReaders > 0 && oldReaders <= maxReaders);
             }
             index = -1;
@@ -424,7 +428,9 @@ private:
             if (i == writerIndex) { continue; } // don't overwrite what we just wrote!
 
             int expected = 0;
-            if (readersOf[i].compare_exchange_strong(expected, -1, std::memory_order_relaxed))
+            // use seq_cst to ensure this doesn't miss an index that is decremented late by a reader
+            // (see note in finishRead())
+            if (readersOf[i].compare_exchange_strong(expected, -1, std::memory_order_seq_cst))
             {
                 newWriterIndex = i;
                 break;
