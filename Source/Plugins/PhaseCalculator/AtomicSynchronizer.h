@@ -28,7 +28,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <utility>
 #include <cassert>
 #include <cstdlib>
-#include <new>
+#include <vector>
 
 /*
  * The purpose of AtomicSynchronizer is to allow one "writer" thread to continally
@@ -451,25 +451,16 @@ class AtomicallyShared
 public:
     template<typename... Args>
     AtomicallyShared(Args&&... args)
-        : rawData   (new char[size * sizeof(T)])
-        , data      (reinterpret_cast<T*>(rawData))
     {
+        data.reserve(size);
+
         for (int i = 0; i < size - 1; ++i)
         {
-            new(data + i) T(args...);
+            data.emplace_back(args...);
         }
 
         // move into the last entry, if possible
-        new(data + size - 1) T(std::forward<Args>(args)...);
-    }
-
-    ~AtomicallyShared()
-    {
-        for (int i = 0; i < size; ++i)
-        {
-            (data + i)->~T();
-        }
-        delete[] rawData;
+        data.emplace_back(std::forward<Args>(args)...);
     }
 
     bool reset()
@@ -489,9 +480,9 @@ public:
             return false;
         }
         
-        for (int i = 0; i < size; ++i)
+        for (T& instance : data)
         {
-            f(data[i]);
+            f(instance);
         }
 
         return true;
@@ -593,8 +584,8 @@ public:
 
 private:
     static const int size = maxReaders + 2;
-    char* rawData;
-    T* data;
+
+    std::vector<T> data;
     AtomicSynchronizer<maxReaders> sync;
 };
 
