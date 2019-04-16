@@ -24,11 +24,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef ATOMIC_SYNCHRONIZER_H_INCLUDED
 #define ATOMIC_SYNCHRONIZER_H_INCLUDED
 
-#include <atomic>
-#include <utility>
 #include <cassert>
 #include <cstdlib>
+#include <cstdint>
+
+#include <atomic>
 #include <vector>
+#include <utility>
 
 /*
  * The purpose of AtomicSynchronizer is to allow one "writer" thread to continally
@@ -105,6 +107,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 template<int maxReaders = 1>
 class AtomicSynchronizer {
+    static_assert(maxReaders > 0, "An AtomicSynchronizer must have at least 1 reader");
+    static_assert(maxReaders <= INT_MAX - 2, "An AtomicSynchronizer cannot have more than INT_MAX - 2 readers");
+    static const int size = maxReaders + 2;
 
 public:
     class ScopedWriteIndex
@@ -430,7 +435,6 @@ private:
         writerIndex = newWriterIndex;
     }
 
-    static const int size = maxReaders + 2;
 
     int writerIndex;
 
