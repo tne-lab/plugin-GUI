@@ -25,177 +25,527 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define ATOMIC_SYNCHRONIZER_H_INCLUDED
 
 #include <atomic>
+#include <vector>
+#include <utility>
+#include <cassert>
+#include <cstdlib>
 
 /*
- * AtomicSynchronizer: Facilitates the exchange of a resource between two threads
- * safely without using locks. One thread updates the resource and pushes updates
- * using an AtomicWriter; the other only reads the resource, and receives updates
- * when available using the corresponding AtomicReader. Directions for use:
- *
- * - The owner of an AtomicSynchronizer manages the actual objects being exchanged
- *   itself. It should allocate 3 instances of the resource type, probably in an
- *   array. The AtomicReader and AtomicWriter simply instruct their users on which
- *   instance is safe to access at any given time.
- *
- * - After creating an AtomicSynchronizer, one thread should obtain a pointer to its
- *   Reader by calling getReader, and the other can obtain a pointer to the Writer by
- *   getWriter. Each of the Reader and Writer should only be used in ONE thread and are
- *   not themselves thread-safe (but the simultaneous operation of one Reader and one
- *   Writer is safe).
- */
+* The purpose of AtomicSynchronizer is to allow one "writer" thread to continally
+* update some arbitrary piece of information and one "reader" thread to retrieve
+* the latest version of that information that has been "pushed" by the writer,
+* without either thread having to wait to acquire a mutex or allocate memory
+* on the heap (aside from internal allocations depending on the data structure used).
+* For one reader and one writer, this requires three instances of whatever data type is
+* being shared to be allocated upfront. During operation, "pushing" from the writer and
+* "pulling" to the reader are accomplished by exchanging atomic indices between slots
+* indicating what each instance is to be used for, rather than any actual copying or allocation.
+*
+* There are two interfaces to choose from:
+*
+*  - In most cases, the AtomicSynchronizer logic can be wrapped together with data
+*    allocation and lifetime management by using the AtomicallyShared<T> class template.
+*    Here, T is the type of data that needs to be exchanged.
+*
+*      * The constructor for an AtomicallyShared<T> simply takes whatever arguments
+*        would be used to construct each T object and constructs 3 copies. (If a constructor
+*        with move semantics would be used, this is called for one of the 3 copies, and the
+*        other 2 use copying constructors instead.)
+*
+*      * Any configuration that applies to all 3 copies can by done by calling the "apply" method
+*        with a function pointer or lambda, as long as there are no active readers or writers.
+*
+*      * To write, construct an AtomicScopedWritePtr<T> with the AtomicallyShared<T>&
+*        as an argument. This can be used as a normal pointer. It can be acquired, written to,
+*        and released multiple times and will keep referring to the same instance until the
+*        pushUpdate() method is called, at which point this instance is released for reading
+*        and a new one is acquired for writing (which might need to be cleared/reset first).
+*
+*      * To read, construct an AtomicScopedReadPtr<T> with the AtomicallyShared<T>& as
+*        an argument. This can be used as a normal pointer, and if you want to get the
+*        latest update from the writer without destroying the read ptr and constructing
+*        a new one, you can call the pullUpdate() method.
+*
+*      * If you attempt to create two write pointers to the same AtomicallyShared object, the
+*        second one will be effectively null; you can check for this with the isValid() method
+*        (if isValid() ever returns false, this should be considered a bug). The same is true
+*        of read pointers, except that a read pointer acquired before any writes have occurred
+*        is also invalid (since there's nothing to read), so the isValid() check is necessary
+*        even if you know for sure there is only ever one read pointer at once.
+*
+*      * The hasUpdate() method on an AtomicallyShared<T> returns true if there is new data
+*        from the writer that has not been read yet. After a call to hasUpdate() returns
+*        true, the next constructed read ptr (if none currently exist) or current read ptr
+*        after a subsequent call to pullUpdate() is guaranteed to be valid.
+*
+*      * The reset() method brings you back to the state where no writes have been performed yet.
+*        Must be called when no read or write pointers exist.
+*
+*  - Using an AtomicSynchronizer directly works similarly; the main difference is that you
+*    are responsible for allocating and accessing the data, and the AtomicSynchronizer just
+*    tells you which index to use (0, 1, or 2) as the reader or writer.
+*
+*      * To write, use an AtomiSynchronizer::ScopedWriteIndex instead of an AtomicScopedWritePtr.
+*        This can be converted to int to use directly as an index, and has a pushUpdate() method
+*        that works the same way as for the write pointer. The index can be -1 if you try to
+*        create two write indices to the same synchronizer.
+*
+*      * To read, use an AtomicSynchronizer::ScopedReadIndex instead of an AtomicScopedReadPtr.
+*        This works how you would expect and also has a pullUpdate() method. Remember to check
+*        whether it is valid before using if you're not using hasUpdate().
+*
+*      * AtomicSynchronizer has hasUpdate() and reset() methods as well.
+*
+*      * ScopedLockout is just a try-lock for both readers and writers; it will be "valid"
+*        iff no read or write indices exist at the point of construction. By constructing
+*        one of these and proceeding only if it is valid, you can make changes to each data
+*        instance outside of the reader/writer framework (instead of AtomicallyShared<T>::apply).
+*
+*/
 
 class AtomicSynchronizer {
-    friend class Writer;
-    friend class Reader;
 
 public:
-    class Writer {
-        friend class AtomicSynchronizer;
+    class ScopedWriteIndex
+    {
     public:
-        Writer() = delete;
-
-        // Get the index of the safe object to write to, if any.
-        int getIndexToUse()
+        explicit ScopedWriteIndex(AtomicSynchronizer& o)
+            : owner(&o)
+            , valid(o.checkoutWriter())
         {
-            if (index == -1)
+            if (!valid)
             {
-                // Attempt to pull an index from readyToWriteIndex
-                index = owner->readyToWriteIndex.exchange(-1, std::memory_order_relaxed);
+                // just to be sure - if not valid, shouldn't be able to access the synchronizer
+                owner = nullptr;
             }
-            return static_cast<int>(index);
         }
 
-        // Update readyToReadIndex with newly valid object index, and
-        // try to get a new index if one is available.
+        ScopedWriteIndex(const ScopedWriteIndex&) = delete;
+        ScopedWriteIndex& operator=(const ScopedWriteIndex&) = delete;
+
+        ~ScopedWriteIndex()
+        {
+            if (valid)
+            {
+                owner->returnWriter();
+            }
+        }
+
+        // push a write to the reader without releasing writer privileges
         void pushUpdate()
         {
-            // If readyToReadIndex already contains something, atomic operation ensures
-            // that the Reader won't get it if the Writer gets it and vice versa.
-            index = owner->readyToReadIndex.exchange(index, std::memory_order_relaxed);
-
-            if (index == -1)
+            if (valid)
             {
-                // Try to get a free index from readyToWriteIndex
-                index = owner->readyToWriteIndex.exchange(-1, std::memory_order_relaxed);
+                owner->pushWrite();
             }
         }
 
-    private:
-        explicit Writer(AtomicSynchronizer* o)
-            : owner (o)
-        {}
+        operator int() const
+        {
+            if (valid)
+            {
+                return owner->writerIndex;
+            }
+            return -1;
+        }
 
+        bool isValid() const
+        {
+            return valid;
+        }
+
+    private:
         AtomicSynchronizer* owner;
-        int index;
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Writer);
+        const bool valid;
     };
 
-    class Reader {
-        friend class AtomicSynchronizer;
+
+    class ScopedReadIndex
+    {
     public:
-        Reader() = delete;
-
-        // Return the index of the object to use for reading currently.
-        // If no valid object has been provided yet, returns -1.
-        int pullUpdate()
+        explicit ScopedReadIndex(AtomicSynchronizer& o)
+            : owner(&o)
+            , valid(o.checkoutReader())
         {
-            // Check readyToReadIndex for newly pushed update
-            // If readyToReadIndex already contains something, atomic operation ensures
-            // that the Reader won't get it if the Writer gets it and vice versa.
-            int newIndex = owner->readyToReadIndex.exchange(-1, std::memory_order_relaxed);
-
-            // Try to clear extraIndex if possible
-            if (extraIndex != -1)
+            if (valid)
             {
-                jassert(extraIndex != index);
-                jassert(extraIndex != newIndex);
-                char expected = -1;
-                if (owner->readyToWriteIndex.compare_exchange_strong(expected, extraIndex,
-                    std::memory_order_relaxed))
-                {
-                    extraIndex = -1;
-                }
+                owner->updateReaderIndex();
             }
-
-            if (newIndex != -1)
+            else
             {
-                jassert(newIndex != index);
-                if (index != -1)
-                {
-                    // Great, there's a new update, first have to put current
-                    // index somewhere though.
-
-                    // Attempt to put index into readyToWriteIndex
-                    char expected = -1;
-                    if (!owner->readyToWriteIndex.compare_exchange_strong(expected, index,
-                        std::memory_order_relaxed))
-                    {
-                        // readyToWriteIndex is already occupied
-                        // extraIndex must be free at this point. newIndex, index, and
-                        // readyToWriteIndex all contain something.
-                        jassert(extraIndex == -1);
-                        extraIndex = index;
-                    }
-                }
-                index = newIndex;
+                // just to be sure - if not valid, shouldn't be able to access the synchronizer
+                owner = nullptr;
             }
+        }
 
-            return static_cast<int>(index);
+        ScopedReadIndex(const ScopedReadIndex&) = delete;
+        ScopedReadIndex& operator=(const ScopedReadIndex&) = delete;
+
+        ~ScopedReadIndex()
+        {
+            if (valid)
+            {
+                owner->returnReader();
+            }
+        }
+
+        // update the index, if a new version is available
+        void pullUpdate()
+        {
+            if (valid)
+            {
+                owner->updateReaderIndex();
+            }
+        }
+
+        operator int() const
+        {
+            if (valid)
+            {
+                return owner->readerIndex;
+            }
+            return -1;
+        }
+
+        bool isValid() const
+        {
+            return valid;
         }
 
     private:
-        explicit Reader(AtomicSynchronizer* o)
-            : owner (o)
+        AtomicSynchronizer* owner;
+        const bool valid;
+    };
+
+
+    // Registers as both a reader and a writer, so no other reader or writer
+    // can exist while it's held. Use to access all the underlying data without
+    // conern for who has access to what, e.g. for updating settings, resizing, etc.
+    class ScopedLockout
+    {
+    public:
+        explicit ScopedLockout(AtomicSynchronizer& o)
+            : owner(&o)
+            , hasReadLock(o.checkoutReader())
+            , hasWriteLock(o.checkoutWriter())
+            , valid(hasReadLock && hasWriteLock)
         {}
 
-        AtomicSynchronizer* owner;
-        char index;
-        char extraIndex; // index of object not in use, if readyToWriteIndex is full
+        ~ScopedLockout()
+        {
+            if (hasReadLock)
+            {
+                owner->returnReader();
+            }
 
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Reader);
+            if (hasWriteLock)
+            {
+                owner->returnWriter();
+            }
+        }
+
+        bool isValid() const
+        {
+            return valid;
+        }
+
+    private:
+        AtomicSynchronizer* owner;
+        const bool hasReadLock;
+        const bool hasWriteLock;
+        const bool valid;
     };
 
 
     AtomicSynchronizer()
-        : reader    (this)
-        , writer    (this)
+        : nReaders(0)
+        , nWriters(0)
     {
         reset();
     }
 
-    Writer* getWriter()
-    {
-        return &writer;
-    }
-
-    Reader* getReader()
-    {
-        return &reader;
-    }
+    AtomicSynchronizer(const AtomicSynchronizer&) = delete;
+    AtomicSynchronizer& operator=(const AtomicSynchronizer&) = delete;
 
     // Reset to state with no valid object
-    // No Readers or Writers should be active when this is called!
-    void reset()
+    // No readers or writers should be active when this is called!
+    // If it does fail due to existing readers or writers, returns false
+    bool reset()
     {
+        ScopedLockout lock(*this);
+        if (!lock.isValid())
+        {
+            return false;
+        }
+
         readyToReadIndex = -1;
         readyToWriteIndex = 0;
-        reader.index = -1;
-        reader.extraIndex = 1;
-        writer.index = 2;
+        readyToWriteIndex2 = 1;
+        writerIndex = 2;
+        readerIndex = -1;
+
+        return true;
     }
 
-private:    
-    Writer writer;
-    Reader reader;
+    bool hasUpdate() const
+    {
+        return readyToReadIndex != -1;
+    }
 
-    // shared index slots
-    std::atomic<char> readyToReadIndex;  // assigned by Writer; can be read by Reader
-    std::atomic<char> readyToWriteIndex; // assigned by Reader; can by modified by Writer
+private:
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AtomicSynchronizer)
+    // Registers a writer and updates the writer index. If a writer already exists,
+    // returns false, else returns true. returnWriter should be called to release.
+    bool checkoutWriter()
+    {
+        // ensure there is not already a writer
+        int currWriters = 0;
+        if (!nWriters.compare_exchange_strong(currWriters, 1, std::memory_order_relaxed))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    void returnWriter()
+    {
+        nWriters = 0;
+    }
+
+    // Registers a reader and updates the reader index. If a reader already exists,
+    // returns false, else returns true. returnReader should be called to release.
+    bool checkoutReader()
+    {
+        // ensure there is not already a reader
+        int currReaders = 0;
+        if (!nReaders.compare_exchange_strong(currReaders, 1, std::memory_order_relaxed))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    void returnReader()
+    {
+        nReaders = 0;
+    }
+
+    // should only be called by a writer
+    void pushWrite()
+    {
+        // It's an invariant that writerIndex != -1
+        // except within this method, and this method is not reentrant.
+        assert(writerIndex != -1);
+
+        writerIndex = readyToReadIndex.exchange(writerIndex, std::memory_order_relaxed);
+
+        if (writerIndex == -1)
+        {
+            // attempt to pull an index from readyToWriteIndex
+            writerIndex = readyToWriteIndex.exchange(-1, std::memory_order_relaxed);
+
+            if (writerIndex == -1)
+            {
+                writerIndex = readyToWriteIndex2.exchange(-1, std::memory_order_relaxed);
+            }
+        }
+
+        // There are only 5 slots, so writerIndex, readyToWriteIndex, and
+        // readyToWriteIndex2 cannot all be empty. There can't be a race condition
+        // where one of these slots is now nonempty, because only the writer can
+        // set any of them to -1 (and there's only one writer).
+        assert(writerIndex != -1);
+    }
+
+    // should only be called by a reader
+    void updateReaderIndex()
+    {
+        // Check readyToReadIndex for newly pushed update
+        // It can still be updated after checking, but it cannot be emptied because the 
+        // writer cannot push -1 to readyToReadIndex.
+        if (readyToReadIndex != -1)
+        {
+            if (readerIndex != -1)
+            {
+                // Great, there's a new update, first have to put current
+                // readerIndex somewhere though.
+
+                // Attempt to put index into readyToWriteIndex
+                int expected = -1;
+                if (!readyToWriteIndex.compare_exchange_strong(expected, readerIndex,
+                    std::memory_order_relaxed))
+                {
+                    // readyToWriteIndex is already occupied
+                    // readyToWriteIndex2 must be free at this point. newIndex, readerIndex, and
+                    // readyToWriteIndex all contain something.
+                    readyToWriteIndex2.exchange(readerIndex, std::memory_order_relaxed);
+                }
+            }
+            readerIndex = readyToReadIndex.exchange(-1, std::memory_order_relaxed);
+        }
+    }
+
+    // shared indices
+    std::atomic<int> readyToReadIndex;  // assigned by the writer; can be read by the reader
+    std::atomic<int> readyToWriteIndex; // assigned by the reader; can by modified by the writer
+    std::atomic<int> readyToWriteIndex2; // another slot similar to readyToWriteIndex
+
+    int writerIndex; // index the writer may currently be writing to
+    int readerIndex; // index the reader may currently be reading from
+
+    std::atomic<int> nWriters;
+    std::atomic<int> nReaders;
 };
 
-typedef AtomicSynchronizer::Reader* AtomicReaderPtr;
-typedef AtomicSynchronizer::Writer* AtomicWriterPtr;
+
+// class to actually hold data controlled by an AtomicSynchronizer
+template<typename T>
+class AtomicallyShared
+{
+public:
+    template<typename... Args>
+    AtomicallyShared(Args&&... args)
+    {
+        for (int i = 0; i < 2; ++i)
+        {
+            data.emplace_back(args...);
+        }
+
+        // move into the last entry, if possible
+        data.emplace_back(std::forward<Args>(args)...);
+    }
+
+    bool reset()
+    {
+        return sync.reset();
+    }
+
+    // Call a function on each underlying data member.
+    // Requires that no readers or writers exist. Returns false if
+    // this condition is unmet, true otherwise.
+    template<typename UnaryFunction>
+    bool apply(UnaryFunction f)
+    {
+        AtomicSynchronizer::ScopedLockout lock(sync);
+        if (!lock.isValid())
+        {
+            return false;
+        }
+
+        for (T& obj : data)
+        {
+            f(obj);
+        }
+
+        return true;
+    }
+
+    bool hasUpdate() const
+    {
+        return sync.hasUpdate();
+    }
+
+
+    class ScopedWritePtr
+    {
+    public:
+        ScopedWritePtr(AtomicallyShared<T>& o)
+            : owner(&o)
+            , ind(o.sync)
+            , valid(ind.isValid())
+        {}
+
+        void pushUpdate()
+        {
+            ind.pushUpdate();
+        }
+
+        // provide access to data
+
+        T& operator*()
+        {
+            if (!valid)
+            {
+                // abort! abort!
+                assert(false);
+                std::abort();
+            }
+            return owner->data[ind];
+        }
+
+        T* operator->()
+        {
+            return &(operator*());
+        }
+
+        bool isValid() const
+        {
+            return valid;
+        }
+
+    private:
+        AtomicallyShared<T>* owner;
+        AtomicSynchronizer::ScopedWriteIndex ind;
+        const bool valid;
+    };
+
+    class ScopedReadPtr
+    {
+    public:
+        ScopedReadPtr(AtomicallyShared<T>& o)
+            : owner(&o)
+            , ind(o.sync)
+            // if the ind is valid, but is equal to -1, this pointer is still invalid (for now)
+            , valid(ind != -1)
+        {}
+
+        void pullUpdate()
+        {
+            ind.pullUpdate();
+            // in case ind is valid but was equal to -1:
+            valid = ind != -1;
+        }
+
+        // provide access to data
+
+        const T& operator*()
+        {
+            if (!valid)
+            {
+                // abort! abort!
+                assert(false);
+                std::abort();
+            }
+            return owner->data[ind];
+        }
+
+        const T* operator->()
+        {
+            return &(operator*());
+        }
+
+        bool isValid() const
+        {
+            return valid;
+        }
+
+    private:
+        AtomicallyShared<T>* owner;
+        AtomicSynchronizer::ScopedReadIndex ind;
+        bool valid;
+    };
+
+private:
+    std::vector<T> data;
+    AtomicSynchronizer sync;
+};
+
+template<typename T>
+using AtomicScopedWritePtr = typename AtomicallyShared<T>::ScopedWritePtr;
+
+template<typename T>
+using AtomicScopedReadPtr = typename AtomicallyShared<T>::ScopedReadPtr;
 
 #endif // ATOMIC_SYNCHRONIZER_H_INCLUDED
