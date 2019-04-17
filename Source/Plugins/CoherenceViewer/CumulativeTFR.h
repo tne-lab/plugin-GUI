@@ -77,6 +77,8 @@ private:
 	Array<vector<const std::complex<double>>> spectrumBuffer;
     Array<vector<std::complex<double>>> waveletArray;
 
+    float hannNorm;
+
     const int nfft;
 
     FFTWArray convInput;

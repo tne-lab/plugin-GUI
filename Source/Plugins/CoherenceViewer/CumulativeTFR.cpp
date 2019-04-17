@@ -102,6 +102,7 @@ void CumulativeTFR::addTrial(const float* fftIn, int chan, int region)
 
 std::vector<std::vector<double>> CumulativeTFR::getCurrentMeanCoherence()
 {
+    calcCrssspctrm();
     return meanCoherence;
 }
 
@@ -155,16 +156,13 @@ double CumulativeTFR::singleCoherence(double pxx, double pyy, std::complex<doubl
 
 double CumulativeTFR::calcCrssspctrm()
 {
-    // fourier transform of https://dsp.stackexchange.com/questions/736/how-do-i-implement-cross-correlation-to-prove-two-audio-files-are-similar
-
 	std::complex<double> crss;
 
-    int comb = 0; // loop over combinations at each freq
     for (int freq; freq < nFreqs; freq++)
     {
-        for (int chanX = 0; chanX < nGroup1Chans; chanX++)
+        for (int chanX = 0, comb = 0; chanX < nGroup1Chans; chanX++)
         {
-            for (int chanY = 0; chanY < nGroup2Chans; chanY++)
+            for (int chanY = 0; chanY < nGroup2Chans; chanY++, comb++)
             {
                 // Get crss from specturm of both chanX and chanY
 				for (int t = trimTime; t < nfft - trimTime; t += stepLen) // Time of interest here instead of every point
@@ -173,8 +171,7 @@ double CumulativeTFR::calcCrssspctrm()
                     pxySum += crss;
                     pxyCount++;
                     pxys.at(comb).at(freq).at(t) = std::complex<double>(pxySum.real() / pxyCount, pxySum.imag()/pxyCount);
-				}
-                comb++;              
+				}            
             }
         }
     }
@@ -212,19 +209,23 @@ void CumulativeTFR::generateWavelet()
             int hannPosition = position - (nfft - windowLen / 2); // Move start of wave to nfft - windowSize/2
             hann[position] = pow(sin((hannPosition*PI / windowLen)), 2);
         }
+        // Normalize Hann window using Frobenius-ish alg. hann = hann/norm(hann)
+        // norm(hann) = sum(abs(hann).^P)^(1/P) ... use p=2
+        hannNorm += pow(abs(hann[position]), 2);
     }
     
+    hannNorm = pow(hannNorm, 1 / 2);
+
     // Wavelet
     for (int freq = 1; freq < nFreqs; freq++)
     {
         for (int position = 0; position < nfft; position++)
         {
-            //// Sine wave //// Does this need to be complex?
+            // Make sin and cos wave. Also noramlize hann here.
             sinWave[position] = sin(position * freq * (2 * PI)); // Shift by pi/2 to put peak at time 0
             cosWave[position] = cos(position * freq * (2 * PI));
+            hann[position] /= hannNorm;
         }
-         	
-		// Normalize Hann window Frobenius 
 
 		//// Wavelet ////
 		// Put into fft input array
