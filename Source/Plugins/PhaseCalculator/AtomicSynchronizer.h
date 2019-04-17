@@ -350,12 +350,12 @@ public:
         }
 
         writerIndex = 0;
-        latest = -1;
+        latest.store(-1, std::memory_order_relaxed);
 
-        readersOf[0] = -1;
+        readersOf[0].store(-1, std::memory_order_relaxed);
         for (int i = 1; i < size; ++i)
         {
-            readersOf[i] = 0;
+            readersOf[i].store(0, std::memory_order_relaxed);
         }
 
         return true;
@@ -369,7 +369,7 @@ private:
     {
         // ensure there is not already a writer
         int currWriters = 0;
-        if (!nWriters.compare_exchange_strong(currWriters, 1, std::memory_order_relaxed))
+        if (!nWriters.compare_exchange_strong(currWriters, 1, std::memory_order_acquire))
         {
             return false;
         }
@@ -379,7 +379,7 @@ private:
 
     void returnWriter()
     {
-        int oldNWriters = nWriters.exchange(0, std::memory_order_relaxed);
+        int oldNWriters = nWriters.exchange(0, std::memory_order_release);
         assert(oldNWriters == 1);
     }
 
@@ -389,7 +389,7 @@ private:
     {
         // ensure there are not already maxReaders readers
         int currReaders = 0;
-        while (!nReaders.compare_exchange_weak(currReaders, currReaders + 1, std::memory_order_relaxed))
+        while (!nReaders.compare_exchange_weak(currReaders, currReaders + 1, std::memory_order_acquire))
         {
             if (currReaders >= maxReaders)
             {
@@ -403,7 +403,7 @@ private:
     bool checkoutAllReaders()
     {
         int currReaders = 0;
-        if (!nReaders.compare_exchange_strong(currReaders, maxReaders, std::memory_order_relaxed))
+        if (!nReaders.compare_exchange_strong(currReaders, maxReaders, std::memory_order_acquire))
         {
             return false;
         }
@@ -413,7 +413,7 @@ private:
 
     void returnReader()
     {
-        int oldNReaders = nReaders.fetch_sub(1, std::memory_order_relaxed);
+        int oldNReaders = nReaders.fetch_sub(1, std::memory_order_release);
         assert(oldNReaders > 0 && oldNReaders <= maxReaders);
     }
 
