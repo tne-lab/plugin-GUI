@@ -34,13 +34,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*
  * The purpose of AtomicSynchronizer is to allow one "writer" thread to continally
- * update some arbitrary piece of information and one "reader" thread to retrieve
+ * update some arbitrary piece of information and N "reader" threads to retrieve
  * the latest version of that information that has been "pushed" by the writer,
- * without either thread having to wait to acquire a mutex or allocate memory
+ * without any thread having to wait to acquire a mutex or allocate memory
  * on the heap (aside from internal allocations depending on the data structure used).
  * For one reader and one writer, this requires three instances of whatever data type is
- * being shared to be allocated upfront. During operation, "pushing" from the writer and
- * "pulling" to the reader are accomplished by exchanging atomic indices between slots
+ * being shared to be allocated upfront; for an arbitrary number of readers N, it requires
+ * N + 2 instances. During operation, "pushing" from the writer and
+ * "pulling" to a reader are accomplished by exchanging atomic indices between slots
  * indicating what each instance is to be used for, rather than any actual copying or allocation.
  *
  * There are two interfaces to choose from:
@@ -49,21 +50,21 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *    allocation and lifetime management by using the AtomicallyShared<T> class template.
  *    Here, T is the type of data that needs to be exchanged.
  *
- *      * The constructor for an AtomicallyShared<T> simply takes whatever arguments
- *        would be used to construct each T object and constructs 3 copies. (If a constructor
- *        with move semantics would be used, this is called for one of the 3 copies, and the
- *        other 2 use copying constructors instead.)
+ *      * The constructor for an AtomicallyShared<T, N> simply takes whatever arguments
+ *        would be used to construct each T object and constructs N + 2 copies. (If a constructor
+ *        with move semantics would be used, this is called for one of the copies, and the
+ *        others use copying constructors instead.)
  *
- *      * Any configuration that applies to all 3 copies can by done by calling the "apply" method
+ *      * Any configuration that applies to all copies can by done by calling the "apply" method
  *        with a function pointer or lambda, as long as there are no active readers or writers.
  *
- *      * To write, construct an AtomicScopedWritePtr<T> with the AtomicallyShared<T>&
+ *      * To write, construct an AtomicScopedWritePtr<T, N> with the AtomicallyShared<T, N>&
  *        as an argument. This can be used as a normal pointer. It can be acquired, written to,
  *        and released multiple times and will keep referring to the same instance until the
  *        pushUpdate() method is called, at which point this instance is released for reading
  *        and a new one is acquired for writing (which might need to be cleared/reset first).
  *        
- *      * To read, construct an AtomicScopedReadPtr<T> with the AtomicallyShared<T>& as
+ *      * To read, construct an AtomicScopedReadPtr<T, N> with the AtomicallyShared<T, N>& as
  *        an argument. This can be used as a normal pointer, and if you want to get the
  *        latest update from the writer without destroying the read ptr and constructing
  *        a new one, you can call the pullUpdate() method.
@@ -73,19 +74,18 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *        (if isValid() ever returns false, this should be considered a bug). The same is true
  *        of read pointers, except that a read pointer acquired before any writes have occurred
  *        is also invalid (since there's nothing to read), so the isValid() check is necessary
- *        even if you know for sure there is only ever one read pointer at once.
+ *        even if you know for sure there are never more than N simulataneous readers.
  *
- *      * The hasUpdate() method on an AtomicallyShared<T> returns true if there is new data
- *        from the writer that has not been read yet. After a call to hasUpdate() returns
- *        true, the next constructed read ptr (if none currently exist) or current read ptr
- *        after a subsequent call to pullUpdate() is guaranteed to be valid.
+ *      * The hasUpdate() method on an AtomicScopedReadPtr returns true if there is new data
+ *        from the writer that has not been read by this reader yet. After a call to hasUpdate() returns
+ *        true, the current read ptr is guaranteed to be valid after calling pullUpdate().
  *
  *      * The reset() method brings you back to the state where no writes have been performed yet.
  *        Must be called when no read or write pointers exist.
  *
  *  - Using an AtomicSynchronizer directly works similarly; the main difference is that you
  *    are responsible for allocating and accessing the data, and the AtomicSynchronizer just
- *    tells you which index to use (0, 1, or 2) as the reader or writer.
+ *    tells you which index to use as a reader or writer.
  *
  *      * To write, use an AtomiSynchronizer::ScopedWriteIndex instead of an AtomicScopedWritePtr.
  *        This can be converted to int to use directly as an index, and has a pushUpdate() method
@@ -237,10 +237,7 @@ public:
             if (index != -1)
             {
                 // decrement reader count for current instance
-                // use seq_cst because we want to guarantee that if this happens while the writer
-                // is looking for an index to write to next, getLatest gets the actual latest index,
-                // and also that this index has already been decremented if that load happens too
-                // early to get the new latest index.
+                // see comment in getLatest()
                 int oldReaders = owner->readersOf[index].fetch_sub(1, std::memory_order_seq_cst);
                 assert(oldReaders > 0 && oldReaders <= maxReaders);
             }
@@ -250,7 +247,20 @@ public:
         // update index to refer to the latest update
         void getLatest()
         {
-            index = owner->latest.load(std::memory_order_relaxed);
+            /*
+             We want to prevent any reader from "occupying 2 places" in readersOf by decrementing one entry
+             and incrementing another that is not that actual latest while the writer is searching for the
+             next write index. To accomplish this we make some of the loads and stores of readersOf and latest seq_cst.
+
+             If the single total modification order places a write to "latest" after the decrement that
+             may occur in finishRead, this call may not get that updated value of "latest," but it's OK
+             because the writer thread is guaranteed to observe that decrement by the time "latest" is
+             modified and the loop to find the next write index begins. If on the other hand the write
+             to "latest" is ordered before the decrement, this load is guaranteed to see that updated
+             value and increment the actual latest index (in the context of the current call to pushWrite())
+             below, rather than some other index that might otherwise have been the next write index.
+            */
+            index = owner->latest.load(std::memory_order_seq_cst);
 
             if (index != -1)
             {
@@ -415,7 +425,8 @@ private:
         assert(writerIndex != -1);
 
         readersOf[writerIndex].store(0, std::memory_order_relaxed);
-        latest.store(writerIndex, std::memory_order_relaxed);
+        // see comment in ScopedReadIndex::getLatest() for memory order explanation
+        latest.store(writerIndex, std::memory_order_seq_cst);
 
         // at this point, the sum of readersOf must be in the range [0, maxReaders] and all entries
         // are positive. since the length of readersOf is size == maxReaders + 2, at least 2 entries
@@ -428,8 +439,7 @@ private:
             if (i == writerIndex) { continue; } // don't overwrite what we just wrote!
 
             int expected = 0;
-            // use seq_cst to ensure this doesn't miss an index that is decremented late by a reader
-            // (see note in finishRead())
+            // see comment in ScopedReadIndex::getLatest() for memory order explanation
             if (readersOf[i].compare_exchange_strong(expected, -1, std::memory_order_seq_cst))
             {
                 newWriterIndex = i;
