@@ -80,12 +80,8 @@ public:
 
 
 private:
-    AtomicSynchronizer dataSync;        // writer = process function , reader = thread
-    AtomicSynchronizer coherenceSync;   // writer = thread, reader = visualizer (message thread)
-    
     // group of 3, controlled by coherenceSync:
-    //Array<std::vector<double>> meanCoherence;
-    //Array<AudioBuffer<float>> dataBuffer; // Need to figure out size of this buffer. 8 seconds long
+
     AtomicallyShared<AudioBuffer<float>> dataBuffer;
     AtomicallyShared<std::vector<std::vector<double>>> meanCoherence;
 

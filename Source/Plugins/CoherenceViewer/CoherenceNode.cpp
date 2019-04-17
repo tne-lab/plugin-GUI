@@ -44,6 +44,15 @@ CoherenceNode::CoherenceNode()
     setProcessorType(PROCESSOR_TYPE_SINK);
 }
 
+CoherenceNode::~CoherenceNode()
+{
+
+}
+
+void CoherenceNode::createEventChannels() 
+{
+
+}
 
 AudioProcessorEditor* CoherenceNode::createEditor()
 {
@@ -159,7 +168,6 @@ void CoherenceNode::run()
 
 void CoherenceNode::updateSettings()
 {
-
     // Array of samples per channel and if ready to go
     nSamplesAdded = 0;
     
@@ -231,6 +239,16 @@ bool CoherenceNode::enable()
     return isEnabled;
 }
 
+bool CoherenceNode::disable()
+{
+    CoherenceEditor* editor = static_cast<CoherenceEditor*>(getEditor());
+    editor->disable();
+
+    signalThreadShouldExit();
+
+    return true;
+}
+
 
 Array<int> CoherenceNode::getActiveInputs()
 {
@@ -258,4 +276,19 @@ Visualizer* CoherenceEditor::createNewCanvas()
 {
     canvas = new CoherenceVisualizer();
     return canvas;
+}
+
+bool CoherenceNode::hasEditor() const
+{
+    return true;
+}
+
+void CoherenceNode::saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType)
+{
+
+}
+
+void CoherenceNode::loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType)
+{
+
 }
