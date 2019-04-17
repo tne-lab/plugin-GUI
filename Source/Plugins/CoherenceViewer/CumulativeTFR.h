@@ -43,7 +43,7 @@ class CumulativeTFR
 public:
     CumulativeTFR(int ng1, int ng2, int nf, int nt,
         int Fs, Array<float> foi,
-        int segLen = 8, int winLen = 2, int stepLen = 0.25, float interpRatio = 2, double fftSec = 10.0);
+        int winLen = 2, int stepLen = 0.25, float interpRatio = 2, double fftSec = 10.0);
 
     // Handle a new buffer of data. Preform FFT and create pxxs, pyys.
     void addTrial(const float* fftIn, int chan, int region);
@@ -56,7 +56,7 @@ private:
 	// Generate wavelet call in update settings if segLen changes
     void CumulativeTFR::generateWavelet();
     // calc pxys
-	double CumulativeTFR::calcCrssspctrm();
+	void CumulativeTFR::calcCrssspctrm();
 
     int nGroup1Chans;
     int nGroup2Chans;
@@ -74,8 +74,8 @@ private:
 
     int trimTime;
 
-	Array<vector<const std::complex<double>>> spectrumBuffer;
-    Array<vector<std::complex<double>>> waveletArray;
+	vector<vector<const std::complex<double>>> spectrumBuffer;
+    vector<vector<std::complex<double>>> waveletArray;
 
     float hannNorm;
 

@@ -24,7 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "CumulativeTFR.h"
 #include <cmath>
 
-CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<float> foi, int segLen, int winLen, int stepLen, float interpRatio, double fftSec)
+CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<float> foi, int winLen, int stepLen, float interpRatio, double fftSec)
     : nGroup1Chans  (ng1)
     , nGroup2Chans  (ng2)
     , nFreqs        (nf)
@@ -33,8 +33,8 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<flo
     , convInput     (nfft)
     , freqData      (nfft)
     , convOutput    (nfft)
-    , fftPlan       (nfft, &convInput, &freqData, FFTW_FORWARD, FFTW_MEASURE)
-    , ifftPlan      (nfft, &freqData, &convOutput, FFTW_BACKWARD, FFTW_MEASURE)
+    , fftPlan       (nfft, &convInput, &freqData, FFTW_FORWARD, FFTW_ESTIMATE)
+    , ifftPlan      (nfft, &freqData, &convOutput, FFTW_BACKWARD, FFTW_ESTIMATE)
     , pxxs          (ng1,
                     vector<vector<RealAccum>>(nf,
                     vector<RealAccum>(nt)))
@@ -44,11 +44,12 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<flo
     , pxys          (ng1 * ng2,
                     vector<vector<std::complex<double>>>(nf,
                     vector<std::complex<double>>(nt)))
-    , segmentLen    (segLen)
     , windowLen     (winLen)
     , stepLen       (stepLen)
     , interpRatio   (interpRatio)
     , foi           (foi)
+    , waveletArray  (nFreqs, vector<std::complex<double>>(int(fftSec*Fs)))
+    , spectrumBuffer(nGroup1Chans + nGroup2Chans, vector<const std::complex<double>>(int(fftSec*Fs)))
 {
     generateWavelet();
 
@@ -59,6 +60,7 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<flo
 
 void CumulativeTFR::addTrial(const float* fftIn, int chan, int region)
 {
+    std::cout << "in add trial\n";
     float winsPerSegment = (segmentLen - windowLen) / stepLen;
     
     //// Update convInput ////
@@ -69,12 +71,12 @@ void CumulativeTFR::addTrial(const float* fftIn, int chan, int region)
     fftPlan.execute();
 
     //// Use freqData to find generate spectrum and get power ////
-	for (int freq = 1; freq < nFreqs; freq++)
+	for (int freq = 0; freq < nFreqs; freq++)
 	{
 		// Multiple fft data by wavelet
 		for (int n = 0; n < nfft; n++)
 		{
-			freqData.set(n, freqData.getAsComplex(n) * waveletArray.getUnchecked(freq)[n]);
+			freqData.set(n, freqData.getAsComplex(n) * waveletArray[freq][n]);
 		}
 		// Inverse FFT on data multiplied by wavelet
 		ifftPlan.execute();
@@ -84,7 +86,7 @@ void CumulativeTFR::addTrial(const float* fftIn, int chan, int region)
 		{
             std::complex<double> complex = convOutput.getAsComplex(t);
             // Save convOutput for crss later
-            spectrumBuffer.getReference(chan)[t] = complex;
+            spectrumBuffer[chan][t] = complex;
             // Get power
 			double power = pow(abs(complex),2); 
 			// Region either 1 or 2. 1 => pxx, 2 => pyy
@@ -154,7 +156,7 @@ double CumulativeTFR::singleCoherence(double pxx, double pyy, std::complex<doubl
 }
 
 
-double CumulativeTFR::calcCrssspctrm()
+void CumulativeTFR::calcCrssspctrm()
 {
 	std::complex<double> crss;
 
@@ -217,7 +219,7 @@ void CumulativeTFR::generateWavelet()
     hannNorm = pow(hannNorm, 1 / 2);
 
     // Wavelet
-    for (int freq = 1; freq < nFreqs; freq++)
+    for (int freq = 0; freq < nFreqs; freq++)
     {
         for (int position = 0; position < nfft; position++)
         {
@@ -235,6 +237,7 @@ void CumulativeTFR::generateWavelet()
 		}
 		
 		fftPlan.execute();
+
 		// Save fft output for use later
         for (int i = 0; i < nfft; i++)
         {

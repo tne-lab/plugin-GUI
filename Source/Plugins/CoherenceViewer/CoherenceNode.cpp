@@ -96,7 +96,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
         // Handle overflow 
         if (nSamplesAdded + nSamples >= segLen * Fs)
         {
-            nSamples = segLen - nSamplesAdded;
+            nSamples = segLen * Fs - nSamplesAdded;
         }
 
         // Add to buffer the new samples.
@@ -107,17 +107,23 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
     }
 
     nSamplesAdded += nSamples;
+   // std::cout << nSamplesAdded << " of " << segLen*Fs << std::endl;
     // channel buf is full. Update buffer.
     if (nSamplesAdded >= segLen * Fs)
     {
+        std::cout << "FULL BUFFER" << std::endl;
+        printf("in here\n");
+        fflush(stdout);
         dataWriter.pushUpdate();
         // Reset samples added
         nSamplesAdded = 0;
+        
     }
 }
 
 void CoherenceNode::run()
-{   
+{  
+    std::cout << "Thread started" << std::endl;
     while (!threadShouldExit())
     {
         //// Check for new filled data buffer and run stats ////
@@ -126,6 +132,7 @@ void CoherenceNode::run()
         int nActiveInputs = activeInputs.size();
         if (dataBuffer.hasUpdate())
         {
+            std::cout << "thread got update" << std::endl;
             dataReader.pullUpdate();
             for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
             {
@@ -134,6 +141,7 @@ void CoherenceNode::run()
                 int groupNum = getChanGroup(chan);
                 if (groupNum != -1)
                 {
+                    std::cout << "adding trial" << std::endl;
                     TFR->addTrial(dataReader->getReadPointer(activeChan), chan, groupNum);
                 }
                 else
@@ -176,8 +184,8 @@ void CoherenceNode::updateSettings()
     nFreqs = foi.size();
 
     // Set channels in group (need to update from editor)
-    group1Channels.addArray({ 0, 1 });
-    group2Channels.addArray({ 2, 3 });
+    group1Channels.addArray({ 1, 2 });
+    group2Channels.addArray({ 3, 4 });
 
     // Set number of channels in each group
     nGroup1Chans = group1Channels.size();
@@ -204,7 +212,7 @@ void CoherenceNode::updateSettings()
     }
 
     // Overwrite TFR 
-	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, foi, segLen, winLen, stepLen, interpRatio);
+	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, foi, winLen, stepLen, interpRatio, 8);
 }
 
 void CoherenceNode::setParameter(int parameterIndex, float newValue)
