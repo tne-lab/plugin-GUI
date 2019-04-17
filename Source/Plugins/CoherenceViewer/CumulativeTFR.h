@@ -41,12 +41,12 @@ class CumulativeTFR
     using ComplexAccum = StatisticsAccumulator<std::complex<double>>;
 
 public:
-    CumulativeTFR(int ng1, int ng2, int nf,
+    CumulativeTFR(int ng1, int ng2, int nf, int nt,
         int Fs, Array<float> foi,
         int segLen = 8, int winLen = 2, int stepLen = 0.25, float interpRatio = 2, double fftSec = 10.0);
 
     // Handle a new buffer of data. Preform FFT and create pxxs, pyys.
-    void addTrial(FFTWArray fftIn, int chan, int region);
+    void addTrial(const float* fftIn, int chan, int region);
 
     // Functions to get coherence data
     vector<vector<double>> getCurrentMeanCoherence();
@@ -74,8 +74,8 @@ private:
 
     int trimTime;
 
-	Array<FFTWArray> spectrumBuffer;
-	Array<FFTWArray> waveletArray;
+	Array<vector<const std::complex<double>>> spectrumBuffer;
+    Array<vector<std::complex<double>>> waveletArray;
 
     const int nfft;
 
@@ -94,7 +94,10 @@ private:
     vector<vector<vector<RealAccum>>> pyys;
 
     // # channel combinations x # frequencies x # times
-    vector<vector<vector<ComplexAccum>>> pxys;
+    //vector<vector<vector<ComplexAccum>>> pxys;
+    vector<vector<vector<std::complex<double>>>> pxys;
+    std::complex<double> pxySum;
+    int pxyCount;
 
     // statistics for all trials, combined over trial times
     // # channel combinations x # frequencies

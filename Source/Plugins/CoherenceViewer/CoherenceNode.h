@@ -86,12 +86,15 @@ private:
     // group of 3, controlled by coherenceSync:
     //Array<std::vector<double>> meanCoherence;
     //Array<AudioBuffer<float>> dataBuffer; // Need to figure out size of this buffer. 8 seconds long
-    AtomicallyShared<FFTWArray> dataBuffer;
+    AtomicallyShared<AudioBuffer<float>> dataBuffer;
     AtomicallyShared<std::vector<std::vector<double>>> meanCoherence;
 
-    AtomicScopedWritePtr<FFTWArray> dataWriter;
+    AtomicScopedWritePtr<AudioBuffer<float>> dataWriter;
     AtomicScopedReadPtr<std::vector<std::vector<double>>> coherenceReader;
-    
+
+    AtomicScopedWritePtr<std::vector<std::vector<double>>> coherenceWriter;
+    AtomicScopedReadPtr<AudioBuffer<float>> dataReader;
+
     CumulativeTFR* TFR;
     Array<bool> CHANNEL_READY;
 

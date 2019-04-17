@@ -29,6 +29,8 @@ CoherenceNode::CoherenceNode()
     , Thread            ("Coherence Calc")
     , dataWriter        (dataBuffer)
     , coherenceReader   (meanCoherence)
+    , dataReader        (dataBuffer)
+    , coherenceWriter   (meanCoherence)
     , segLen            (8)
     , nFreqs            (30)
     , nTimes            (10)
@@ -60,6 +62,11 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
     }
    
     ///// Add incoming data to data buffer. Let thread get the ok to start at 8seconds ////
+    // Check writer
+    if (!dataWriter.isValid())
+    {
+        jassert("atomic sync data writer broken");
+    }
 
     //for loop over active channels and update buffer with new data
     Array<int> activeInputs = getActiveInputs();
@@ -83,10 +90,10 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
             nSamples = segLen - nSamplesAdded;
         }
 
-        // Add to buffer the new samples. Use copyFrom ?
+        // Add to buffer the new samples.
         for (int n = 0; n < nSamples; n++)
         {
-            dataWriter->set(n + nSamplesAdded, rpIn[n]);
+            dataWriter->addFrom(activeChan,nSamplesAdded, rpIn, nSamples);
         }  
     }
 
@@ -101,10 +108,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
 }
 
 void CoherenceNode::run()
-{
-    AtomicScopedWritePtr<std::vector<std::vector<double>>> coherenceWriter(meanCoherence);
-    AtomicScopedReadPtr<FFTWArray> dataReader(dataBuffer);
-    
+{   
     while (!threadShouldExit())
     {
         //// Check for new filled data buffer and run stats ////
@@ -116,13 +120,12 @@ void CoherenceNode::run()
             dataReader.pullUpdate();
             for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
             {
+                int chan = activeInputs[activeChan];
                 // get buffer and send it to TFR to fun real-time-coherence calcs
-                int groupNum = getChanGroup(activeChan);
-                FFTWArray fftArray;
-                fftArray.copyFrom(dataReader.operator*, segLen * Fs);
+                int groupNum = getChanGroup(chan);
                 if (groupNum != -1)
                 {
-                    TFR->addTrial(fftArray, activeChan, groupNum);
+                    TFR->addTrial(dataReader->getReadPointer(activeChan), chan, groupNum);
                 }
                 else
                 {
@@ -132,6 +135,10 @@ void CoherenceNode::run()
             }
 
             //// Get and send updated coherence  ////
+            if (!coherenceWriter.isValid())
+            {
+                jassert("atomic sync coherence writer broken");
+            }
             // Calc coherence
             std::vector<std::vector<double>> TFRMeanCoh = TFR->getCurrentMeanCoherence();
             // For loop over combinations
@@ -146,20 +153,12 @@ void CoherenceNode::run()
             }
             // Update coherence and reset data buffer
             coherenceWriter.pushUpdate();
-            dataBuffer = new AtomicallyShared<AudioBuffer<float>>(nGroup1Chans + nGroup2Chans, segLen * Fs);
         }
     }
 }
 
 void CoherenceNode::updateSettings()
 {
-    // Init group of 3 vectors that are synced with data/coherencesync    
-    dataBuffer = new AtomicallyShared<AudioBuffer<float>>(nGroup1Chans + nGroup2Chans, segLen * Fs);
-    meanCoherence = new AtomicallyShared<std::vector<std::vector<double>>>(nGroup1Chans + nGroup2Chans, nFreqs);
-
-    // Link writer/reader to newly created group of 3s
-    dataWriter = AtomicScopedWritePtr<FFTWArray>(dataBuffer);
-    coherenceReader = AtomicScopedReadPtr<std::vector<std::vector<double>>>(meanCoherence);
 
     // Array of samples per channel and if ready to go
     nSamplesAdded = 0;
@@ -183,8 +182,21 @@ void CoherenceNode::updateSettings()
     stepLen = 0.1;
     interpRatio = 2;
 
+    // Trim time close to edge
+    int nSamplesWin = winLen * Fs;
+    int trimTime = nSamplesWin / 2 * 2; // /2 * 2 to convey half of a window on both ends of the segment
+    int nTimes = (segLen * Fs) - trimTime;
+
+    // Resize arrays accordingly
+    dataWriter->setSize(nGroup1Chans + nGroup2Chans,segLen * Fs);
+    coherenceWriter->resize(nGroup1Chans + nGroup2Chans);
+    for (int i = 0; i < nGroup1Chans + nGroup2Chans; i++)
+    {
+        coherenceWriter->at(i).resize(segLen * Fs);
+    }
+
     // Overwrite TFR 
-	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, Fs, foi, segLen, winLen, stepLen, interpRatio);
+	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, foi, segLen, winLen, stepLen, interpRatio);
 }
 
 void CoherenceNode::setParameter(int parameterIndex, float newValue)

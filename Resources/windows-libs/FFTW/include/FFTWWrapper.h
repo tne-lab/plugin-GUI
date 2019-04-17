@@ -95,6 +95,15 @@ public:
         return nullptr;
     }
 
+    const double* getReadPointer(int index = 0) const
+    {
+        if (index < length * 2 && index >= 0)
+        {
+            return reinterpret_cast<const double*>(data)+index;
+        }
+        return nullptr;
+    }
+
     int getLength()
     {
         return length;
@@ -158,6 +167,19 @@ public:
         return numToCopy;
     }
 
+    int copyFrom(const float* fromArr, int num, int startInd = 0)
+    {
+        int numToCopy = jmin(num, 2 * length - startInd);
+        double* wpReal = getRealPointer(startInd);
+        for (int i = 0; i < numToCopy; ++i)
+        {
+            wpReal[i] = fromArr[i];
+        }
+
+        return numToCopy;
+    }
+
+   
 private:
     std::complex<double>* data;
     int length;
