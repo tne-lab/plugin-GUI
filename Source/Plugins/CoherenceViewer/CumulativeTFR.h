@@ -46,7 +46,7 @@ public:
         int winLen = 2, int stepLen = 0.25, float interpRatio = 2, double fftSec = 10.0);
 
     // Handle a new buffer of data. Preform FFT and create pxxs, pyys.
-    void addTrial(const float* fftIn, int chan, int region);
+    void addTrial(const double* fftIn, int chan, int region);
 
     // Functions to get coherence data
     vector<vector<double>> getCurrentMeanCoherence();

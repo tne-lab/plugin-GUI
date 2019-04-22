@@ -82,14 +82,14 @@ public:
 private:
     // group of 3, controlled by coherenceSync:
 
-    AtomicallyShared<AudioBuffer<float>> dataBuffer;
+    AtomicallyShared<Array<FFTWArray>> dataBuffer;
     AtomicallyShared<std::vector<std::vector<double>>> meanCoherence;
 
-    AtomicScopedWritePtr<AudioBuffer<float>> dataWriter;
+    AtomicScopedWritePtr<Array<FFTWArray>> dataWriter;
     AtomicScopedReadPtr<std::vector<std::vector<double>>> coherenceReader;
 
     AtomicScopedWritePtr<std::vector<std::vector<double>>> coherenceWriter;
-    AtomicScopedReadPtr<AudioBuffer<float>> dataReader;
+    AtomicScopedReadPtr<Array<FFTWArray>> dataReader;
 
     CumulativeTFR* TFR;
     Array<bool> CHANNEL_READY;

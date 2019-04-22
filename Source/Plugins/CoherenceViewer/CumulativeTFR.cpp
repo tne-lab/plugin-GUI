@@ -58,16 +58,13 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<flo
     trimTime = nSamplesWin / 2;
 }
 
-void CumulativeTFR::addTrial(const float* fftIn, int chan, int region)
+void CumulativeTFR::addTrial(const double* fftIn, int chan, int region)
 {
     float winsPerSegment = (segmentLen - windowLen) / stepLen;
     
     //// Update convInput ////
     // copy dataBuffer input to fft input
-    for (int i = 0; i < nfft; i++)
-    {
-        convInput.set(i, double(fftIn[i]));
-    }
+    convInput.copyFrom(fftIn, nfft);
 
     //// Execute fft ////
     fftPlan.execute();

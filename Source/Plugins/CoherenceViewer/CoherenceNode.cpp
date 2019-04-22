@@ -45,14 +45,10 @@ CoherenceNode::CoherenceNode()
 }
 
 CoherenceNode::~CoherenceNode()
-{
-
-}
+{}
 
 void CoherenceNode::createEventChannels() 
-{
-
-}
+{}
 
 AudioProcessorEditor* CoherenceNode::createEditor()
 {
@@ -102,7 +98,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
         // Add to buffer the new samples.
         for (int n = 0; n < nSamples; n++)
         {
-            dataWriter->copyFrom(activeChan,nSamplesAdded, rpIn, nSamples);
+           dataWriter->getReference(activeChan).set(n,rpIn[n]);
         }  
     }
 
@@ -111,8 +107,6 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
     // channel buf is full. Update buffer.
     if (nSamplesAdded >= segLen * Fs)
     {
-        std::cout << "FULL BUFFER" << std::endl;
-        printf("in here\n");
         fflush(stdout);
         dataWriter.pushUpdate();
         // Reset samples added
@@ -123,7 +117,6 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
 
 void CoherenceNode::run()
 {  
-    std::cout << "Thread started" << std::endl;
     while (!threadShouldExit())
     {
         //// Check for new filled data buffer and run stats ////
@@ -132,7 +125,6 @@ void CoherenceNode::run()
         int nActiveInputs = activeInputs.size();
         if (dataBuffer.hasUpdate())
         {
-            std::cout << "thread got update" << std::endl;
             dataReader.pullUpdate();
             for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
             {
@@ -141,8 +133,7 @@ void CoherenceNode::run()
                 int groupNum = getChanGroup(chan);
                 if (groupNum != -1)
                 {
-                    std::cout << "adding trial" << std::endl;
-                    TFR->addTrial(dataReader->getReadPointer(activeChan), chan, groupNum);
+                    TFR->addTrial(dataReader->getReference(activeChan).getReadPointer(activeChan), chan, groupNum);
                 }
                 else
                 {
@@ -204,11 +195,12 @@ void CoherenceNode::updateSettings()
     int nTimes = (segLen * Fs) - trimTime;
 
     // Resize arrays accordingly
-    dataWriter->setSize(nGroup1Chans + nGroup2Chans,segLen * Fs);
+    dataWriter->resize(nGroup1Chans + nGroup2Chans);
     coherenceWriter->resize(nGroup1Chans + nGroup2Chans);
     for (int i = 0; i < nGroup1Chans + nGroup2Chans; i++)
     {
         coherenceWriter->at(i).resize(segLen * Fs);
+        dataWriter->getReference(i).resize(segLen * Fs);
     }
 
     // Overwrite TFR 
