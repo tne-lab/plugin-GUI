@@ -102,7 +102,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
         // Add to buffer the new samples.
         for (int n = 0; n < nSamples; n++)
         {
-            dataWriter->addFrom(activeChan,nSamplesAdded, rpIn, nSamples);
+            dataWriter->copyFrom(activeChan,nSamplesAdded, rpIn, nSamples);
         }  
     }
 

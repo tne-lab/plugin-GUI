@@ -60,12 +60,14 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<flo
 
 void CumulativeTFR::addTrial(const float* fftIn, int chan, int region)
 {
-    std::cout << "in add trial\n";
     float winsPerSegment = (segmentLen - windowLen) / stepLen;
     
     //// Update convInput ////
     // copy dataBuffer input to fft input
-    convInput.copyFrom(fftIn, nfft);
+    for (int i = 0; i < nfft; i++)
+    {
+        convInput.set(i, double(fftIn[i]));
+    }
 
     //// Execute fft ////
     fftPlan.execute();

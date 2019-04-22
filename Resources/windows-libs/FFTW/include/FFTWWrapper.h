@@ -167,18 +167,6 @@ public:
         return numToCopy;
     }
 
-    int copyFrom(const float* fromArr, int num, int startInd = 0)
-    {
-        int numToCopy = jmin(num, 2 * length - startInd);
-        double* wpReal = getRealPointer(startInd);
-        for (int i = 0; i < numToCopy; ++i)
-        {
-            wpReal[i] = fromArr[i];
-        }
-
-        return numToCopy;
-    }
-
    
 private:
     std::complex<double>* data;
