@@ -98,7 +98,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
         // Add to buffer the new samples.
         for (int n = 0; n < nSamples; n++)
         {
-           dataWriter->getReference(activeChan).set(n,rpIn[n]);
+            dataWriter->getReference(activeChan).set(n, rpIn[n]);
         }  
     }
 
@@ -175,8 +175,8 @@ void CoherenceNode::updateSettings()
     nFreqs = foi.size();
 
     // Set channels in group (need to update from editor)
-    group1Channels.addArray({ 1, 2 });
-    group2Channels.addArray({ 3, 4 });
+    group1Channels.addArray({ 1 });
+    group2Channels.addArray({ 2 });
 
     // Set number of channels in each group
     nGroup1Chans = group1Channels.size();
@@ -194,17 +194,17 @@ void CoherenceNode::updateSettings()
     int trimTime = nSamplesWin / 2 * 2; // /2 * 2 to convey half of a window on both ends of the segment
     int nTimes = (segLen * Fs) - trimTime;
 
-    // Resize arrays accordingly
-    dataWriter->resize(nGroup1Chans + nGroup2Chans);
+    dataWriter->clear();
+
     coherenceWriter->resize(nGroup1Chans + nGroup2Chans);
     for (int i = 0; i < nGroup1Chans + nGroup2Chans; i++)
     {
         coherenceWriter->at(i).resize(segLen * Fs);
-        dataWriter->getReference(i).resize(segLen * Fs);
+        dataWriter->add(std::move(FFTWArray(segLen * Fs)));
     }
 
     // Overwrite TFR 
-	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, foi, winLen, stepLen, interpRatio, 8);
+	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, foi, winLen, stepLen, interpRatio, segLen);
 }
 
 void CoherenceNode::setParameter(int parameterIndex, float newValue)

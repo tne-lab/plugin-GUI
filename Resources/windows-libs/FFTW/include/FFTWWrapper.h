@@ -167,7 +167,18 @@ public:
         return numToCopy;
     }
 
-   
+    // Move
+    FFTWArray(FFTWArray&& other)
+        : data(nullptr)
+        , length(0)
+    {
+        data = other.data;
+        length = other.length;
+        other.data = nullptr;
+        other.length = 0;
+    }
+
+    
 private:
     std::complex<double>* data;
     int length;
