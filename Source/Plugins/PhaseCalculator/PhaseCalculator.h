@@ -71,19 +71,6 @@ namespace PhaseCalculator
         VIS_C_CHAN
     };
 
-    // filter design copied from FilterNode
-    using BandpassFilterBase = Dsp::SmoothedFilterDesign
-        <Dsp::Butterworth::Design::BandPass // design type
-        <2>,                                // order
-        1,                                  // number of channels
-        Dsp::DirectFormII>;                 // realization
-
-    class BandpassFilter : public BandpassFilterBase
-    {
-    public:
-        BandpassFilter() : BandpassFilterBase(1) {} // # of transition samples
-    };
-
 
     class ReverseStack : public Array<double>
     {
@@ -123,6 +110,13 @@ namespace PhaseCalculator
         // reset to perform after end of acquisition or update
         void reset();
 
+        // filter design copied from FilterNode
+        using BandpassFilter = Dsp::SimpleFilter
+            <Dsp::Butterworth::BandPass // filter type
+            <2>,                        // order
+            1,                          // number of channels
+            Dsp::DirectFormII>;         // realization
+
         ReverseStack history;
 
         AtomicallyShared<Array<double>> sharedHistory;
@@ -133,12 +127,15 @@ namespace PhaseCalculator
 
         Array<double> htState;
 
-        // number of samples by which lastComputedSample precedes the start of the next buffer
-        // (ranges from 1 to downsampleFactor)
-        int dsOffset;
+        // number of samples until a new non-interpolated output. e.g. if this
+        // equals 1 after a buffer is processed, then there is one interpolated
+        // sample in the next buffer, and then the second sample will be computed.
+        // in range [0, dsFactor).
+        int interpCountdown;
 
         // last non-interpolated ("computed") transformer output
-        std::complex<double> lastComputedSample;
+        double lastComputedPhase;
+        double lastComputedMag;
 
         // last phase output, for glitch correction
         float lastPhase;
@@ -335,7 +332,7 @@ namespace PhaseCalculator
         *
         * Writes samps future data values to prediction.
         */
-        static void arPredict(const ReverseStack& history, int dsOffset, double* prediction,
+        static void arPredict(const ReverseStack& history, int interpCountdown, double* prediction,
             const double* params, int samps, int stride, int order);
 
         /*
