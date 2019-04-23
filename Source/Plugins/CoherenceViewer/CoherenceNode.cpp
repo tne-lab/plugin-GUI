@@ -77,6 +77,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
     Array<int> activeInputs = getActiveInputs();
     int nActiveInputs = activeInputs.size();
     int nSamples = 0;
+    std::cout << dataWriter->size() << std::endl;
     for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
     {
         int chan = activeInputs[activeChan];
@@ -107,11 +108,10 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
     // channel buf is full. Update buffer.
     if (nSamplesAdded >= segLen * Fs)
     {
-        fflush(stdout);
         dataWriter.pushUpdate();
         // Reset samples added
         nSamplesAdded = 0;
-        
+        updateDataBufferSize();
     }
 }
 
@@ -129,7 +129,7 @@ void CoherenceNode::run()
             for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
             {
                 int chan = activeInputs[activeChan];
-                // get buffer and send it to TFR to fun real-time-coherence calcs
+                // get buffer and send it to TFR to fun real-timBe-coherence calcs
                 int groupNum = getChanGroup(chan);
                 if (groupNum != -1)
                 {
@@ -165,6 +165,15 @@ void CoherenceNode::run()
     }
 }
 
+void CoherenceNode::updateDataBufferSize()
+{
+    dataWriter->clear();
+    for (int i = 0; i < nGroup1Chans + nGroup2Chans; i++)
+    {
+        dataWriter->add(std::move(FFTWArray(segLen * Fs)));
+    }
+}
+
 void CoherenceNode::updateSettings()
 {
     // Array of samples per channel and if ready to go
@@ -175,8 +184,8 @@ void CoherenceNode::updateSettings()
     nFreqs = foi.size();
 
     // Set channels in group (need to update from editor)
-    group1Channels.addArray({ 1 });
-    group2Channels.addArray({ 2 });
+    group1Channels.addArray({ 1, 2, 3, 4, 5, 6, 7, 8 });
+    group2Channels.addArray({ 9, 10, 11, 12, 13, 14, 15, 16 });
 
     // Set number of channels in each group
     nGroup1Chans = group1Channels.size();

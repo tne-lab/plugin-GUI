@@ -113,6 +113,9 @@ private:
     // returns the region for the requested channel
     int getChanGroup(int chan);
 
+    // Append FFTWArrays to data buffer
+    void updateDataBufferSize();
+
     ///// TFR vars
     // Number of channels for region 1
     int nGroup1Chans;

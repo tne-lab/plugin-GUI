@@ -167,7 +167,7 @@ public:
         return numToCopy;
     }
 
-    // Move
+    // Move to new FFTWArray. Needed to store in an array
     FFTWArray(FFTWArray&& other)
         : data(nullptr)
         , length(0)

@@ -159,7 +159,7 @@ void CumulativeTFR::calcCrssspctrm()
 {
 	std::complex<double> crss;
 
-    for (int freq; freq < nFreqs; freq++)
+    for (int freq = 0; freq < nFreqs; freq++)
     {
         for (int chanX = 0, comb = 0; chanX < nGroup1Chans; chanX++)
         {
