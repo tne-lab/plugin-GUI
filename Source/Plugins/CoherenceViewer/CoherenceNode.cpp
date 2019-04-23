@@ -161,6 +161,7 @@ void CoherenceNode::run()
             }
             // Update coherence and reset data buffer
             coherenceWriter.pushUpdate();
+            updateMeanCoherenceSize();
         }
     }
 }
@@ -174,6 +175,16 @@ void CoherenceNode::updateDataBufferSize()
     }
 }
 
+void CoherenceNode::updateMeanCoherenceSize()
+{
+    coherenceWriter->clear();
+    coherenceWriter->resize(nGroup1Chans + nGroup2Chans);
+    for (int i = 0; i < nGroup1Chans + nGroup2Chans; i++)
+    {
+        coherenceWriter->at(i).resize(segLen * Fs);
+    }
+}
+
 void CoherenceNode::updateSettings()
 {
     // Array of samples per channel and if ready to go
@@ -184,7 +195,9 @@ void CoherenceNode::updateSettings()
     nFreqs = foi.size();
 
     // Set channels in group (need to update from editor)
+    group1Channels.clear();
     group1Channels.addArray({ 1, 2, 3, 4, 5, 6, 7, 8 });
+    group2Channels.clear();
     group2Channels.addArray({ 9, 10, 11, 12, 13, 14, 15, 16 });
 
     // Set number of channels in each group
@@ -203,14 +216,8 @@ void CoherenceNode::updateSettings()
     int trimTime = nSamplesWin / 2 * 2; // /2 * 2 to convey half of a window on both ends of the segment
     int nTimes = (segLen * Fs) - trimTime;
 
-    dataWriter->clear();
-
-    coherenceWriter->resize(nGroup1Chans + nGroup2Chans);
-    for (int i = 0; i < nGroup1Chans + nGroup2Chans; i++)
-    {
-        coherenceWriter->at(i).resize(segLen * Fs);
-        dataWriter->add(std::move(FFTWArray(segLen * Fs)));
-    }
+    updateDataBufferSize();
+    updateMeanCoherenceSize();
 
     // Overwrite TFR 
 	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, foi, winLen, stepLen, interpRatio, segLen);
@@ -275,9 +282,85 @@ Array<int> CoherenceNode::getActiveInputs()
 
 /************** editor *************/
 CoherenceEditor::CoherenceEditor(CoherenceNode* p)
-    : VisualizerEditor(p, false)
+    : VisualizerEditor(p, 300, true)
 {
     tabText = "Coherence";
+
+    
+    // Segment length
+    int x = 0, y = 0, h = 0, w = 0;
+    segLabel = createLabel("segLabel", "Segment Length:", { x + 5, y + 25, w + 60, h + 27 });
+    addAndMakeVisible(segLabel);
+
+    segEditable = createEditable("segEditable", "8", "Input length of segment", { x + 70, y + 25, w + 35, h + 27 });
+    addAndMakeVisible(segEditable);
+
+    // Window Length
+    y += 35;
+    winLabel = createLabel("winLabel", "Window Length:", { x + 5, y + 25, w + 60, h + 27 });
+    addAndMakeVisible(winLabel);
+
+    winEditable = createEditable("winEditable", "2", "Input length of window", { x + 70, y + 25, w + 35, h + 27 });
+    addAndMakeVisible(winEditable);
+    
+    // Step Length
+    y += 35;
+    stepLabel = createLabel("stepLabel", "Step Length:", { x + 5, y + 25, w + 60, h + 27 });
+    addAndMakeVisible(stepLabel);
+
+    stepEditable = createEditable("stepEditable", "0.25", "Input step size between windows; higher number = less resource intensive", 
+        { x + 70, y + 25, w + 35, h + 27 });
+    addAndMakeVisible(stepEditable);
+
+    // Frequencies of interest
+    y = 0;
+    x += 105;
+    foiLabel = createLabel("foiLabel", "Frequencies of Interest", { x + 15, y + 25, w + 80, h + 27 });
+    addAndMakeVisible(foiLabel);
+
+    // Start freq
+    y += 35;
+    fstartLabel = createLabel("fstartLabel", "Freq Start:", { x + 5, y + 25, w + 60, h + 27 });
+    addAndMakeVisible(fstartLabel);
+
+    fstartEditable = createEditable("fstartEditable", "1", "Start of range of frequencies", { x + 70, y + 25, w + 35, h + 27 });
+    addAndMakeVisible(fstartEditable);
+
+    // End Freq
+    y += 35;
+    fendLabel = createLabel("fendLabel", "Freq End:", { x + 5, y + 25, w + 60, h + 27 });
+    addAndMakeVisible(fendLabel);
+
+    fendEditable = createEditable("fendEditable", "40", "End of range of frequencies", { x + 70, y + 25, w + 35, h + 27 });
+    addAndMakeVisible(fendEditable);
+
+    setEnabledState(false);
+}
+
+Label* CoherenceEditor::createEditable(const String& name, const String& initialValue,
+    const String& tooltip, juce::Rectangle<int> bounds)
+{
+    Label* editable = new Label(name, initialValue);
+    editable->setEditable(true);
+    editable->addListener(this);
+    editable->setBounds(bounds);
+    editable->setColour(Label::backgroundColourId, Colours::grey);
+    editable->setColour(Label::textColourId, Colours::white);
+    if (tooltip.length() > 0)
+    {
+        editable->setTooltip(tooltip);
+    }
+    return editable;
+}
+
+Label* CoherenceEditor::createLabel(const String& name, const String& text,
+    juce::Rectangle<int> bounds)
+{
+    Label* label = new Label(name, text);
+    label->setBounds(bounds);
+    label->setFont(Font("Small Text", 12, Font::plain));
+    label->setColour(Label::textColourId, Colours::darkgrey);
+    return label;
 }
 
 

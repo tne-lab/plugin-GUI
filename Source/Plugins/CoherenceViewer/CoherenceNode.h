@@ -37,6 +37,7 @@ in units of z-score.
 #include <VisualizerEditorHeaders.h>
 
 #include "CoherenceVisualizer.h"
+#include "CoherenceNodeEditor.h"
 #include "AtomicSynchronizer.h"
 #include "CumulativeTFR.h"
 
@@ -115,6 +116,7 @@ private:
 
     // Append FFTWArrays to data buffer
     void updateDataBufferSize();
+    void updateMeanCoherenceSize();
 
     ///// TFR vars
     // Number of channels for region 1
@@ -143,8 +145,9 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceNode);
 };
 
-
-class CoherenceEditor : public VisualizerEditor
+class CoherenceEditor 
+    : public VisualizerEditor
+    , public Label::Listener
 {
 public:
     CoherenceEditor(CoherenceNode* n);
@@ -152,7 +155,30 @@ public:
     Visualizer* createNewCanvas() override;
 
 private:
+    ScopedPointer<Label> segLabel;
+    ScopedPointer<Label> segEditable;
+
+    ScopedPointer<Label> winLabel;
+    ScopedPointer<Label> winEditable;
+
+    ScopedPointer<Label> stepLabel;
+    ScopedPointer<Label> stepEditable;
+
+    ScopedPointer<Label> foiLabel;
+
+    ScopedPointer<Label> fstartLabel;
+    ScopedPointer<Label> fstartEditable;
+
+    ScopedPointer<Label> fendLabel;
+    ScopedPointer<Label> fendEditable;
+
+    Label* CoherenceEditor::createLabel(const String& name, const String& text,
+        juce::Rectangle<int> bounds);
+    Label* CoherenceEditor::createEditable(const String& name, const String& initialValue,
+        const String& tooltip, juce::Rectangle<int> bounds);
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceEditor);
 };
+
 
 #endif // COHERENCE_NODE_H_INCLUDED

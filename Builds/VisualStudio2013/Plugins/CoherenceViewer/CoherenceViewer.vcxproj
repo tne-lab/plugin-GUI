@@ -128,6 +128,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\Source\Plugins\CoherenceViewer\CoherenceNode.cpp" />
+    <ClCompile Include="..\..\..\..\Source\Plugins\CoherenceViewer\CoherenceNodeEditor.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\CoherenceViewer\CoherenceVisualizer.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\CoherenceViewer\CumulativeTFR.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\CoherenceViewer\OpenEphysLib.cpp" />
@@ -136,6 +137,7 @@
     <ClInclude Include="..\..\..\..\Source\Plugins\CoherenceViewer\AtomicSynchronizer.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\CoherenceViewer\CircularArray.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\CoherenceViewer\CoherenceNode.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\CoherenceViewer\CoherenceNodeEditor.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\CoherenceViewer\CoherenceVisualizer.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\CoherenceViewer\CumulativeTFR.h" />
   </ItemGroup>
