@@ -24,7 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "CumulativeTFR.h"
 #include <cmath>
 
-CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLen, float stepLen, float interpRatio, double fftSec)
+CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLen, float stepLen, float freqStep, float interpRatio, double fftSec)
     : nGroup1Chans  (ng1)
     , nGroup2Chans  (ng2)
     , nFreqs        (nf)
@@ -52,7 +52,9 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLe
     , spectrumBuffer(nGroup1Chans + nGroup2Chans, vector<const std::complex<double>>(nt))
     , meanCoherence (ng1 * ng2, vector<double>(nFreqs))
     , stdCoherence  (ng1 * ng2, vector<double>(nFreqs))
+    , freqStep      (freqStep)
 {
+    // Create array of wavelets
     generateWavelet();
 
     // Trim time close to edge
@@ -136,7 +138,6 @@ void CumulativeTFR::updateCoherenceStats()
                 }
 
                 meanDest[f] = coh.getAverage();
-                int nTimes = nfft - (2 * trimTime); // number of samples minus trimming on both sides
                 if (nTimes < 2) 
                 {
                     stdDest[f] = 0;
@@ -220,13 +221,15 @@ void CumulativeTFR::generateWavelet()
     hannNorm = pow(hannNorm, 1 / 2);
 
     // Wavelet
+    float freqNormalized;
     for (int freq = 0; freq < nFreqs; freq++)
     {
+        freqNormalized = freq * freqStep;
         for (int position = 0; position < nfft; position++)
         {
             // Make sin and cos wave. Also noramlize hann here.
-            sinWave[position] = sin(position * freq * (2 * PI)); // Shift by pi/2 to put peak at time 0
-            cosWave[position] = cos(position * freq * (2 * PI));
+            sinWave[position] = sin(position * freqNormalized * (2 * PI)); // Shift by pi/2 to put peak at time 0
+            cosWave[position] = cos(position * freqNormalized * (2 * PI));
             hann[position] /= hannNorm;
         }
 

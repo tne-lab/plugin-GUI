@@ -131,6 +131,7 @@ private:
     int nGroup2Chans;
     // Number of freq of interest
     int nFreqs;
+    float freqStep;
     // Number of times of interest
     int nTimes;
     // Fs (sampling rate?)

@@ -32,8 +32,9 @@ CoherenceNode::CoherenceNode()
     , dataReader        (dataBuffer)
     , coherenceWriter   (meanCoherence)
     , segLen            (4)
-    , nFreqs            (30)
-    , stepLen           (0.25)
+    , nFreqs            (40/0.25)
+    , freqStep          (0.25)
+    , stepLen           (0.1)
     , winLen            (2)
     , interpRatio       (2)
     , nGroup1Chans      (0)
@@ -195,8 +196,8 @@ void CoherenceNode::updateSettings()
     // Array of samples per channel and if ready to go
     nSamplesAdded = 0;
     
-    // (Start - end freq) * stepsize
-    nFreqs = 40;
+    // (Start - end freq) / stepsize
+    nFreqs = int(40 / freqStep);
 
     // Set channels in group (need to update from editor)
     group1Channels.clear();
@@ -211,10 +212,8 @@ void CoherenceNode::updateSettings()
 
     // Seg/win/step/interp - move to params eventually
     winLen = 2;
-    stepLen = 0.25;
+    stepLen = 0.1;
     interpRatio = 2;
-
-    std::cout << segLen << std::endl;
 
     // Trim time close to edge
     int nSamplesWin = winLen * Fs;
@@ -224,7 +223,7 @@ void CoherenceNode::updateSettings()
     updateMeanCoherenceSize();
 
     // Overwrite TFR 
-	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, stepLen, interpRatio, segLen);
+	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, stepLen, freqStep, interpRatio, segLen);
 }
 
 void CoherenceNode::setParameter(int parameterIndex, float newValue)
@@ -409,7 +408,14 @@ void CoherenceEditor::labelTextChanged(Label* labelThatHasChanged)
         {
             processor->setParameter(CoherenceNode::SEGMENT_LENGTH, static_cast<int>(newVal));
         }
-        
+    }
+    if (labelThatHasChanged == winEditable)
+    {
+        int newVal;
+        if (updateIntLabel(labelThatHasChanged, 0, INT_MAX, 8, &newVal))
+        {
+            processor->setParameter(CoherenceNode::WINDOW_LENGTH, static_cast<int>(newVal));
+        }
     }
 }
 
