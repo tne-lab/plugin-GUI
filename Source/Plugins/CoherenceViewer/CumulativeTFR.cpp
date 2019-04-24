@@ -24,11 +24,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "CumulativeTFR.h"
 #include <cmath>
 
-CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLen, float interpRatio, double fftSec)
+CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLen, float stepLen, float interpRatio, double fftSec)
     : nGroup1Chans  (ng1)
     , nGroup2Chans  (ng2)
     , nFreqs        (nf)
     , Fs            (Fs)
+    , stepLen       (stepLen)
     , nTimes        (nt)
     , nfft          (int(fftSec * Fs))
     , convInput     (nfft)
@@ -47,8 +48,10 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLe
                     vector<std::complex<double>>(nt)))
     , windowLen     (winLen)
     , interpRatio   (interpRatio)
-    , waveletArray(nf, vector<std::complex<double>>(int(fftSec * Fs))) // nfft breaks here...
+    , waveletArray  (nf, vector<std::complex<double>>(int(fftSec * Fs))) // nfft breaks here...
     , spectrumBuffer(nGroup1Chans + nGroup2Chans, vector<const std::complex<double>>(nt))
+    , meanCoherence (ng1 * ng2, vector<double>(nFreqs))
+    , stdCoherence  (ng1 * ng2, vector<double>(nFreqs))
 {
     generateWavelet();
 
@@ -81,8 +84,7 @@ void CumulativeTFR::addTrial(const double* fftIn, int chan, int region)
         // Loop over time of interest
 		for (int t = 0; t < nTimes; t++)
 		{
-            int tIndex = int((float(t) * stepLen + trimTime)  * Fs);
-            std::cout << "time index: " << tIndex << std::endl;
+            int tIndex = int(((t * stepLen) + trimTime)  * Fs);
             std::complex<double> complex = convOutput.getAsComplex(tIndex);
             // Save convOutput for crss later
             spectrumBuffer[chan][t] = complex;
@@ -117,7 +119,6 @@ void CumulativeTFR::updateCoherenceStats()
     {
         for (int c2 = 0; c2 < nGroup2Chans; ++c2, ++comb)
         {
-            std::cout << "comb coherence" << comb << std::endl;
             double* meanDest = meanCoherence[comb].data();
             double* stdDest = stdCoherence[comb].data();
 

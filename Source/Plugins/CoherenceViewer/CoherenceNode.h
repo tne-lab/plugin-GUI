@@ -46,6 +46,7 @@ in units of z-score.
 
 class CoherenceNode : public GenericProcessor, public Thread
 {
+    friend class CoherenceNodeEditor;
 public:
     CoherenceNode();
     ~CoherenceNode();
@@ -79,7 +80,11 @@ public:
     void saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType) override;
     void loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType) override;
 
-
+    enum Parameter
+    {
+        SEGMENT_LENGTH,
+        WINDOW_LENGTH
+    };
 
 private:
     // group of 3, controlled by coherenceSync:
@@ -134,7 +139,6 @@ private:
     int nSamplesAdded; // holds how many samples were added for each channel
     AudioBuffer<float> channelData; // Holds the segment buffer for each channel.
 
-
     // Total Combinations
     int nGroupCombs;
 
@@ -144,15 +148,22 @@ private:
     // Get iterator for this channel in it's respective group
     int getGroupIt(int group, int chan);
 
+
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceNode);
 };
 
 class CoherenceEditor 
     : public VisualizerEditor
-    //, public Label::Listener
+    , public Label::Listener
+    , public ComboBox::Listener
 {
 public:
     CoherenceEditor(CoherenceNode* n);
+    ~CoherenceEditor();
+
+    void comboBoxChanged(ComboBox* comboBoxThatHasChanged) override;
+    void labelTextChanged(Label* labelThatHasChanged) override;
 
     Visualizer* createNewCanvas() override;
 
@@ -178,6 +189,8 @@ private:
         juce::Rectangle<int> bounds);
     Label* CoherenceEditor::createEditable(const String& name, const String& initialValue,
         const String& tooltip, juce::Rectangle<int> bounds);
+
+    bool updateIntLabel(Label* label, int min, int max, int defaultValue, int* out);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceEditor);
 };

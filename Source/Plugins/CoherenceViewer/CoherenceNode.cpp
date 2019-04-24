@@ -31,9 +31,8 @@ CoherenceNode::CoherenceNode()
     , coherenceReader   (meanCoherence)
     , dataReader        (dataBuffer)
     , coherenceWriter   (meanCoherence)
-    , segLen            (8)
+    , segLen            (4)
     , nFreqs            (30)
-    , nTimes            (10)
     , stepLen           (0.25)
     , winLen            (2)
     , interpRatio       (2)
@@ -126,7 +125,7 @@ void CoherenceNode::run()
         {
             std::cout << "starting thread" << std::endl;
             time_t my_time = time(NULL);
-            std::cout << ctime(&my_time) << std::endl;
+            std::cout << ctime(&my_time);
             dataReader.pullUpdate();
 
             for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
@@ -137,7 +136,6 @@ void CoherenceNode::run()
                 if (groupNum != -1)
                 {
                     int it = getGroupIt(groupNum, chan);
-                    std::cout << "Trial number: " << activeChan << std::endl << "it: " << it << std::endl;
                     TFR->addTrial(dataReader->getReference(activeChan).getReadPointer(activeChan), it, groupNum);
                 }
                 else
@@ -153,9 +151,7 @@ void CoherenceNode::run()
                 jassert("atomic sync coherence writer broken");
             }
             // Calc coherence
-            std::cout << "Getting coherence" << std::endl;
             std::vector<std::vector<double>> TFRMeanCoh = TFR->getCurrentMeanCoherence();
-            std::cout << "Coherence complete" << std::endl;
             // For loop over combinations
             for (int comb = 0; comb < nGroupCombs; ++comb)
             {
@@ -169,7 +165,7 @@ void CoherenceNode::run()
             // Update coherence and reset data buffer
             coherenceWriter.pushUpdate();
             my_time = time(NULL);
-            std::cout << ctime(&my_time) << std::endl;
+            std::cout << ctime(&my_time) << "end thread\n\n";
             updateMeanCoherenceSize();
         }
     }
@@ -187,8 +183,8 @@ void CoherenceNode::updateDataBufferSize()
 void CoherenceNode::updateMeanCoherenceSize()
 {
     coherenceWriter->clear();
-    coherenceWriter->resize(nGroup1Chans + nGroup2Chans);
-    for (int i = 0; i < nGroup1Chans + nGroup2Chans; i++)
+    coherenceWriter->resize(nGroupCombs);
+    for (int i = 0; i < nGroupCombs; i++)
     {
         coherenceWriter->at(i).resize(segLen * Fs);
     }
@@ -214,25 +210,36 @@ void CoherenceNode::updateSettings()
     nGroupCombs = nGroup1Chans * nGroup2Chans;
 
     // Seg/win/step/interp - move to params eventually
-    segLen = 8;
     winLen = 2;
     stepLen = 0.25;
     interpRatio = 2;
 
+    std::cout << segLen << std::endl;
+
     // Trim time close to edge
     int nSamplesWin = winLen * Fs;
-    int nTimes = ((segLen * Fs) - (nSamplesWin)) / Fs * (1/stepLen); // Trim half of window on both sides, so 1 window length is trimmed total
+    int nTimes = ((segLen * Fs) - (nSamplesWin)) / Fs * (1/stepLen) + 1; // Trim half of window on both sides, so 1 window length is trimmed total
 
     updateDataBufferSize();
     updateMeanCoherenceSize();
 
     // Overwrite TFR 
-	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, interpRatio, segLen);
+	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, stepLen, interpRatio, segLen);
 }
 
 void CoherenceNode::setParameter(int parameterIndex, float newValue)
 {
     // Set new region channels and such in here?
+    switch (parameterIndex)
+    {
+    case SEGMENT_LENGTH:
+        segLen = static_cast<int>(newValue);
+        break;
+
+    case WINDOW_LENGTH:
+        winLen = static_cast<int>(newValue);
+        break;
+    }
     updateSettings();
 }
 
@@ -309,7 +316,6 @@ CoherenceEditor::CoherenceEditor(CoherenceNode* p)
 {
     tabText = "Coherence";
 
-    
     // Segment length
     int x = 0, y = 0, h = 0, w = 0;
     segLabel = createLabel("segLabel", "Segment Length:", { x + 5, y + 25, w + 60, h + 27 });
@@ -360,12 +366,14 @@ CoherenceEditor::CoherenceEditor(CoherenceNode* p)
     setEnabledState(false);
 }
 
+CoherenceEditor::~CoherenceEditor() {}
+
 Label* CoherenceEditor::createEditable(const String& name, const String& initialValue,
     const String& tooltip, juce::Rectangle<int> bounds)
 {
     Label* editable = new Label(name, initialValue);
     editable->setEditable(true);
-    //editable->addListener(this);
+    editable->addListener(this);
     editable->setBounds(bounds);
     editable->setColour(Label::backgroundColourId, Colours::grey);
     editable->setColour(Label::textColourId, Colours::white);
@@ -384,6 +392,45 @@ Label* CoherenceEditor::createLabel(const String& name, const String& text,
     label->setFont(Font("Small Text", 12, Font::plain));
     label->setColour(Label::textColourId, Colours::darkgrey);
     return label;
+}
+
+void CoherenceEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
+{
+
+}
+
+void CoherenceEditor::labelTextChanged(Label* labelThatHasChanged)
+{
+    auto processor = static_cast<CoherenceNode*>(getProcessor());
+    if (labelThatHasChanged == segEditable)
+    {
+        int newVal;
+        if (updateIntLabel(labelThatHasChanged, 0, INT_MAX, 8, &newVal))
+        {
+            processor->setParameter(CoherenceNode::SEGMENT_LENGTH, static_cast<int>(newVal));
+        }
+        
+    }
+}
+
+bool CoherenceEditor::updateIntLabel(Label* label, int min, int max, int defaultValue, int* out)
+{
+    const String& in = label->getText();
+    int parsedInt;
+    try
+    {
+        parsedInt = std::stoi(in.toRawUTF8());
+    }
+    catch (const std::logic_error&)
+    {
+        label->setText(String(defaultValue), dontSendNotification);
+        return false;
+    }
+
+    *out = jmax(min, jmin(max, parsedInt));
+
+    label->setText(String(*out), dontSendNotification);
+    return true;
 }
 
 
