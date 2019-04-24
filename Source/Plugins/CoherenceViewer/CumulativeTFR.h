@@ -42,7 +42,8 @@ class CumulativeTFR
 
 public:
     CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs,
-        int winLen = 2, float stepLen = 0.1, float freqStep = 0.25, float interpRatio = 2, double fftSec = 10.0);
+        int winLen = 2, float stepLen = 0.1, float freqStep = 0.25,
+        int freqStart = 1, int freqEnd = 40, float interpRatio = 2, double fftSec = 10.0);
 
     // Handle a new buffer of data. Preform FFT and create pxxs, pyys.
     void addTrial(const double* fftIn, int chan, int region);
@@ -68,6 +69,8 @@ private:
     int interpRatio;
 
     float freqStep;
+    int freqStart;
+    int freqEnd;
 
     int trimTime;
 

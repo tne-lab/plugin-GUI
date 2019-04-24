@@ -83,7 +83,10 @@ public:
     enum Parameter
     {
         SEGMENT_LENGTH,
-        WINDOW_LENGTH
+        WINDOW_LENGTH,
+        START_FREQ,
+        END_FREQ,
+        STEP_LENGTH
     };
 
 private:
@@ -132,6 +135,8 @@ private:
     // Number of freq of interest
     int nFreqs;
     float freqStep;
+    int freqStart;
+    int freqEnd;
     // Number of times of interest
     int nTimes;
     // Fs (sampling rate?)
@@ -192,6 +197,8 @@ private:
         const String& tooltip, juce::Rectangle<int> bounds);
 
     bool updateIntLabel(Label* label, int min, int max, int defaultValue, int* out);
+    bool updateFloatLabel(Label* label, float min, float max,
+        float defaultValue, float* out);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceEditor);
 };

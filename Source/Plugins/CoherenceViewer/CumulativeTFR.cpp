@@ -24,7 +24,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "CumulativeTFR.h"
 #include <cmath>
 
-CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLen, float stepLen, float freqStep, float interpRatio, double fftSec)
+CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLen, float stepLen, float freqStep,
+    int freqStart, int freqEnd, float interpRatio, double fftSec)
     : nGroup1Chans  (ng1)
     , nGroup2Chans  (ng2)
     , nFreqs        (nf)
@@ -53,6 +54,8 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLe
     , meanCoherence (ng1 * ng2, vector<double>(nFreqs))
     , stdCoherence  (ng1 * ng2, vector<double>(nFreqs))
     , freqStep      (freqStep)
+    , freqStart     (freqStart)
+    , freqEnd       (freqEnd)
 {
     // Create array of wavelets
     generateWavelet();
@@ -221,10 +224,10 @@ void CumulativeTFR::generateWavelet()
     hannNorm = pow(hannNorm, 1 / 2);
 
     // Wavelet
-    float freqNormalized;
+    float freqNormalized = freqStart;
     for (int freq = 0; freq < nFreqs; freq++)
     {
-        freqNormalized = freq * freqStep;
+        freqNormalized += freqStep;
         for (int position = 0; position < nfft; position++)
         {
             // Make sin and cos wave. Also noramlize hann here.

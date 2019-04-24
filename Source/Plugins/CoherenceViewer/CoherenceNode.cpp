@@ -32,8 +32,9 @@ CoherenceNode::CoherenceNode()
     , dataReader        (dataBuffer)
     , coherenceWriter   (meanCoherence)
     , segLen            (4)
-    , nFreqs            (40/0.25)
     , freqStep          (0.25)
+    , freqStart         (1)
+    , freqEnd           (40)
     , stepLen           (0.1)
     , winLen            (2)
     , interpRatio       (2)
@@ -197,7 +198,7 @@ void CoherenceNode::updateSettings()
     nSamplesAdded = 0;
     
     // (Start - end freq) / stepsize
-    nFreqs = int(40 / freqStep);
+    nFreqs = int((freqEnd - freqStart) / freqStep);
 
     // Set channels in group (need to update from editor)
     group1Channels.clear();
@@ -211,8 +212,6 @@ void CoherenceNode::updateSettings()
     nGroupCombs = nGroup1Chans * nGroup2Chans;
 
     // Seg/win/step/interp - move to params eventually
-    winLen = 2;
-    stepLen = 0.1;
     interpRatio = 2;
 
     // Trim time close to edge
@@ -223,7 +222,8 @@ void CoherenceNode::updateSettings()
     updateMeanCoherenceSize();
 
     // Overwrite TFR 
-	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, stepLen, freqStep, interpRatio, segLen);
+	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, stepLen, 
+        freqStep, freqStart, freqEnd, interpRatio, segLen);
 }
 
 void CoherenceNode::setParameter(int parameterIndex, float newValue)
@@ -234,9 +234,17 @@ void CoherenceNode::setParameter(int parameterIndex, float newValue)
     case SEGMENT_LENGTH:
         segLen = static_cast<int>(newValue);
         break;
-
     case WINDOW_LENGTH:
         winLen = static_cast<int>(newValue);
+        break;
+    case START_FREQ:
+        freqStart = static_cast<int>(newValue);
+        break;
+    case END_FREQ:
+        freqEnd = static_cast<int>(newValue);
+        break;
+    case STEP_LENGTH:
+        stepLen = static_cast<float>(newValue);
         break;
     }
     updateSettings();
@@ -417,6 +425,30 @@ void CoherenceEditor::labelTextChanged(Label* labelThatHasChanged)
             processor->setParameter(CoherenceNode::WINDOW_LENGTH, static_cast<int>(newVal));
         }
     }
+    if (labelThatHasChanged == fstartEditable)
+    {
+        int newVal;
+        if (updateIntLabel(labelThatHasChanged, 0, INT_MAX, 8, &newVal))
+        {
+            processor->setParameter(CoherenceNode::START_FREQ, static_cast<int>(newVal));
+        }
+    }
+    if (labelThatHasChanged == fendEditable)
+    {
+        int newVal;
+        if (updateIntLabel(labelThatHasChanged, 0, INT_MAX, 8, &newVal))
+        {
+            processor->setParameter(CoherenceNode::END_FREQ, static_cast<int>(newVal));
+        }
+    }
+    if (labelThatHasChanged == stepEditable)
+    {
+        float newVal;
+        if (updateFloatLabel(labelThatHasChanged, 0, INT_MAX, 8, &newVal))
+        {
+            processor->setParameter(CoherenceNode::STEP_LENGTH, static_cast<float>(newVal));
+        }
+    }
 }
 
 bool CoherenceEditor::updateIntLabel(Label* label, int min, int max, int defaultValue, int* out)
@@ -434,6 +466,28 @@ bool CoherenceEditor::updateIntLabel(Label* label, int min, int max, int default
     }
 
     *out = jmax(min, jmin(max, parsedInt));
+
+    label->setText(String(*out), dontSendNotification);
+    return true;
+}
+
+// Like updateIntLabel, but for floats
+bool CoherenceEditor::updateFloatLabel(Label* label, float min, float max,
+    float defaultValue, float* out)
+{
+    const String& in = label->getText();
+    float parsedFloat;
+    try
+    {
+        parsedFloat = std::stof(in.toRawUTF8());
+    }
+    catch (const std::logic_error&)
+    {
+        label->setText(String(defaultValue), dontSendNotification);
+        return false;
+    }
+
+    *out = jmax(min, jmin(max, parsedFloat));
 
     label->setText(String(*out), dontSendNotification);
     return true;
