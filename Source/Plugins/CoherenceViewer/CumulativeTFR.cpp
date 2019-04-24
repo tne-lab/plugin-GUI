@@ -24,11 +24,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "CumulativeTFR.h"
 #include <cmath>
 
-CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<float> foi, int winLen, int stepLen, float interpRatio, double fftSec)
+CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLen, float interpRatio, double fftSec)
     : nGroup1Chans  (ng1)
     , nGroup2Chans  (ng2)
     , nFreqs        (nf)
     , Fs            (Fs)
+    , nTimes        (nt)
     , nfft          (int(fftSec * Fs))
     , convInput     (nfft)
     , freqData      (nfft)
@@ -45,17 +46,14 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, Array<flo
                     vector<vector<std::complex<double>>>(nf,
                     vector<std::complex<double>>(nt)))
     , windowLen     (winLen)
-    , stepLen       (stepLen)
     , interpRatio   (interpRatio)
-    , foi           (foi)
-    , waveletArray  (nFreqs, vector<std::complex<double>>(int(fftSec*Fs)))
-    , spectrumBuffer(nGroup1Chans + nGroup2Chans, vector<const std::complex<double>>(int(fftSec*Fs)))
+    , waveletArray(nf, vector<std::complex<double>>(int(fftSec * Fs))) // nfft breaks here...
+    , spectrumBuffer(nGroup1Chans + nGroup2Chans, vector<const std::complex<double>>(nt))
 {
     generateWavelet();
 
     // Trim time close to edge
-    int nSamplesWin = windowLen * Fs;
-    trimTime = nSamplesWin / 2;
+    trimTime = windowLen / 2;
 }
 
 void CumulativeTFR::addTrial(const double* fftIn, int chan, int region)
@@ -81,9 +79,11 @@ void CumulativeTFR::addTrial(const double* fftIn, int chan, int region)
 		ifftPlan.execute();
 
         // Loop over time of interest
-		for (float t = trimTime; t < nfft - trimTime; t+=stepLen)
+		for (int t = 0; t < nTimes; t++)
 		{
-            std::complex<double> complex = convOutput.getAsComplex(t);
+            int tIndex = int((float(t) * stepLen + trimTime)  * Fs);
+            std::cout << "time index: " << tIndex << std::endl;
+            std::complex<double> complex = convOutput.getAsComplex(tIndex);
             // Save convOutput for crss later
             spectrumBuffer[chan][t] = complex;
             // Get power
@@ -117,6 +117,7 @@ void CumulativeTFR::updateCoherenceStats()
     {
         for (int c2 = 0; c2 < nGroup2Chans; ++c2, ++comb)
         {
+            std::cout << "comb coherence" << comb << std::endl;
             double* meanDest = meanCoherence[comb].data();
             double* stdDest = stdCoherence[comb].data();
 
@@ -125,7 +126,7 @@ void CumulativeTFR::updateCoherenceStats()
                 // compute coherence at each time
                 RealAccum coh;
 
-                for (int t = trimTime; t < nfft - trimTime; t+=stepLen)
+                for (int t = 0; t < nTimes; t++)
                 {
                     coh.addValue(singleCoherence(
                         pxxs[c1][f][t].getAverage(),
@@ -166,7 +167,7 @@ void CumulativeTFR::calcCrssspctrm()
             for (int chanY = 0; chanY < nGroup2Chans; chanY++, comb++)
             {
                 // Get crss from specturm of both chanX and chanY
-				for (int t = trimTime; t < nfft - trimTime; t += stepLen) // Time of interest here instead of every point
+				for (int t = 0; t < nTimes; t++)
 				{
 					crss = spectrumBuffer[chanX][t] * conj(spectrumBuffer[chanY][t]);
                     pxySum += crss;

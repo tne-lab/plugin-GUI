@@ -41,9 +41,8 @@ class CumulativeTFR
     using ComplexAccum = StatisticsAccumulator<std::complex<double>>;
 
 public:
-    CumulativeTFR(int ng1, int ng2, int nf, int nt,
-        int Fs, Array<float> foi,
-        int winLen = 2, int stepLen = 0.25, float interpRatio = 2, double fftSec = 10.0);
+    CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs,
+        int winLen = 2, float interpRatio = 2, double fftSec = 10.0);
 
     // Handle a new buffer of data. Preform FFT and create pxxs, pyys.
     void addTrial(const double* fftIn, int chan, int region);
@@ -60,8 +59,9 @@ private:
 
     int nGroup1Chans;
     int nGroup2Chans;
-    int nFreqs;
+    const int nFreqs;
     const int Fs;
+    const int nTimes;
     int segmentLen;
     int windowLen;
     float stepLen;
@@ -112,9 +112,9 @@ private:
     // calculate a single magnitude-squared coherence from cross spectrum and auto-power values
     static double singleCoherence(double pxx, double pyy, std::complex<double> pxy);
 
+    int getChanGroupIndex(int chan);
 
-    // Create wavelet
-    // complex sinusoid
+
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CumulativeTFR);
 };

@@ -41,6 +41,7 @@ in units of z-score.
 #include "AtomicSynchronizer.h"
 #include "CumulativeTFR.h"
 
+#include <time.h>
 #include <vector>
 
 class CoherenceNode : public GenericProcessor, public Thread
@@ -140,14 +141,15 @@ private:
     // from 0 to 10
     static const int COH_PRIORITY = 5;
 
-
+    // Get iterator for this channel in it's respective group
+    int getGroupIt(int group, int chan);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceNode);
 };
 
 class CoherenceEditor 
     : public VisualizerEditor
-    , public Label::Listener
+    //, public Label::Listener
 {
 public:
     CoherenceEditor(CoherenceNode* n);

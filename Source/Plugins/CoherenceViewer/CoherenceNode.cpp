@@ -77,7 +77,6 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
     Array<int> activeInputs = getActiveInputs();
     int nActiveInputs = activeInputs.size();
     int nSamples = 0;
-    std::cout << dataWriter->size() << std::endl;
     for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
     {
         int chan = activeInputs[activeChan];
@@ -125,7 +124,11 @@ void CoherenceNode::run()
         int nActiveInputs = activeInputs.size();
         if (dataBuffer.hasUpdate())
         {
+            std::cout << "starting thread" << std::endl;
+            time_t my_time = time(NULL);
+            std::cout << ctime(&my_time) << std::endl;
             dataReader.pullUpdate();
+
             for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
             {
                 int chan = activeInputs[activeChan];
@@ -133,7 +136,9 @@ void CoherenceNode::run()
                 int groupNum = getChanGroup(chan);
                 if (groupNum != -1)
                 {
-                    TFR->addTrial(dataReader->getReference(activeChan).getReadPointer(activeChan), chan, groupNum);
+                    int it = getGroupIt(groupNum, chan);
+                    std::cout << "Trial number: " << activeChan << std::endl << "it: " << it << std::endl;
+                    TFR->addTrial(dataReader->getReference(activeChan).getReadPointer(activeChan), it, groupNum);
                 }
                 else
                 {
@@ -148,7 +153,9 @@ void CoherenceNode::run()
                 jassert("atomic sync coherence writer broken");
             }
             // Calc coherence
+            std::cout << "Getting coherence" << std::endl;
             std::vector<std::vector<double>> TFRMeanCoh = TFR->getCurrentMeanCoherence();
+            std::cout << "Coherence complete" << std::endl;
             // For loop over combinations
             for (int comb = 0; comb < nGroupCombs; ++comb)
             {
@@ -161,6 +168,8 @@ void CoherenceNode::run()
             }
             // Update coherence and reset data buffer
             coherenceWriter.pushUpdate();
+            my_time = time(NULL);
+            std::cout << ctime(&my_time) << std::endl;
             updateMeanCoherenceSize();
         }
     }
@@ -190,9 +199,8 @@ void CoherenceNode::updateSettings()
     // Array of samples per channel and if ready to go
     nSamplesAdded = 0;
     
-    // foi (need to update from editor)
-    foi.addArray({ 1, 2, 3, 4 , 5, 6});
-    nFreqs = foi.size();
+    // (Start - end freq) * stepsize
+    nFreqs = 40;
 
     // Set channels in group (need to update from editor)
     group1Channels.clear();
@@ -208,19 +216,18 @@ void CoherenceNode::updateSettings()
     // Seg/win/step/interp - move to params eventually
     segLen = 8;
     winLen = 2;
-    stepLen = 0.1;
+    stepLen = 0.25;
     interpRatio = 2;
 
     // Trim time close to edge
     int nSamplesWin = winLen * Fs;
-    int trimTime = nSamplesWin / 2 * 2; // /2 * 2 to convey half of a window on both ends of the segment
-    int nTimes = (segLen * Fs) - trimTime;
+    int nTimes = ((segLen * Fs) - (nSamplesWin)) / Fs * (1/stepLen); // Trim half of window on both sides, so 1 window length is trimmed total
 
     updateDataBufferSize();
     updateMeanCoherenceSize();
 
     // Overwrite TFR 
-	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, foi, winLen, stepLen, interpRatio, segLen);
+	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, interpRatio, segLen);
 }
 
 void CoherenceNode::setParameter(int parameterIndex, float newValue)
@@ -243,6 +250,22 @@ int CoherenceNode::getChanGroup(int chan)
     {
         return -1; // Channel isn't in group 1 or 2. Error!
     }
+}
+
+int CoherenceNode::getGroupIt(int group, int chan)
+{
+    int groupIt;
+    if (group == 1)
+    {
+        int * it = std::find(group1Channels.begin(), group1Channels.end(), chan);
+        groupIt = it - group1Channels.begin();
+    }
+    else
+    {
+        int * it = std::find(group2Channels.begin(), group2Channels.end(), chan);
+        groupIt = it - group2Channels.begin();
+    }
+    return groupIt;
 }
 
 bool CoherenceNode::enable()
@@ -342,7 +365,7 @@ Label* CoherenceEditor::createEditable(const String& name, const String& initial
 {
     Label* editable = new Label(name, initialValue);
     editable->setEditable(true);
-    editable->addListener(this);
+    //editable->addListener(this);
     editable->setBounds(bounds);
     editable->setColour(Label::backgroundColourId, Colours::grey);
     editable->setColour(Label::textColourId, Colours::white);
