@@ -26,7 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "CoherenceNode.h"
 #include "CoherenceVisualizer.h"
-/*
+
 class CoherenceEditor
     : public VisualizerEditor
     , public Label::Listener
@@ -71,5 +71,5 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceEditor);
 };
 
-*/
+
 #endif // COHERENCE_NODE_EDITOR_H_INCLUDED

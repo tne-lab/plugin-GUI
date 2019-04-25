@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "CoherenceNodeEditor.h"
 
 /************** editor *************/
-/*CoherenceEditor::CoherenceEditor(CoherenceNode* p)
+CoherenceEditor::CoherenceEditor(CoherenceNode* p)
     : VisualizerEditor(p, 300, true)
 {
     tabText = "Coherence";
@@ -209,4 +209,3 @@ Visualizer* CoherenceEditor::createNewCanvas()
     canvas = new CoherenceVisualizer();
     return canvas;
 }
-*/

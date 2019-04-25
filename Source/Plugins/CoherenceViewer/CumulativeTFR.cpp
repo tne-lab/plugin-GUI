@@ -74,14 +74,14 @@ void CumulativeTFR::addTrial(const double* fftIn, int chan, int region)
 
     //// Execute fft ////
     fftPlan.execute();
-
+    float nWindow = Fs * windowLen;
     //// Use freqData to find generate spectrum and get power ////
 	for (int freq = 0; freq < nFreqs; freq++)
 	{
 		// Multiple fft data by wavelet
 		for (int n = 0; n < nfft; n++)
 		{
-			freqData.set(n, freqData.getAsComplex(n) * waveletArray[freq][n]);
+            freqData.set(n, freqData.getAsComplex(n) * waveletArray[freq][n] / double(nfft));
 		}
 		// Inverse FFT on data multiplied by wavelet
 		ifftPlan.execute();
@@ -91,10 +91,12 @@ void CumulativeTFR::addTrial(const double* fftIn, int chan, int region)
 		{
             int tIndex = int(((t * stepLen) + trimTime)  * Fs);
             std::complex<double> complex = convOutput.getAsComplex(tIndex);
+            //complex ;
+            complex *= sqrt(2.0/ nWindow);
             // Save convOutput for crss later
             spectrumBuffer[chan][t] = complex;
             // Get power
-            std::cout << "complex at time: " << complex << std::endl;
+            //std::cout << "complex at time: " << complex << std::endl;
 			double power = pow(abs(complex),2); 
 			// Region either 1 or 2. 1 => pxx, 2 => pyy
 			if (region == 1)
@@ -199,17 +201,17 @@ void CumulativeTFR::generateWavelet()
     // Hann window
     FFTWArray waveletIn(nfft);
     hannNorm = 0;
-    float nWindow = Fs * windowLen;
+    float nSampWindow = Fs * windowLen;
     for (int position = 0; position < nfft; position++)
     {
         //// Hann Window //// = sin^2(PI*n/N) where N=length of window
         // Create first half hann function
-        if (position <= nWindow / 2)
+        if (position <= nSampWindow / 2)
         {
-            hann[position] = pow(sin(position*PI / nWindow + PI / 2.0), 2); // Shift half over cos^2(pi*x*freq/(n+1))
+            hann[position] = pow(sin(position*PI / nSampWindow + PI / 2.0), 2); // Shift half over cos^2(pi*x*freq/(n+1))
         }
         // Pad with zeroes
-        else if (position <= (nfft - nWindow / 2)) // 0's until one half cycle left
+        else if (position <= (nfft - nSampWindow / 2)) // 0's until one half cycle left
         {
             hann[position] = 0;
         }
@@ -217,8 +219,8 @@ void CumulativeTFR::generateWavelet()
         else
         {
             //std::cout << "in third chunk of hann" << std::endl;
-            int hannPosition = position - (nfft - nWindow / 2); // Move start of wave to nfft - windowSize/2
-            hann[position] = pow(sin((hannPosition*PI / nWindow)), 2);
+            int hannPosition = position - (nfft - nSampWindow / 2); // Move start of wave to nfft - windowSize/2
+            hann[position] = pow(sin((hannPosition*PI / nSampWindow)), 2);
             //std::cout << "hann coords: " << hann[position] << std::endl;
         }
         // Normalize Hann window using Frobenius-ish alg. hann = hann/norm(hann)
