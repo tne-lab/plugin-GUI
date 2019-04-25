@@ -94,7 +94,7 @@ private:
     AtomicScopedWritePtr<std::vector<std::vector<double>>> coherenceWriter;
     AtomicScopedReadPtr<Array<FFTWArray>> dataReader;
 
-    CumulativeTFR* TFR;
+    ScopedPointer<CumulativeTFR> TFR;
     Array<bool> CHANNEL_READY;
 
     // freq of interest

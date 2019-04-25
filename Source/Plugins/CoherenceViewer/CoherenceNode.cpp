@@ -189,7 +189,7 @@ void CoherenceNode::updateMeanCoherenceSize()
     coherenceWriter->resize(nGroupCombs);
     for (int i = 0; i < nGroupCombs; i++)
     {
-        coherenceWriter->at(i).resize(segLen * Fs);
+        coherenceWriter->at(i).resize(nFreqs);
     }
 }
 
