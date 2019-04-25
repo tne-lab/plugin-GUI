@@ -85,7 +85,7 @@ void CumulativeTFR::addTrial(const double* fftIn, int chan, int region)
 		}
 		// Inverse FFT on data multiplied by wavelet
 		ifftPlan.execute();
-
+        
         // Loop over time of interest
 		for (int t = 0; t < nTimes; t++)
 		{
@@ -94,6 +94,7 @@ void CumulativeTFR::addTrial(const double* fftIn, int chan, int region)
             // Save convOutput for crss later
             spectrumBuffer[chan][t] = complex;
             // Get power
+            std::cout << "complex at time: " << complex << std::endl;
 			double power = pow(abs(complex),2); 
 			// Region either 1 or 2. 1 => pxx, 2 => pyy
 			if (region == 1)
@@ -197,43 +198,52 @@ void CumulativeTFR::generateWavelet()
 	const double PI = 3.14;
     // Hann window
     FFTWArray waveletIn(nfft);
+    hannNorm = 0;
+    float nWindow = Fs * windowLen;
     for (int position = 0; position < nfft; position++)
     {
         //// Hann Window //// = sin^2(PI*n/N) where N=length of window
         // Create first half hann function
-        if (position <= windowLen / 2)
+        if (position <= nWindow / 2)
         {
-            hann[position] = pow(sin(position*PI / windowLen + PI / 2), 2); // Shift half over cos^2(pi*x*freq/(n+1))
+            hann[position] = pow(sin(position*PI / nWindow + PI / 2.0), 2); // Shift half over cos^2(pi*x*freq/(n+1))
         }
         // Pad with zeroes
-        else if (position <= (nfft - windowLen / 2)) // 0's until one half cycle left
+        else if (position <= (nfft - nWindow / 2)) // 0's until one half cycle left
         {
             hann[position] = 0;
         }
         // Finish off hann function
         else
         {
-            int hannPosition = position - (nfft - windowLen / 2); // Move start of wave to nfft - windowSize/2
-            hann[position] = pow(sin((hannPosition*PI / windowLen)), 2);
+            //std::cout << "in third chunk of hann" << std::endl;
+            int hannPosition = position - (nfft - nWindow / 2); // Move start of wave to nfft - windowSize/2
+            hann[position] = pow(sin((hannPosition*PI / nWindow)), 2);
+            //std::cout << "hann coords: " << hann[position] << std::endl;
         }
         // Normalize Hann window using Frobenius-ish alg. hann = hann/norm(hann)
         // norm(hann) = sum(abs(hann).^P)^(1/P) ... use p=2
-        hannNorm += pow(abs(hann[position]), 2);
+        //hannNorm += pow(abs(hann[position]), 2); Does nothing currently?
     }
-    
+    /* // Checked and doesn't change the data (think it was used to make sure the matrix was equal in matlab code?)
     hannNorm = pow(hannNorm, 1 / 2);
+    for (int position = 0; position < nfft; position++)
+    {
+        hann[position] /= hannNorm;
+    }
+    */
 
     // Wavelet
     float freqNormalized = freqStart;
     for (int freq = 0; freq < nFreqs; freq++)
     {
         freqNormalized += freqStep;
+        
         for (int position = 0; position < nfft; position++)
         {
             // Make sin and cos wave. Also noramlize hann here.
             sinWave[position] = sin(position * freqNormalized * (2 * PI)); // Shift by pi/2 to put peak at time 0
             cosWave[position] = cos(position * freqNormalized * (2 * PI));
-            hann[position] /= hannNorm;
         }
 
 		//// Wavelet ////
@@ -241,7 +251,7 @@ void CumulativeTFR::generateWavelet()
 		for (int position = 0; position < nfft; position++)
 		{
 			convInput.set(position, std::complex<double>(cosWave.at(position) * hann.at(position), sinWave.at(position) * hann.at(position)));
-		}
+        }
 		
 		fftPlan.execute();
 

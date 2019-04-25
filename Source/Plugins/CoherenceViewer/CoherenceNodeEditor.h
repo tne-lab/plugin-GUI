@@ -26,7 +26,50 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "CoherenceNode.h"
 #include "CoherenceVisualizer.h"
-#include <VisualizerEditorHeaders.h>
-#include <VisualizerWindowHeaders.h>
+/*
+class CoherenceEditor
+    : public VisualizerEditor
+    , public Label::Listener
+    , public ComboBox::Listener
+{
+public:
+    CoherenceEditor(CoherenceNode* n);
+    ~CoherenceEditor();
 
+    void comboBoxChanged(ComboBox* comboBoxThatHasChanged) override;
+    void labelTextChanged(Label* labelThatHasChanged) override;
+
+    Visualizer* createNewCanvas() override;
+
+private:
+    ScopedPointer<Label> segLabel;
+    ScopedPointer<Label> segEditable;
+
+    ScopedPointer<Label> winLabel;
+    ScopedPointer<Label> winEditable;
+
+    ScopedPointer<Label> stepLabel;
+    ScopedPointer<Label> stepEditable;
+
+    ScopedPointer<Label> foiLabel;
+
+    ScopedPointer<Label> fstartLabel;
+    ScopedPointer<Label> fstartEditable;
+
+    ScopedPointer<Label> fendLabel;
+    ScopedPointer<Label> fendEditable;
+
+    Label* CoherenceEditor::createLabel(const String& name, const String& text,
+        juce::Rectangle<int> bounds);
+    Label* CoherenceEditor::createEditable(const String& name, const String& initialValue,
+        const String& tooltip, juce::Rectangle<int> bounds);
+
+    bool updateIntLabel(Label* label, int min, int max, int defaultValue, int* out);
+    bool updateFloatLabel(Label* label, float min, float max,
+        float defaultValue, float* out);
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceEditor);
+};
+
+*/
 #endif // COHERENCE_NODE_EDITOR_H_INCLUDED

@@ -37,7 +37,7 @@ in units of z-score.
 #include <VisualizerEditorHeaders.h>
 
 #include "CoherenceVisualizer.h"
-#include "CoherenceNodeEditor.h"
+//#include "CoherenceNodeEditor.h"
 #include "AtomicSynchronizer.h"
 #include "CumulativeTFR.h"
 
@@ -46,7 +46,7 @@ in units of z-score.
 
 class CoherenceNode : public GenericProcessor, public Thread
 {
-    friend class CoherenceNodeEditor;
+    friend class CoherenceEditor;
 public:
     CoherenceNode();
     ~CoherenceNode();
@@ -80,14 +80,7 @@ public:
     void saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType) override;
     void loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType) override;
 
-    enum Parameter
-    {
-        SEGMENT_LENGTH,
-        WINDOW_LENGTH,
-        START_FREQ,
-        END_FREQ,
-        STEP_LENGTH
-    };
+    
 
 private:
     // group of 3, controlled by coherenceSync:
@@ -108,9 +101,9 @@ private:
     Array<float> foi;
 
     // Segment Length
-    int segLen;  // 8 seconds
+    int segLen;  
     // Window Length
-    int winLen;  // 2 seconds
+    int winLen;  
     // Step Length
     float stepLen; // Iterval between times of interest
     // Interp Ratio ??
@@ -154,12 +147,20 @@ private:
     // Get iterator for this channel in it's respective group
     int getGroupIt(int group, int chan);
 
-
+    enum Parameter
+    {
+        SEGMENT_LENGTH,
+        WINDOW_LENGTH,
+        START_FREQ,
+        END_FREQ,
+        STEP_LENGTH
+    };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceNode);
 };
 
-class CoherenceEditor 
+
+class CoherenceEditor
     : public VisualizerEditor
     , public Label::Listener
     , public ComboBox::Listener
@@ -202,6 +203,5 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceEditor);
 };
-
 
 #endif // COHERENCE_NODE_H_INCLUDED

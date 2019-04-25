@@ -32,7 +32,7 @@ CoherenceNode::CoherenceNode()
     , dataReader        (dataBuffer)
     , coherenceWriter   (meanCoherence)
     , segLen            (4)
-    , freqStep          (0.25)
+    , freqStep          (1)
     , freqStart         (1)
     , freqEnd           (40)
     , stepLen           (0.1)
@@ -165,6 +165,7 @@ void CoherenceNode::run()
 
             }
             // Update coherence and reset data buffer
+            std::cout << "coherence at freq 20, comb 1: " << coherenceWriter->at(0)[20] << std::endl;
             coherenceWriter.pushUpdate();
             my_time = time(NULL);
             std::cout << ctime(&my_time) << "end thread\n\n";
@@ -317,6 +318,23 @@ Array<int> CoherenceNode::getActiveInputs()
 }
 
 
+bool CoherenceNode::hasEditor() const
+{
+    return true;
+}
+
+void CoherenceNode::saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType)
+{
+
+}
+
+void CoherenceNode::loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType)
+{
+
+}
+
+
+
 /************** editor *************/
 CoherenceEditor::CoherenceEditor(CoherenceNode* p)
     : VisualizerEditor(p, 300, true)
@@ -328,7 +346,7 @@ CoherenceEditor::CoherenceEditor(CoherenceNode* p)
     segLabel = createLabel("segLabel", "Segment Length:", { x + 5, y + 25, w + 60, h + 27 });
     addAndMakeVisible(segLabel);
 
-    segEditable = createEditable("segEditable", "8", "Input length of segment", { x + 70, y + 25, w + 35, h + 27 });
+    segEditable = createEditable("segEditable", "4", "Input length of segment", { x + 70, y + 25, w + 35, h + 27 });
     addAndMakeVisible(segEditable);
 
     // Window Length
@@ -338,14 +356,14 @@ CoherenceEditor::CoherenceEditor(CoherenceNode* p)
 
     winEditable = createEditable("winEditable", "2", "Input length of window", { x + 70, y + 25, w + 35, h + 27 });
     addAndMakeVisible(winEditable);
-    
+
     // Step Length
     y += 35;
     stepLabel = createLabel("stepLabel", "Step Length:", { x + 5, y + 25, w + 60, h + 27 });
     addAndMakeVisible(stepLabel);
 
-    stepEditable = createEditable("stepEditable", "0.25", "Input step size between windows; higher number = less resource intensive", 
-        { x + 70, y + 25, w + 35, h + 27 });
+    stepEditable = createEditable("stepEditable", "0.1", "Input step size between windows; higher number = less resource intensive",
+    { x + 70, y + 25, w + 35, h + 27 });
     addAndMakeVisible(stepEditable);
 
     // Frequencies of interest
@@ -369,6 +387,9 @@ CoherenceEditor::CoherenceEditor(CoherenceNode* p)
 
     fendEditable = createEditable("fendEditable", "40", "End of range of frequencies", { x + 70, y + 25, w + 35, h + 27 });
     addAndMakeVisible(fendEditable);
+
+    // Set regions/groups! 
+
 
     setEnabledState(false);
 }
@@ -498,19 +519,4 @@ Visualizer* CoherenceEditor::createNewCanvas()
 {
     canvas = new CoherenceVisualizer();
     return canvas;
-}
-
-bool CoherenceNode::hasEditor() const
-{
-    return true;
-}
-
-void CoherenceNode::saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType)
-{
-
-}
-
-void CoherenceNode::loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType)
-{
-
 }
