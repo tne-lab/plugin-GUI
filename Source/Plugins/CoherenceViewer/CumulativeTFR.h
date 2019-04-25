@@ -91,6 +91,11 @@ private:
 
 	//Array<AudioBuffer<double>> spectrumBuffer;
 
+    // I'm feeling like it might make more sense to have just one of these for power of
+    // all the channels of interest. Also, maybe allow selecting arbitrary pairs of channels
+    // to calculate coherence b/w rather than dividing selected channels into group 1 and
+    // group 2. Thoughts?
+
     // # group 1 channels x # frequencies x # times
     vector<vector<vector<RealAccum>>> pxxs;
     vector<vector<vector<RealAccum>>> pyys;
