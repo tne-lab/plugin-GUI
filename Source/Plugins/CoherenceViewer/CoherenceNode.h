@@ -83,11 +83,13 @@ public:
     
 
 private:
-    // group of 3, controlled by coherenceSync:
 
     AtomicallyShared<Array<FFTWArray>> dataBuffer;
     AtomicallyShared<std::vector<std::vector<double>>> meanCoherence;
 
+    // we should refactor so that these only exist during acquisition
+    // so that updateDataBufferSize and maybe other functions can be called to
+    // modify the underlying data when settings are changed.
     AtomicScopedWritePtr<Array<FFTWArray>> dataWriter;
     AtomicScopedReadPtr<std::vector<std::vector<double>>> coherenceReader;
 
@@ -101,7 +103,7 @@ private:
     Array<float> foi;
 
     // Segment Length
-    int segLen;  
+    int segLen;
     // Window Length
     int winLen;  
     // Step Length
@@ -113,11 +115,13 @@ private:
     Array<int> group1Channels;
     Array<int> group2Channels;
 
+    uint32 validSubProcFullID;
+
     // returns the region for the requested channel
     int getChanGroup(int chan);
 
     // Append FFTWArrays to data buffer
-    void updateDataBufferSize();
+    void updateDataBufferSize(int newSize);
     void updateMeanCoherenceSize();
 
     ///// TFR vars

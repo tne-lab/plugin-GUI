@@ -111,7 +111,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
         dataWriter.pushUpdate();
         // Reset samples added
         nSamplesAdded = 0;
-        updateDataBufferSize();
+        //updateDataBufferSize();
     }
 }
 
@@ -174,13 +174,35 @@ void CoherenceNode::run()
     }
 }
 
-void CoherenceNode::updateDataBufferSize()
+void CoherenceNode::updateDataBufferSize(int newSize)
 {
-    dataWriter->clear();
-    for (int i = 0; i < nGroup1Chans + nGroup2Chans; i++)
+    int totalChans = nGroup1Chans + nGroup2Chans;
+
+    // no writers or readers can exist here
+    // so this probably can't be called during acquisition
+    // I changed it because it doesn't really make sense to just change the buffer we're currently
+    // writing to when acquisition is stopped, and we need to figure out how to
+    // make changes when acquisition is running anyway.
+    dataBuffer.apply([=](Array<FFTWArray>& arr)
     {
-        dataWriter->add(std::move(FFTWArray(segLen * Fs)));
-    }
+        for (int i = 0; i < jmin(totalChans, arr.size()); i++)
+        {
+            arr.getReference(i).resize(newSize);
+        }
+
+        int nChansChange = totalChans - arr.size();
+        if (nChansChange > 0)
+        {
+            for (int i = 0; i < nChansChange; i++)
+            {
+                arr.add(FFTWArray(newSize));
+            }
+        }
+        else if (nChansChange < 0)
+        {
+            arr.removeLast(-nChansChange);
+        }
+    });
 }
 
 void CoherenceNode::updateMeanCoherenceSize()
@@ -215,11 +237,20 @@ void CoherenceNode::updateSettings()
     // Seg/win/step/interp - move to params eventually
     interpRatio = 2;
 
+    if (nGroup1Chans > 0)
+    {
+        float newFs = getDataChannel(group1Channels[0])->getSampleRate();
+        if (newFs != Fs)
+        {
+            Fs = newFs;
+            updateDataBufferSize(segLen * Fs);
+        }
+    }
+
     // Trim time close to edge
     int nSamplesWin = winLen * Fs;
-    int nTimes = ((segLen * Fs) - (nSamplesWin)) / Fs * (1/stepLen) + 1; // Trim half of window on both sides, so 1 window length is trimmed total
+    int nTimes = ((segLen * Fs) - (nSamplesWin)) / Fs * (1 / stepLen) + 1; // Trim half of window on both sides, so 1 window length is trimmed total
 
-    updateDataBufferSize();
     updateMeanCoherenceSize();
 
     // Overwrite TFR 
@@ -248,6 +279,11 @@ void CoherenceNode::setParameter(int parameterIndex, float newValue)
         stepLen = static_cast<float>(newValue);
         break;
     }
+
+    // This generally shouldn't be called during acquisition (the way it is now, it will definitely
+    // cause some issues if the thread is running). On the other hand, all the parameters here
+    // could also cause problems if they're changed during acquisition. Since I think at least some
+    // of them could be useful to change during a run, we should think about how to do that safely...
     updateSettings();
 }
 
