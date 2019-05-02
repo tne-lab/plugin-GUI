@@ -46,10 +46,11 @@ public:
         int freqStart = 1, int freqEnd = 40, float interpRatio = 2, double fftSec = 10.0);
 
     // Handle a new buffer of data. Preform FFT and create pxxs, pyys.
-    void addTrial(const double* fftIn, int chan, int region);
+    void addTrial(const double* fftIn, int chan);
 
-    // Functions to get coherence data
-    vector<vector<double>> getCurrentMeanCoherence();
+    // Function to get coherence between two channels
+    void getMeanCoherence(int chanX, int chanY, double* meanDest);
+    
     vector<vector<double>> getCurrentStdCoherence();
 
 private:
@@ -74,7 +75,8 @@ private:
 
     int trimTime;
 
-	vector<vector<const std::complex<double>>> spectrumBuffer;
+    // # channels x # frequencies x # times
+	vector<vector<vector<const std::complex<double>>>> spectrumBuffer;
     vector<vector<std::complex<double>>> waveletArray;
 
     float hannNorm;
@@ -101,8 +103,14 @@ private:
     vector<vector<vector<RealAccum>>> pyys;
 
     // # channel combinations x # frequencies x # times
-    //vector<vector<vector<ComplexAccum>>> pxys;
     vector<vector<vector<std::complex<double>>>> pxys;
+
+
+    // # channels x # frequencies x # times
+    vector<vector<vector<RealAccum>>> powBuffer;
+
+    // # frequencies x # times
+    vector<vector<std::complex<double>>> pxy;
     std::complex<double> pxySum;
     int pxyCount;
 

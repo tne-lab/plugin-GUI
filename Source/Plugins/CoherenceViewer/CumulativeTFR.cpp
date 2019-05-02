@@ -47,10 +47,17 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLe
     , pxys          (ng1 * ng2,
                     vector<vector<std::complex<double>>>(nf,
                     vector<std::complex<double>>(nt)))
+    , pxy           (nf,
+                    vector<std::complex<double>>(nTimes))
     , windowLen     (winLen)
     , interpRatio   (interpRatio)
     , waveletArray  (nf, vector<std::complex<double>>(int(fftSec * Fs))) // nfft breaks here...
-    , spectrumBuffer(nGroup1Chans + nGroup2Chans, vector<const std::complex<double>>(nt))
+    , spectrumBuffer(nGroup1Chans + nGroup2Chans, 
+                     vector<vector<const std::complex<double>>>(nf,
+                     vector<const std::complex<double>>(nt)))
+    , powBuffer     (nGroup1Chans + nGroup2Chans,
+                     vector<vector<RealAccum>>(nf,
+                     vector<RealAccum>(nt)))
     , meanCoherence (ng1 * ng2, vector<double>(nFreqs))
     , stdCoherence  (ng1 * ng2, vector<double>(nFreqs))
     , freqStep      (freqStep)
@@ -64,7 +71,7 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLe
     trimTime = windowLen / 2;
 }
 
-void CumulativeTFR::addTrial(const double* fftIn, int chan, int region)
+void CumulativeTFR::addTrial(const double* fftIn, int chan)
 {
     float winsPerSegment = (segmentLen - windowLen) / stepLen;
     
@@ -91,30 +98,60 @@ void CumulativeTFR::addTrial(const double* fftIn, int chan, int region)
 		{
             int tIndex = int(((t * stepLen) + trimTime)  * Fs);
             std::complex<double> complex = convOutput.getAsComplex(tIndex);
-            //complex ;
             complex *= sqrt(2.0/ nWindow);
             // Save convOutput for crss later
-            spectrumBuffer[chan][t] = complex;
+            spectrumBuffer[chan][freq][t] = complex;
             // Get power
-            //std::cout << "complex at time: " << complex << std::endl;
 			double power = pow(abs(complex),2); 
-			// Region either 1 or 2. 1 => pxx, 2 => pyy
-			if (region == 1)
-			{
-				pxxs.at(chan).at(freq).at(t).addValue(power);
-			}
-			else
-			{
-				pyys.at(chan).at(freq).at(t).addValue(power);
-			}
+            powBuffer.at(chan).at(freq).at(t).addValue(power);
 		}
 	}
 }
 
-std::vector<std::vector<double>> CumulativeTFR::getCurrentMeanCoherence()
+void CumulativeTFR::getMeanCoherence(int chanX, int chanY, double* meanDest)
 {
-    calcCrssspctrm();
-    return meanCoherence;
+    // Cross spectra
+    for (int freq = 0; freq < nFreqs; freq++)
+    {
+        std::complex<double> pxySum = 0;
+        int pxyCount = 0;
+        // Get crss from specturm of both chanX and chanY
+        for (int t = 0; t < nTimes; t++)
+        {
+            std::complex<double> crss = spectrumBuffer[chanX][freq][t] * conj(spectrumBuffer[chanY][freq][t]);
+            pxySum += crss;
+            pxyCount++;
+            pxy[freq][t] = std::complex<double>(pxySum.real() / pxyCount, pxySum.imag() / pxyCount);
+        }
+    }
+    
+    // Coherence
+    std::vector<double> stdDest(nFreqs); // Not used yet.. Probably add it as input to function
+    for (int f = 0; f < nFreqs; ++f)
+    {
+        // compute coherence at each time
+        RealAccum coh;
+
+        for (int t = 0; t < nTimes; t++)
+        {
+            coh.addValue(singleCoherence(
+                powBuffer[chanX][f][t].getAverage(),
+                powBuffer[chanY][f][t].getAverage(),
+                pxy[f][t]));
+        }
+
+        meanDest[f] = coh.getAverage();
+        if (nTimes < 2)
+        {
+            stdDest[f] = 0;
+        }
+        else
+        {
+            stdDest[f] = std::sqrt(coh.getVariance() * nTimes / (nTimes - 1));
+        }
+    }
+
+    return;
 }
 
 

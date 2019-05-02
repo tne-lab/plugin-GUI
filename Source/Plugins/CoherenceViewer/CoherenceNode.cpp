@@ -27,10 +27,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 CoherenceNode::CoherenceNode()
     : GenericProcessor  ("Coherence")
     , Thread            ("Coherence Calc")
-    , dataWriter        (dataBuffer)
-    , coherenceReader   (meanCoherence)
-    , dataReader        (dataBuffer)
-    , coherenceWriter   (meanCoherence)
     , segLen            (4)
     , freqStep          (1)
     , freqStart         (1)
@@ -126,8 +122,6 @@ void CoherenceNode::run()
         if (dataBuffer.hasUpdate())
         {
             std::cout << "starting thread" << std::endl;
-            time_t my_time = time(NULL);
-            std::cout << ctime(&my_time);
             dataReader.pullUpdate();
 
             for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
@@ -152,7 +146,18 @@ void CoherenceNode::run()
             {
                 jassert("atomic sync coherence writer broken");
             }
-            // Calc coherence
+
+            // Calc coherence at each combination of interest
+            
+            for (int chanX = 0, int comb = 0; chanX < nGroup1Chans; chanX++)
+            {
+                for (int chanY = 0; chanY < nGroup2Chans; chanY++, comb++)
+                {
+                    TFR->getMeanCoherence(chanX, chanY, coherenceWriter->at(comb).data());
+                }
+
+            }
+            /*
             std::vector<std::vector<double>> TFRMeanCoh = TFR->getCurrentMeanCoherence();
             // For loop over combinations
             for (int comb = 0; comb < nGroupCombs; ++comb)
@@ -163,12 +168,10 @@ void CoherenceNode::run()
                     coherenceWriter->at(comb).at(freq) = TFRMeanCoh[comb][freq];
                 }
 
-            }
+            }*/
             // Update coherence and reset data buffer
             std::cout << "coherence at freq 20, comb 1: " << coherenceWriter->at(0)[20] << std::endl;
             coherenceWriter.pushUpdate();
-            my_time = time(NULL);
-            std::cout << ctime(&my_time) << "end thread\n\n";
             updateMeanCoherenceSize();
         }
     }
@@ -321,6 +324,12 @@ int CoherenceNode::getGroupIt(int group, int chan)
 
 bool CoherenceNode::enable()
 {
+    dataWriter(dataBuffer);
+    oherenceReader(meanCoherence);
+
+    coherenceWriter(meanCoherence);
+    dataReader(dataBuffer);
+
     if (isEnabled)
     {
         // Start coherence calculation thread
