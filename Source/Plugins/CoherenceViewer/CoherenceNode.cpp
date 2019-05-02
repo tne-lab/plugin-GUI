@@ -27,6 +27,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 CoherenceNode::CoherenceNode()
     : GenericProcessor  ("Coherence")
     , Thread            ("Coherence Calc")
+    , dataWriter        (dataBuffer)
+    , coherenceReader   (meanCoherence)
+    , dataReader        (dataBuffer)
+    , coherenceWriter   (meanCoherence)
     , segLen            (4)
     , freqStep          (1)
     , freqStart         (1)
@@ -36,7 +40,7 @@ CoherenceNode::CoherenceNode()
     , interpRatio       (2)
     , nGroup1Chans      (0)
     , nGroup2Chans      (0)
-    , Fs                (CoreServices::getGlobalSampleRate())
+    , Fs                (0)
 {
     setProcessorType(PROCESSOR_TYPE_SINK);
 }
@@ -121,18 +125,17 @@ void CoherenceNode::run()
         int nActiveInputs = activeInputs.size();
         if (dataBuffer.hasUpdate())
         {
-            std::cout << "starting thread" << std::endl;
             dataReader.pullUpdate();
 
             for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
             {
                 int chan = activeInputs[activeChan];
-                // get buffer and send it to TFR to fun real-timBe-coherence calcs
+                // get buffer and send it to TFR
+                // Check to make sure channel is in one of our groups
                 int groupNum = getChanGroup(chan);
                 if (groupNum != -1)
                 {
-                    int it = getGroupIt(groupNum, chan);
-                    TFR->addTrial(dataReader->getReference(activeChan).getReadPointer(activeChan), it, groupNum);
+                    TFR->addTrial(dataReader->getReference(activeChan).getReadPointer(activeChan), chan);
                 }
                 else
                 {
@@ -148,12 +151,13 @@ void CoherenceNode::run()
             }
 
             // Calc coherence at each combination of interest
-            
-            for (int chanX = 0, int comb = 0; chanX < nGroup1Chans; chanX++)
+            for (int itX = 0, comb = 0; itX < nGroup1Chans; itX++)
             {
-                for (int chanY = 0; chanY < nGroup2Chans; chanY++, comb++)
+                int chanX = group1Channels[itX];
+                for (int itY = 0; itY < nGroup2Chans; itY++, comb++)
                 {
-                    TFR->getMeanCoherence(chanX, chanY, coherenceWriter->at(comb).data());
+                    int chanY = group2Channels[itY];
+                    TFR->getMeanCoherence(chanX, chanY, coherenceWriter->at(comb).data(), comb);
                 }
 
             }
@@ -225,6 +229,7 @@ void CoherenceNode::updateSettings()
     
     // (Start - end freq) / stepsize
     nFreqs = int((freqEnd - freqStart) / freqStep);
+    // foi = 0.5:1/(win_len*interp_ratio):30
 
     // Set channels in group (need to update from editor)
     group1Channels.clear();
@@ -324,12 +329,6 @@ int CoherenceNode::getGroupIt(int group, int chan)
 
 bool CoherenceNode::enable()
 {
-    dataWriter(dataBuffer);
-    oherenceReader(meanCoherence);
-
-    coherenceWriter(meanCoherence);
-    dataReader(dataBuffer);
-
     if (isEnabled)
     {
         // Start coherence calculation thread

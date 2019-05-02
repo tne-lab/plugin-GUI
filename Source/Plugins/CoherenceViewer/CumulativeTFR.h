@@ -38,7 +38,30 @@ class CumulativeTFR
     using vector = std::vector<T>;
 
     using RealAccum = StatisticsAccumulator<double>;
-    using ComplexAccum = StatisticsAccumulator<std::complex<double>>;
+   // using ComplexAccum = StatisticsAccumulator<std::complex<double>>;
+
+    struct ComplexAccum
+    {
+        ComplexAccum() 
+            : count (0)
+            , sum   (0,0)
+        {}
+
+        std::complex<double> getAverage()
+        {
+            return count > 0 ? sum / (double)count : std::complex<double>();
+        }
+
+        void addValue(std::complex<double> x)
+        {
+            sum += x;
+            ++count;
+        }
+
+    private:
+        std::complex<double> sum;
+        size_t count;
+    };
 
 public:
     CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs,
@@ -49,7 +72,7 @@ public:
     void addTrial(const double* fftIn, int chan);
 
     // Function to get coherence between two channels
-    void getMeanCoherence(int chanX, int chanY, double* meanDest);
+    void getMeanCoherence(int chanX, int chanY, double* meanDest, int comb);
     
     vector<vector<double>> getCurrentStdCoherence();
 
@@ -103,16 +126,17 @@ private:
     vector<vector<vector<RealAccum>>> pyys;
 
     // # channel combinations x # frequencies x # times
-    vector<vector<vector<std::complex<double>>>> pxys;
+    vector<vector<vector<ComplexAccum>>> pxys;
 
 
     // # channels x # frequencies x # times
     vector<vector<vector<RealAccum>>> powBuffer;
 
     // # frequencies x # times
-    vector<vector<std::complex<double>>> pxy;
-    std::complex<double> pxySum;
-    int pxyCount;
+    vector<vector<vector<std::complex<double>>>> pxy;
+    vector<vector<vector<std::complex<double>>>> pxySum;
+    vector<vector<vector<int>>> pxyCount;
+
 
     // statistics for all trials, combined over trial times
     // # channel combinations x # frequencies
@@ -127,7 +151,8 @@ private:
 
     int getChanGroupIndex(int chan);
 
-
+    Array<std::pair<int, int>> combPairs;
+    Array<int> combPairHandled;
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CumulativeTFR);
 };
