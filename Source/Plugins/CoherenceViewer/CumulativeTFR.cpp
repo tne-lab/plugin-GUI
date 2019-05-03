@@ -45,8 +45,8 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLe
                     vector<vector<RealAccum>>(nf,
                     vector<RealAccum>(nt)))
     , pxys          (ng1 * ng2,
-                    vector<vector<std::complex<double>>>(nf,
-                    vector<std::complex<double>>(nt)))
+                    vector<vector<ComplexAccum>>(nf,
+                    vector<ComplexAccum>(nt)))
     , windowLen     (winLen)
     , interpRatio   (interpRatio)
     , waveletArray  (nf, vector<std::complex<double>>(int(fftSec * Fs))) // nfft breaks here...
@@ -173,7 +173,7 @@ void CumulativeTFR::updateCoherenceStats()
                     coh.addValue(singleCoherence(
                         pxxs[c1][f][t].getAverage(),
                         pyys[c2][f][t].getAverage(),
-                        pxys[comb][f][t]));
+                        pxys[comb][f][t].getAverage()));
                 }
 
                 meanDest[f] = coh.getAverage();
