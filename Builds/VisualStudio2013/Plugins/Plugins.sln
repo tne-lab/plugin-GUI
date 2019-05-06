@@ -9,9 +9,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "KWIKFormat", "KWIKFormat\KW
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FilterNode", "FilterNode\FilterNode.vcxproj", "{7B23828E-559F-4AD2-B75D-D05786F6329C}"
-	ProjectSection(ProjectDependencies) = postProject
-		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B} = {1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B}
-	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "NetworkEvents", "NetworkEvents\NetworkEvents.vcxproj", "{D5D58DAC-582B-4F39-9385-E1814D56BCA0}"
 EndProject
@@ -55,13 +52,8 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EvntTrigAvg", "EvntTrigAvg\EvntTrigAvg.vcxproj", "{BEE7D50B-D914-43EC-975C-3FE2FC36E40D}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PhaseCalculator", "PhaseCalculator\PhaseCalculator.vcxproj", "{01D5D00F-B1FC-4E48-A8C0-3037344855DB}"
-	ProjectSection(ProjectDependencies) = postProject
-		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B} = {1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B}
-	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CrossingDetector", "CrossingDetector\CrossingDetector.vcxproj", "{C9A8CFB7-4911-4E58-AC96-53271B87DF72}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DspLib", "CommonLibs\DspLib\DspLib.vcxproj", "{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LFP_Viewer", "LFP_Viewer\LFP_Viewer.vcxproj", "{41BD734E-4939-47AD-9714-9629538F7206}"
 EndProject
@@ -329,18 +321,6 @@ Global
 		{C9A8CFB7-4911-4E58-AC96-53271B87DF72}.Release|Win32.Build.0 = Release|Win32
 		{C9A8CFB7-4911-4E58-AC96-53271B87DF72}.Release|x64.ActiveCfg = Release|x64
 		{C9A8CFB7-4911-4E58-AC96-53271B87DF72}.Release|x64.Build.0 = Release|x64
-		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
-		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B}.Debug|Mixed Platforms.Build.0 = Debug|Win32
-		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B}.Debug|Win32.ActiveCfg = Debug|Win32
-		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B}.Debug|Win32.Build.0 = Debug|Win32
-		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B}.Debug|x64.ActiveCfg = Debug|x64
-		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B}.Debug|x64.Build.0 = Debug|x64
-		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B}.Release|Mixed Platforms.ActiveCfg = Release|Win32
-		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B}.Release|Mixed Platforms.Build.0 = Release|Win32
-		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B}.Release|Win32.ActiveCfg = Release|Win32
-		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B}.Release|Win32.Build.0 = Release|Win32
-		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B}.Release|x64.ActiveCfg = Release|x64
-		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B}.Release|x64.Build.0 = Release|x64
 		{41BD734E-4939-47AD-9714-9629538F7206}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
 		{41BD734E-4939-47AD-9714-9629538F7206}.Debug|Mixed Platforms.Build.0 = Debug|Win32
 		{41BD734E-4939-47AD-9714-9629538F7206}.Debug|Win32.ActiveCfg = Debug|Win32
@@ -443,6 +423,5 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{F250DB70-6E3E-408C-BD9E-1483D574499D} = {B49D0C12-70A8-4762-A4FE-74FA3D16FFDD}
-		{1DD9DB7A-A9D8-4982-9FA3-1AEAFEC5FC1B} = {B49D0C12-70A8-4762-A4FE-74FA3D16FFDD}
 	EndGlobalSection
 EndGlobal

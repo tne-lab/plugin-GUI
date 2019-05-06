@@ -43,7 +43,7 @@ accuracy of phase-locked stimulation in real time.
 */
 
 #include <ProcessorHeaders.h>
-#include <DspLib/Dsp.h>  // Filtering
+#include <DspLib.h>  // Filtering
 #include <queue>
 #include <utility>  // pair
 
