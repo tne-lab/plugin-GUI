@@ -115,9 +115,7 @@ void CumulativeTFR::getMeanCoherence(int chanX, int chanY, double* meanDest, int
         for (int t = 0; t < nTimes; t++)
         {
             std::complex<double> crss = spectrumBuffer[chanX][f][t] * conj(spectrumBuffer[chanY][f][t]);
-            //pxySum[comb][f][t] += crss; // MOVE TO STRUCT!!
-            //pxyCount[comb][f][t]++;
-            pxys[comb][f][t].addValue(crss);// std::complex<double>(pxySum[comb][f][t].real() / pxyCount[comb][f][t], pxySum[comb][f][t].imag() / pxyCount[comb][f][t]);
+            pxys[comb][f][t].addValue(crss);
         }
     }
     
@@ -133,7 +131,7 @@ void CumulativeTFR::getMeanCoherence(int chanX, int chanY, double* meanDest, int
             coh.addValue(singleCoherence(
                 powBuffer[chanX][f][t].getAverage(),
                 powBuffer[chanY][f][t].getAverage(),
-                pxys[comb][f][t].getAverage())); // already average, going to change in struct
+                pxys[comb][f][t].getAverage()));
         }
 
         meanDest[f] = coh.getAverage();
