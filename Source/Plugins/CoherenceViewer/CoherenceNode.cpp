@@ -190,7 +190,7 @@ void CoherenceNode::updateDataBufferSize(int newSize)
     // I changed it because it doesn't really make sense to just change the buffer we're currently
     // writing to when acquisition is stopped, and we need to figure out how to
     // make changes when acquisition is running anyway.
-    dataBuffer.apply([=](Array<FFTWArray>& arr)
+    dataBuffer.map([=](Array<FFTWArray>& arr)
     {
         for (int i = 0; i < jmin(totalChans, arr.size()); i++)
         {

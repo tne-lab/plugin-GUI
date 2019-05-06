@@ -29,6 +29,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <utility>
 #include <cassert>
 #include <cstdlib>
+#include <functional>
 
 /*
 * The purpose of AtomicSynchronizer is to allow one "writer" thread to continally
@@ -425,8 +426,7 @@ public:
     // Call a function on each underlying data member.
     // Requires that no readers or writers exist. Returns false if
     // this condition is unmet, true otherwise.
-    template<typename UnaryFunction>
-    bool apply(UnaryFunction f)
+    bool map(std::function<void(T&)> f)
     {
         AtomicSynchronizer::ScopedLockout lock(sync);
         if (!lock.isValid())
