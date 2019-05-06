@@ -27,10 +27,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 CoherenceNode::CoherenceNode()
     : GenericProcessor  ("Coherence")
     , Thread            ("Coherence Calc")
-    , dataWriter        (dataBuffer)
-    , coherenceReader   (meanCoherence)
-    , dataReader        (dataBuffer)
-    , coherenceWriter   (meanCoherence)
     , segLen            (4)
     , freqStep          (1)
     , freqStart         (1)
@@ -60,6 +56,8 @@ AudioProcessorEditor* CoherenceNode::createEditor()
 
 void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
 {  
+    AtomicScopedWritePtr<Array<FFTWArray>> dataWriter(dataBuffer);
+    AtomicScopedReadPtr<std::vector<std::vector<double>>> coherenceReader(meanCoherence);
     //// Get current coherence vector ////
     if (meanCoherence.hasUpdate())
     {
@@ -104,7 +102,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
     }
 
     nSamplesAdded += nSamples;
-   // std::cout << nSamplesAdded << " of " << segLen*Fs << std::endl;
+
     // channel buf is full. Update buffer.
     if (nSamplesAdded >= segLen * Fs)
     {
@@ -117,6 +115,9 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
 
 void CoherenceNode::run()
 {  
+    AtomicScopedReadPtr<Array<FFTWArray>> dataReader(dataBuffer);
+    AtomicScopedWritePtr<std::vector<std::vector<double>>> coherenceWriter(meanCoherence);
+    
     while (!threadShouldExit())
     {
         //// Check for new filled data buffer and run stats ////
@@ -159,24 +160,11 @@ void CoherenceNode::run()
                     int chanY = group2Channels[itY];
                     TFR->getMeanCoherence(chanX, chanY, coherenceWriter->at(comb).data(), comb);
                 }
-
             }
-            /*
-            std::vector<std::vector<double>> TFRMeanCoh = TFR->getCurrentMeanCoherence();
-            // For loop over combinations
-            for (int comb = 0; comb < nGroupCombs; ++comb)
-            {
-                for (int freq = 0; freq < nFreqs; freq++)
-                {
-                    // freq lookup list
-                    coherenceWriter->at(comb).at(freq) = TFRMeanCoh[comb][freq];
-                }
 
-            }*/
             // Update coherence and reset data buffer
             std::cout << "coherence at freq 20, comb 1: " << coherenceWriter->at(0)[20] << std::endl;
             coherenceWriter.pushUpdate();
-            updateMeanCoherenceSize();
         }
     }
 }
@@ -214,12 +202,43 @@ void CoherenceNode::updateDataBufferSize(int newSize)
 
 void CoherenceNode::updateMeanCoherenceSize()
 {
-    coherenceWriter->clear();
-    coherenceWriter->resize(nGroupCombs);
-    for (int i = 0; i < nGroupCombs; i++)
+    meanCoherence.map([=](std::vector<std::vector<double>>& vec)
     {
-        coherenceWriter->at(i).resize(nFreqs);
-    }
+        
+        // Update meanCoherence size to new num combinations
+        int nCombChange = nGroupCombs - vec.size();
+        if (nCombChange > 0)
+        {
+            for (int i = 0; i < nCombChange; i++)
+            {
+                vec.push_back(std::vector<double>());
+            }
+        }
+        else if (nCombChange < 0)
+        {
+            vec.resize(nGroupCombs);
+        }
+
+        // Update meanCoherence to new num freq at each combination
+        int nFreqChange = nFreqs - vec[0].size();
+        if (nFreqChange > 0)
+        {
+            for (int comb = 0; comb < vec.size(); comb++)
+            {
+                for (int i = 0; i < nFreqChange; i++)
+                {
+                    vec[comb].emplace_back(nFreqs);
+                }
+            }
+        }
+        else if (nFreqChange < 0)
+        {
+            for (int comb = 0; comb < vec.size(); comb++)
+            {
+                vec[comb].resize(nFreqs);
+            }
+        }     
+    });
 }
 
 void CoherenceNode::updateSettings()
@@ -228,6 +247,7 @@ void CoherenceNode::updateSettings()
     nSamplesAdded = 0;
     
     // (Start - end freq) / stepsize
+    freqStep = 1.0/float(winLen*interpRatio);
     nFreqs = int((freqEnd - freqStart) / freqStep);
     // foi = 0.5:1/(win_len*interp_ratio):30
 
@@ -263,7 +283,7 @@ void CoherenceNode::updateSettings()
 
     // Overwrite TFR 
 	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, stepLen, 
-        freqStep, freqStart, freqEnd, interpRatio, segLen);
+        freqStep, freqStart, interpRatio, segLen);
 }
 
 void CoherenceNode::setParameter(int parameterIndex, float newValue)
@@ -292,7 +312,7 @@ void CoherenceNode::setParameter(int parameterIndex, float newValue)
     // cause some issues if the thread is running). On the other hand, all the parameters here
     // could also cause problems if they're changed during acquisition. Since I think at least some
     // of them could be useful to change during a run, we should think about how to do that safely...
-    updateSettings();
+    //updateSettings();
 }
 
 int CoherenceNode::getChanGroup(int chan)
