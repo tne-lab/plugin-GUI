@@ -70,9 +70,7 @@ namespace PhaseCalculator
         static const int textBoxSize = 50;
 
     private:
-        using CompareFn = std::function<bool(double, double)>;
-
-        class AngleDataMultiset : public std::multiset<double, CompareFn>
+        class AngleDataMultiset : public std::multiset<double, std::function<bool(double, double)>>
         {
         public:
             // create empty multiset
@@ -82,7 +80,7 @@ namespace PhaseCalculator
             AngleDataMultiset(int numBins, double referenceAngle, AngleDataMultiset* dataSource);
 
         private:
-            static CompareFn circularBinCompareFn(int numBins, double referenceAngle);
+            static bool circularBinCompare(int numBins, double referenceAngle, double lhs, double rhs);
         };
 
         // make binMidpoints and segmentAngles reflect current numBins

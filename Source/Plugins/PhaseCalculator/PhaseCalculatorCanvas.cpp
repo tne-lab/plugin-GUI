@@ -561,26 +561,25 @@ namespace PhaseCalculator
     /*** RosePlot private members ***/
 
     RosePlot::AngleDataMultiset::AngleDataMultiset(int numBins, double referenceAngle)
-        : std::multiset<double, CompareFn>(circularBinCompareFn(numBins, referenceAngle))
+        : std::multiset<double, std::function<bool(double, double)>>(
+        std::bind(circularBinCompare, numBins, referenceAngle, std::placeholders::_1, std::placeholders::_2))
     {}
 
     RosePlot::AngleDataMultiset::AngleDataMultiset(int numBins, double referenceAngle,
         AngleDataMultiset* dataSource)
-        : std::multiset<double, CompareFn>(dataSource->begin(), dataSource->end(),
-        circularBinCompareFn(numBins, referenceAngle))
+        : std::multiset<double, std::function<bool(double, double)>>(
+        dataSource->begin(), dataSource->end(),
+        std::bind(circularBinCompare, numBins, referenceAngle, std::placeholders::_1, std::placeholders::_2))
     {}
 
 
-    RosePlot::CompareFn RosePlot::AngleDataMultiset::circularBinCompareFn(int numBins, double referenceAngle)
+    bool RosePlot::AngleDataMultiset::circularBinCompare(int numBins, double referenceAngle, double lhs, double rhs)
     {
-        return [=](double lhs, double rhs)
-        {
-            double lhsDist = Node::circDist(lhs, referenceAngle);
-            double rhsDist = Node::circDist(rhs, referenceAngle);
-            int lhsBin = int(std::floor(lhsDist * numBins / (2 * double_Pi)));
-            int rhsBin = int(std::floor(rhsDist * numBins / (2 * double_Pi)));
-            return lhsBin < rhsBin;
-        };
+        double lhsDist = Node::circDist(lhs, referenceAngle);
+        double rhsDist = Node::circDist(rhs, referenceAngle);
+        int lhsBin = int(std::floor(lhsDist * numBins / (2 * double_Pi)));
+        int rhsBin = int(std::floor(rhsDist * numBins / (2 * double_Pi)));
+        return lhsBin < rhsBin;
     }
 
     void RosePlot::reorganizeAngleData()
