@@ -71,6 +71,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MeanSpikeRate", "MeanSpikeR
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BinaryFormat", "BinaryFormat\BinaryFormat.vcxproj", "{9DB31964-F7E8-49B0-92E9-BAB2C35AF4B5}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtualRef", "VirtualRef\VirtualRef.vcxproj", "{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Mixed Platforms = Debug|Mixed Platforms
@@ -417,6 +419,18 @@ Global
 		{9DB31964-F7E8-49B0-92E9-BAB2C35AF4B5}.Release|Win32.Build.0 = Release|Win32
 		{9DB31964-F7E8-49B0-92E9-BAB2C35AF4B5}.Release|x64.ActiveCfg = Release|x64
 		{9DB31964-F7E8-49B0-92E9-BAB2C35AF4B5}.Release|x64.Build.0 = Release|x64
+		{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
+		{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}.Debug|Mixed Platforms.Build.0 = Debug|Win32
+		{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}.Debug|Win32.ActiveCfg = Debug|Win32
+		{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}.Debug|Win32.Build.0 = Debug|Win32
+		{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}.Debug|x64.ActiveCfg = Debug|x64
+		{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}.Debug|x64.Build.0 = Debug|x64
+		{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}.Release|Mixed Platforms.ActiveCfg = Release|Win32
+		{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}.Release|Mixed Platforms.Build.0 = Release|Win32
+		{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}.Release|Win32.ActiveCfg = Release|Win32
+		{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}.Release|Win32.Build.0 = Release|Win32
+		{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}.Release|x64.ActiveCfg = Release|x64
+		{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
