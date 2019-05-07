@@ -247,15 +247,18 @@ void CoherenceNode::updateSettings()
     nSamplesAdded = 0;
     
     // (Start - end freq) / stepsize
-    freqStep = 1.0/float(winLen*interpRatio);
+    //freqStep = 1.0/float(winLen*interpRatio);
+    freqStep = 1; // for debugging easier
     nFreqs = int((freqEnd - freqStart) / freqStep);
     // foi = 0.5:1/(win_len*interp_ratio):30
 
     // Set channels in group (need to update from editor)
     group1Channels.clear();
-    group1Channels.addArray({ 1, 2, 3, 4, 5, 6, 7, 8 });
+    //group1Channels.addArray({ 1, 2, 3, 4, 5, 6, 7, 8 });
+    group1Channels.addArray({ 0 });
     group2Channels.clear();
-    group2Channels.addArray({ 9, 10, 11, 12, 13, 14, 15, 16 });
+    //group2Channels.addArray({ 9, 10, 11, 12, 13, 14, 15, 16 });
+    group2Channels.addArray({ 1 });
 
     // Set number of channels in each group
     nGroup1Chans = group1Channels.size();

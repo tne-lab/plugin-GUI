@@ -70,7 +70,6 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLe
 
 void CumulativeTFR::addTrial(const double* fftIn, int chan)
 {
-    int chanShift = chan - 1;
     float winsPerSegment = (segmentLen - windowLen) / stepLen;
     
     //// Update convInput ////
@@ -86,7 +85,7 @@ void CumulativeTFR::addTrial(const double* fftIn, int chan)
 		// Multiple fft data by wavelet
 		for (int n = 0; n < nfft; n++)
 		{
-            freqData.set(n, freqData.getAsComplex(n) * waveletArray[freq][n] / double(nfft));
+            freqData.set(n, freqData.getAsComplex(n) * waveletArray[freq][n]);
 		}
 		// Inverse FFT on data multiplied by wavelet
 		ifftPlan.execute();
@@ -94,29 +93,28 @@ void CumulativeTFR::addTrial(const double* fftIn, int chan)
         // Loop over time of interest
 		for (int t = 0; t < nTimes; t++)
 		{
-            int tIndex = int(((t * stepLen) + trimTime)  * Fs);
+            int tIndex = int(((t * stepLen) + trimTime)  * Fs); // get index of time of interest
             std::complex<double> complex = convOutput.getAsComplex(tIndex);
-            complex *= sqrt(2.0/ nWindow);
+            complex *= sqrt(2.0 / nWindow) / double(nfft); // divide by nfft from matlab ifft
+                                                           // sqrt(2/nWindow) from ft_specest_mtmconvol.m 
             // Save convOutput for crss later
-            spectrumBuffer[chanShift][freq][t] = complex;
+            spectrumBuffer[chan][freq][t] = complex;
             // Get power
 			double power = pow(abs(complex),2); 
-            powBuffer.at(chanShift).at(freq).at(t).addValue(power);
+            powBuffer.at(chan).at(freq).at(t).addValue(power);
 		}
 	}
 }
 
 void CumulativeTFR::getMeanCoherence(int chanX, int chanY, double* meanDest, int comb)
 {
-    int chanXShifted = chanX - 1;
-    int chanYShifted = chanY - 1;
     // Cross spectra
     for (int f = 0; f < nFreqs; ++f)
     {
         // Get crss from specturm of both chanX and chanY
         for (int t = 0; t < nTimes; t++)
         {
-            std::complex<double> crss = spectrumBuffer[chanXShifted][f][t] * conj(spectrumBuffer[chanYShifted][f][t]);
+            std::complex<double> crss = spectrumBuffer[chanX][f][t] * conj(spectrumBuffer[chanY][f][t]);
             pxys[comb][f][t].addValue(crss);
         }
     }
@@ -131,8 +129,8 @@ void CumulativeTFR::getMeanCoherence(int chanX, int chanY, double* meanDest, int
         for (int t = 0; t < nTimes; t++)
         {
             coh.addValue(singleCoherence(
-                powBuffer[chanXShifted][f][t].getAverage(),
-                powBuffer[chanYShifted][f][t].getAverage(),
+                powBuffer[chanX][f][t].getAverage(),
+                powBuffer[chanY][f][t].getAverage(),
                 pxys[comb][f][t].getAverage()));
         }
 

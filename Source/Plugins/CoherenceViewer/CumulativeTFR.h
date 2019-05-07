@@ -61,6 +61,8 @@ class CumulativeTFR
     private:
         std::complex<double> sum;
         size_t count;
+
+        std::complex<double> mean;
     };
 
 public:
