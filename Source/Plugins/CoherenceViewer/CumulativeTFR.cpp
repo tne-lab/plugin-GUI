@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cmath>
 
 CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLen, float stepLen, float freqStep,
-    int freqStart, float interpRatio, double fftSec)
+    int freqStart, float interpRatio, double fftSec, double alpha)
     : nGroup1Chans  (ng1)
     , nGroup2Chans  (ng2)
     , nFreqs        (nf)
@@ -38,15 +38,10 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLe
     , convOutput    (nfft)
     , fftPlan       (nfft, &convInput, &freqData, FFTW_FORWARD, FFTW_ESTIMATE)
     , ifftPlan      (nfft, &freqData, &convOutput, FFTW_BACKWARD, FFTW_ESTIMATE)
-    , pxxs          (ng1,
-                    vector<vector<RealAccum>>(nf,
-                    vector<RealAccum>(nt)))
-    , pyys          (ng2,
-                    vector<vector<RealAccum>>(nf,
-                    vector<RealAccum>(nt)))
+    , alpha         (alpha)
     , pxys          (ng1 * ng2,
-                    vector<vector<ComplexAccum>>(nf,
-                    vector<ComplexAccum>(nt)))
+                    vector<vector<ComplexWeightedAccum>>(nf,
+                    vector<ComplexWeightedAccum>(nt, ComplexWeightedAccum(alpha))))
     , windowLen     (winLen)
     , interpRatio   (interpRatio)
     , waveletArray  (nf, vector<std::complex<double>>(int(fftSec * Fs))) // nfft breaks here...
@@ -54,8 +49,8 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLe
                      vector<vector<const std::complex<double>>>(nf,
                      vector<const std::complex<double>>(nt)))
     , powBuffer     (nGroup1Chans + nGroup2Chans,
-                     vector<vector<RealAccum>>(nf,
-                     vector<RealAccum>(nt)))
+                    vector<vector<RealWeightedAccum>>(nf,
+                    vector<RealWeightedAccum>(nt, RealWeightedAccum(alpha))))
     , meanCoherence (ng1 * ng2, vector<double>(nFreqs))
     , stdCoherence  (ng1 * ng2, vector<double>(nFreqs))
     , freqStep      (freqStep)
@@ -152,7 +147,7 @@ void CumulativeTFR::getMeanCoherence(int chanX, int chanY, double* meanDest, int
 // > Private Methods
 
 
-void CumulativeTFR::updateCoherenceStats()
+void CumulativeTFR::updateCoherenceStats() // Not Updated!!
 {
     for (int c1 = 0, comb = 0; c1 < nGroup1Chans; ++c1)
     {
@@ -169,8 +164,8 @@ void CumulativeTFR::updateCoherenceStats()
                 for (int t = 0; t < nTimes; t++)
                 {
                     coh.addValue(singleCoherence(
-                        pxxs[c1][f][t].getAverage(),
-                        pyys[c2][f][t].getAverage(),
+                        powBuffer[c1][f][t].getAverage(),
+                        powBuffer[c2][f][t].getAverage(),
                         pxys[comb][f][t].getAverage()));
                 }
 

@@ -282,11 +282,13 @@ void CoherenceNode::updateSettings()
     int nSamplesWin = winLen * Fs;
     int nTimes = ((segLen * Fs) - (nSamplesWin)) / Fs * (1 / stepLen) + 1; // Trim half of window on both sides, so 1 window length is trimmed total
 
+    float alpha = 0.2; // exponential weighting of current segment, 0 is linear
+
     updateMeanCoherenceSize();
 
     // Overwrite TFR 
 	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, stepLen, 
-        freqStep, freqStart, interpRatio, segLen);
+        freqStep, freqStart, interpRatio, segLen, alpha);
 }
 
 void CoherenceNode::setParameter(int parameterIndex, float newValue)

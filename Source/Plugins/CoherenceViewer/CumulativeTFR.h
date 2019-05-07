@@ -61,14 +61,66 @@ class CumulativeTFR
     private:
         std::complex<double> sum;
         size_t count;
+    };
 
-        std::complex<double> mean;
+    struct ComplexWeightedAccum
+    {
+        ComplexWeightedAccum(double alpha)
+            : count (0)
+            , sum   (0, 0)
+            , alpha (alpha)
+        {}
+
+        std::complex<double> getAverage()
+        {
+            return count > 0 ? sum / (double)count : std::complex<double>();
+        }
+
+        void addValue(std::complex<double> x)
+        {
+            sum = x + (1 - alpha) * sum;
+            count = 1 + (1 - alpha) * count;
+        }
+
+    private:
+        std::complex<double> sum;
+        size_t count;
+        const double alpha;
+
+    };
+
+
+    struct RealWeightedAccum
+    {
+        RealWeightedAccum(double alpha)
+            : count (0)
+            , sum   (0)
+            , alpha (alpha)
+        {}
+
+        double getAverage()
+        {
+            return count > 0 ? sum / (double)count : double();
+        }
+
+        void addValue(double x)
+        {
+            sum = x + (1 - alpha) * sum;
+            count = 1 + (1 - alpha) * count;
+        }
+
+    private:
+        double sum;
+        size_t count;
+
+        const double alpha;
+
     };
 
 public:
     CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs,
         int winLen = 2, float stepLen = 0.1, float freqStep = 0.25,
-        int freqStart = 1, float interpRatio = 2, double fftSec = 10.0);
+        int freqStart = 1, float interpRatio = 2, double fftSec = 10.0, double alpha = 0);
 
     // Handle a new buffer of data. Preform FFT and create pxxs, pyys.
     void addTrial(const double* fftIn, int chan);
@@ -122,17 +174,17 @@ private:
     // all the channels of interest. Also, maybe allow selecting arbitrary pairs of channels
     // to calculate coherence b/w rather than dividing selected channels into group 1 and
     // group 2. Thoughts?
-
+    double alpha;
     // # group 1 channels x # frequencies x # times
-    vector<vector<vector<RealAccum>>> pxxs;
-    vector<vector<vector<RealAccum>>> pyys;
+   // vector<vector<vector<RealWeightedAccum>>> pxxs;
+    //vector<vector<vector<RealWeightedAccum>>> pyys;
 
     // # channel combinations x # frequencies x # times
-    vector<vector<vector<ComplexAccum>>> pxys;
+    vector<vector<vector<ComplexWeightedAccum>>> pxys;
 
 
     // # channels x # frequencies x # times
-    vector<vector<vector<RealAccum>>> powBuffer;
+    vector<vector<vector<RealWeightedAccum>>> powBuffer;
 
     // # frequencies x # times
     vector<vector<vector<std::complex<double>>>> pxy;
