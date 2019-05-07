@@ -565,20 +565,19 @@ namespace PhaseCalculator
         std::bind(circularBinCompare, numBins, referenceAngle, std::placeholders::_1, std::placeholders::_2))
     {}
 
-    RosePlot::AngleDataMultiset::AngleDataMultiset(int numBins, double referenceAngle,
-        AngleDataMultiset* dataSource)
-        : std::multiset<double, std::function<bool(double, double)>>(
-        dataSource->begin(), dataSource->end(),
-        std::bind(circularBinCompare, numBins, referenceAngle, std::placeholders::_1, std::placeholders::_2))
-    {}
+    RosePlot::AngleDataMultiset::AngleDataMultiset(int numBins, double referenceAngle, AngleDataMultiset* dataSource)
+        : AngleDataMultiset(numBins, referenceAngle)
+    {
+        insert(dataSource->begin(), dataSource->end());
+    }
 
 
     bool RosePlot::AngleDataMultiset::circularBinCompare(int numBins, double referenceAngle, double lhs, double rhs)
     {
         double lhsDist = Node::circDist(lhs, referenceAngle);
         double rhsDist = Node::circDist(rhs, referenceAngle);
-        int lhsBin = int(std::floor(lhsDist * numBins / (2 * double_Pi)));
-        int rhsBin = int(std::floor(rhsDist * numBins / (2 * double_Pi)));
+        int lhsBin = int(lhsDist * numBins / (2 * double_Pi));
+        int rhsBin = int(rhsDist * numBins / (2 * double_Pi));
         return lhsBin < rhsBin;
     }
 
