@@ -23,23 +23,25 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "CoherenceVisualizer.h"
 
-CoherenceVisualizer::CoherenceVisualizer()
+CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     : viewport  (new Viewport())
     , canvas    (new Component("canvas"))
+    , processor (n)
 {
+    refreshRate = .5;
     juce::Rectangle<int> canvasBounds(0, 0, 1, 1);
     juce::Rectangle<int> bounds;
 
-    //testPlot = new MatlabLikePlot();
-    //testPlot->setBounds(bounds = { 50, 50, 800, 300 });
-    //testPlot->setRange(0, 30, 0, 20, true);
-    //testPlot->setControlButtonsVisibile(true);
+    cohPlot = new MatlabLikePlot();
+    cohPlot->setBounds(bounds = { 50, 50, 800, 300 });
+    cohPlot->setRange(0, 30, 0, 20, true);
+    cohPlot->setControlButtonsVisibile(true);
 
     //XYline testLine(0.5, 0.5, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 1, Colours::red);
     //testPlot->plotxy(testLine);
 
-    //canvas->addAndMakeVisible(testPlot);
-    //canvasBounds = canvasBounds.getUnion(bounds);
+    canvas->addAndMakeVisible(cohPlot);
+    canvasBounds = canvasBounds.getUnion(bounds);
     
     // some extra padding
     canvasBounds.setBottom(canvasBounds.getBottom() + 10);
@@ -71,7 +73,20 @@ void CoherenceVisualizer::update() {}
 
 void CoherenceVisualizer::refresh() 
 {
-    // testPlot->repaint();
+    float freqStep = processor->freqStep;
+
+    AtomicScopedReadPtr<std::vector<std::vector<double>>> coherenceReader(processor->meanCoherence);
+    coherenceReader.pullUpdate();
+    std::vector<float> coh;
+    for (int i = 0; i < coherenceReader->at(0).size(); i++)
+    {
+         coh[i] = coherenceReader->at(0).at(i);
+    }
+    
+    XYline cohLine(0, freqStep, coh, 1, Colours::yellow);
+  
+    cohPlot->plotxy(cohLine);
+    cohPlot->repaint();
 }
 
 

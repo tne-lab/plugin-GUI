@@ -32,6 +32,7 @@ class CoherenceEditor
     , public Label::Listener
     , public ComboBox::Listener
 {
+    friend class CoherenceVisualizer;
 public:
     CoherenceEditor(CoherenceNode* n);
     ~CoherenceEditor();
@@ -42,6 +43,8 @@ public:
     Visualizer* createNewCanvas() override;
 
 private:
+    CoherenceNode* processor;
+
     ScopedPointer<Label> segLabel;
     ScopedPointer<Label> segEditable;
 

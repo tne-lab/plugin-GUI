@@ -29,7 +29,7 @@ CoherenceEditor::CoherenceEditor(CoherenceNode* p)
     : VisualizerEditor(p, 300, true)
 {
     tabText = "Coherence";
-
+    processor = p;
     // Segment length
     int x = 0, y = 0, h = 0, w = 0;
     segLabel = createLabel("segLabel", "Segment Length:", { x + 5, y + 25, w + 60, h + 27 });
@@ -206,6 +206,6 @@ bool CoherenceEditor::updateFloatLabel(Label* label, float min, float max,
 
 Visualizer* CoherenceEditor::createNewCanvas()
 {
-    canvas = new CoherenceVisualizer();
+    canvas = new CoherenceVisualizer(processor);
     return canvas;
 }

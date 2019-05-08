@@ -25,10 +25,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cmath>
 
 CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLen, float stepLen, float freqStep,
-    int freqStart, float interpRatio, double fftSec, double alpha)
-    : nGroup1Chans  (ng1)
-    , nGroup2Chans  (ng2)
-    , nFreqs        (nf)
+    int freqStart, double fftSec, double alpha)
+    : nFreqs        (nf)
     , Fs            (Fs)
     , stepLen       (stepLen)
     , nTimes        (nt)
@@ -43,16 +41,13 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLe
                     vector<vector<ComplexWeightedAccum>>(nf,
                     vector<ComplexWeightedAccum>(nt, ComplexWeightedAccum(alpha))))
     , windowLen     (winLen)
-    , interpRatio   (interpRatio)
     , waveletArray  (nf, vector<std::complex<double>>(int(fftSec * Fs))) // nfft breaks here...
-    , spectrumBuffer(nGroup1Chans + nGroup2Chans, 
+    , spectrumBuffer(ng1 + ng2, 
                      vector<vector<const std::complex<double>>>(nf,
                      vector<const std::complex<double>>(nt)))
-    , powBuffer     (nGroup1Chans + nGroup2Chans,
+    , powBuffer     (ng1 + ng2,
                     vector<vector<RealWeightedAccum>>(nf,
                     vector<RealWeightedAccum>(nt, RealWeightedAccum(alpha))))
-    , meanCoherence (ng1 * ng2, vector<double>(nFreqs))
-    , stdCoherence  (ng1 * ng2, vector<double>(nFreqs))
     , freqStep      (freqStep)
     , freqStart     (freqStart)
 {
@@ -146,75 +141,9 @@ void CumulativeTFR::getMeanCoherence(int chanX, int chanY, double* meanDest, int
 
 // > Private Methods
 
-
-void CumulativeTFR::updateCoherenceStats() // Not Updated!!
-{
-    for (int c1 = 0, comb = 0; c1 < nGroup1Chans; ++c1)
-    {
-        for (int c2 = 0; c2 < nGroup2Chans; ++c2, ++comb)
-        {
-            double* meanDest = meanCoherence[comb].data();
-            double* stdDest = stdCoherence[comb].data();
-
-            for (int f = 0; f < nFreqs; ++f)
-            {
-                // compute coherence at each time
-                RealAccum coh;
-
-                for (int t = 0; t < nTimes; t++)
-                {
-                    coh.addValue(singleCoherence(
-                        powBuffer[c1][f][t].getAverage(),
-                        powBuffer[c2][f][t].getAverage(),
-                        pxys[comb][f][t].getAverage()));
-                }
-
-                meanDest[f] = coh.getAverage();
-                if (nTimes < 2) 
-                {
-                    stdDest[f] = 0;
-                }
-                else
-                {
-                    stdDest[f] = std::sqrt(coh.getVariance() * nTimes / (nTimes - 1));
-                }
-            }
-        }
-    }
-}
-
-
 double CumulativeTFR::singleCoherence(double pxx, double pyy, std::complex<double> pxy)
 {
     return std::norm(pxy) / (pxx * pyy);
-}
-
-
-void CumulativeTFR::calcCrssspctrm()
-{
-    /*
-	std::complex<double> crss;
-
-    for (int freq = 0; freq < nFreqs; freq++)
-    {
-        for (int chanX = 0, comb = 0; chanX < nGroup1Chans; chanX++)
-        {
-            for (int chanY = 0; chanY < nGroup2Chans; chanY++, comb++)
-            {
-                // Get crss from specturm of both chanX and chanY
-				for (int t = 0; t < nTimes; t++)
-				{
-					crss = spectrumBuffer[chanX][t] * conj(spectrumBuffer[chanY][t]);
-                    pxySum += crss;
-                    pxyCount++;
-                    pxys.at(comb).at(freq).at(t) = std::complex<double>(pxySum.real() / pxyCount, pxySum.imag()/pxyCount);
-				}            
-            }
-        }
-    }
-	// Update coherence now that crss is found
-	updateCoherenceStats();
-    */
 }
 
 
@@ -228,7 +157,7 @@ void CumulativeTFR::generateWavelet()
 	const double PI = 3.14;
     // Hann window
     FFTWArray waveletIn(nfft);
-    hannNorm = 0;
+
     float nSampWindow = Fs * windowLen;
     for (int position = 0; position < nfft; position++)
     {
@@ -236,32 +165,22 @@ void CumulativeTFR::generateWavelet()
         // Create first half hann function
         if (position <= nSampWindow / 2)
         {
-            hann[position] = pow(sin(position*PI / nSampWindow + PI / 2.0), 2); // Shift half over cos^2(pi*x*freq/(n+1))
+            // Shifted by one half cycle (pi/2)
+            hann[position] = pow(sin(PI*position / nSampWindow + (PI/2.0)), 2); 
         }
         // Pad with zeroes
-        else if (position <= (nfft - nSampWindow / 2)) // 0's until one half cycle left
+        else if (position <= (nfft - nSampWindow / 2)) 
         {
             hann[position] = 0;
         }
         // Finish off hann function
         else
         {
-            //std::cout << "in third chunk of hann" << std::endl;
-            int hannPosition = position - (nfft - nSampWindow / 2); // Move start of wave to nfft - windowSize/2
+            // Move start of wave to nfft - windowSize/2
+            int hannPosition = position - (nfft - nSampWindow / 2); 
             hann[position] = pow(sin((hannPosition*PI / nSampWindow)), 2);
-            //std::cout << "hann coords: " << hann[position] << std::endl;
         }
-        // Normalize Hann window using Frobenius-ish alg. hann = hann/norm(hann)
-        // norm(hann) = sum(abs(hann).^P)^(1/P) ... use p=2
-        //hannNorm += pow(abs(hann[position]), 2); Does nothing currently?
     }
-    /* // Checked and doesn't change the data (think it was used to make sure the matrix was equal in matlab code?)
-    hannNorm = pow(hannNorm, 1 / 2);
-    for (int position = 0; position < nfft; position++)
-    {
-        hann[position] /= hannNorm;
-    }
-    */
 
     // Wavelet
     float freqNormalized = freqStart;
@@ -272,8 +191,8 @@ void CumulativeTFR::generateWavelet()
         for (int position = 0; position < nfft; position++)
         {
             // Make sin and cos wave. Also noramlize hann here.
-            sinWave[position] = sin(position * freqNormalized * (2 * PI)); // Shift by pi/2 to put peak at time 0
-            cosWave[position] = cos(position * freqNormalized * (2 * PI));
+            sinWave[position] = sin(position * freqNormalized * (2*PI));
+            cosWave[position] = cos(position * freqNormalized * (2*PI));
         }
 
 		//// Wavelet ////
