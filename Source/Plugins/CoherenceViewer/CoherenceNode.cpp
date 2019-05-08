@@ -173,28 +173,14 @@ void CoherenceNode::updateDataBufferSize(int newSize)
     int totalChans = nGroup1Chans + nGroup2Chans;
 
     // no writers or readers can exist here
-    // so this probably can't be called during acquisition
-    // I changed it because it doesn't really make sense to just change the buffer we're currently
-    // writing to when acquisition is stopped, and we need to figure out how to
-    // make changes when acquisition is running anyway.
+    // so this can't be called during acquisition
     dataBuffer.map([=](Array<FFTWArray>& arr)
     {
+        arr.resize(totalChans);
+
         for (int i = 0; i < jmin(totalChans, arr.size()); i++)
         {
             arr.getReference(i).resize(newSize);
-        }
-
-        int nChansChange = totalChans - arr.size();
-        if (nChansChange > 0)
-        {
-            for (int i = 0; i < nChansChange; i++)
-            {
-                arr.add(FFTWArray(newSize));
-            }
-        }
-        else if (nChansChange < 0)
-        {
-            arr.removeLast(-nChansChange);
         }
     });
 }
@@ -203,25 +189,13 @@ void CoherenceNode::updateMeanCoherenceSize()
 {
     meanCoherence.map([=](std::vector<std::vector<double>>& vec)
     {
+        // Update meanCoherence size to new num combinations
+        vec.resize(nGroupCombs);
+
         // Update meanCoherence to new num freq at each existing combination
-        int currCombs = vec.size();
-        for (int comb = 0; comb < jmin(nGroupCombs, currCombs); comb++)
+        for (int comb = 0; comb < nGroupCombs; comb++)
         {
             vec[comb].resize(nFreqs);
-        }
-
-        // Update meanCoherence size to new num combinations
-        int nCombChange = nGroupCombs - currCombs;
-        if (nCombChange > 0)
-        {
-            for (int i = 0; i < nCombChange; i++)
-            {
-                vec.emplace_back(nFreqs);
-            }
-        }
-        else if (nCombChange < 0)
-        {
-            vec.resize(nGroupCombs);
         }
     });
 }
