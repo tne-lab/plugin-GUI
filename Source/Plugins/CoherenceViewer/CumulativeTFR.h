@@ -141,6 +141,7 @@ private:
     const int nFreqs;
     const int Fs;
     const int nTimes;
+    const int nfft;
     int segmentLen;
     int windowLen;
     float stepLen;
@@ -158,12 +159,8 @@ private:
 
     float hannNorm;
 
-    const int nfft;
-
-    FFTWArray convInput;
-    FFTWArray freqData;
-    FFTWArray region2Data;
-    FFTWArray convOutput;
+    FFTWArray fftArray;
+    FFTWArray ifftArray;
 
     FFTWPlan fftPlan;
     FFTWPlan ifftPlan;

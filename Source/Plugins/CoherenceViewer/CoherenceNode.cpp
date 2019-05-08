@@ -204,40 +204,26 @@ void CoherenceNode::updateMeanCoherenceSize()
 {
     meanCoherence.map([=](std::vector<std::vector<double>>& vec)
     {
-        
+        // Update meanCoherence to new num freq at each existing combination
+        int currCombs = vec.size();
+        for (int comb = 0; comb < jmin(nGroupCombs, currCombs); comb++)
+        {
+            vec[comb].resize(nFreqs);
+        }
+
         // Update meanCoherence size to new num combinations
-        int nCombChange = nGroupCombs - vec.size();
+        int nCombChange = nGroupCombs - currCombs;
         if (nCombChange > 0)
         {
             for (int i = 0; i < nCombChange; i++)
             {
-                vec.push_back(std::vector<double>());
+                vec.emplace_back(nFreqs);
             }
         }
         else if (nCombChange < 0)
         {
             vec.resize(nGroupCombs);
         }
-
-        // Update meanCoherence to new num freq at each combination
-        int nFreqChange = nFreqs - vec[0].size();
-        if (nFreqChange > 0)
-        {
-            for (int comb = 0; comb < vec.size(); comb++)
-            {
-                for (int i = 0; i < nFreqChange; i++)
-                {
-                    vec[comb].emplace_back(nFreqs);
-                }
-            }
-        }
-        else if (nFreqChange < 0)
-        {
-            for (int comb = 0; comb < vec.size(); comb++)
-            {
-                vec[comb].resize(nFreqs);
-            }
-        }     
     });
 }
 
