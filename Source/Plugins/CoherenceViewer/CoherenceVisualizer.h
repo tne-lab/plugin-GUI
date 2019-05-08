@@ -24,13 +24,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef COHERENCE_VIS_H_INCLUDED
 #define COHERENCE_VIS_H_INCLUDED
 
+#include "CoherenceNode.h"
 #include <VisualizerWindowHeaders.h>
 #include "../../Processors/Visualization/MatlabLikePlot.h"
 
 class CoherenceVisualizer : public Visualizer
 {
 public:
-    CoherenceVisualizer();
+    CoherenceVisualizer(CoherenceNode* n);
     ~CoherenceVisualizer();
 
     void resized() override;
@@ -44,12 +45,17 @@ public:
     void setParameter(int, int, int, float) override;
 
 private:
+    CoherenceNode* processor;
 
     ScopedPointer<Viewport>  viewport;
     ScopedPointer<Component> canvas;
 
     ScopedPointer<MatlabLikePlot> referencePlot;
     ScopedPointer<MatlabLikePlot> currentPlot;
+
+    MatlabLikePlot* cohPlot;
+    std::vector<double> freq;
+    std::vector<double> coherence;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceVisualizer);
 };

@@ -47,6 +47,7 @@ in units of z-score.
 class CoherenceNode : public GenericProcessor, public Thread
 {
     friend class CoherenceEditor;
+    friend class CoherenceVisualizer;
 public:
     CoherenceNode();
     ~CoherenceNode();
