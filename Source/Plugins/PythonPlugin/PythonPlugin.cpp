@@ -47,7 +47,7 @@ v
 #include <string.h>
 
 #ifdef DEBUG
-#define PYTHON_DEBUG TRUE
+#define PYTHON_DEBUG
 #endif
 
 #ifdef PYTHON_DEBUG
@@ -133,11 +133,11 @@ PythonPlugin::PythonPlugin(const String &processorName)
 PythonPlugin::~PythonPlugin()
 {
 #ifdef _WIN32
-	//Close libary
-	PyGILState_Ensure();
-	FreeLibrary((HMODULE)plugin);
+    //Close libary
+    PyGILState_Ensure();
+    FreeLibrary((HMODULE)plugin);
 #else
-	dlclose(plugin);
+    dlclose(plugin);
 #endif
 }
 
@@ -537,7 +537,7 @@ void PythonPlugin::handleSpike(const SpikeChannel* spikeInfo, const MidiMessage&
     }
     //juce::uint16
     int sortedID = int(newSpike->getSortedID());
-    
+     int electrode = getSpikeChannelIndex(newSpike);
 
 #ifdef PYTHON_DEBUG
 #if defined(__linux__)
@@ -604,7 +604,7 @@ void PythonPlugin::handleSpike(const SpikeChannel* spikeInfo, const MidiMessage&
     //    PyGILState_STATE gstate;
     //    gstate = PyGILState_Ensure();
     //    std::cout << "in process, lock acquired" << std::endl;
-    (*spikeFunction)(0, sortedID, spikeBuf);
+    (*spikeFunction)(electrode, sortedID, spikeBuf);
     processThreadState = PyEval_SaveThread();
 
     //PyGILState_Release(gstate);
@@ -639,7 +639,7 @@ void PythonPlugin::handleSpike(const SpikeChannel* spikeInfo, const MidiMessage&
  void set FloatParameter(char *name, float value) set float parameter
  
  */
-
+#if defined(_WIN32)
 std::string GetLastErrorAsString()
 {
     /*Get the error message, if any.*/
@@ -658,6 +658,7 @@ std::string GetLastErrorAsString()
 
     return message;
 }
+#endif
 
 void PythonPlugin::setFile(String fullpath)
 {
@@ -675,7 +676,7 @@ void PythonPlugin::setFile(String fullpath)
 #endif
     
 #ifdef _WIN32
-	//Load plugin
+    //Load plugin
     filePath = fullpath;
 	std::string path = filePath.toStdString();
     plugin = LoadLibraryA(path.c_str());
@@ -687,22 +688,24 @@ void PythonPlugin::setFile(String fullpath)
 #endif
     if (!plugin)
       {
-		  std::cout << "Can't open plugin "
-			  << '"' << path << "\""	  
+          std::cout << "Can't open plugin "
+              << '"' << path << "\""      
 #ifdef _WIN32
               << GetLastErrorAsString()
 #else
-              << dlerror()	  
+              << dlerror()      
 #endif
               << std::endl;
-		  return;
+          return;
 
       }
 
-    //String initPlugin = filePath.fromLastOccurrenceOf(String("/"), false, true);
-    //Path is dif in windows..
-    String initPlugin = filePath.fromLastOccurrenceOf(String("\\"), false, true);
     
+#ifdef _WIN32
+    String initPlugin = filePath.fromLastOccurrenceOf(String("\\"), false, true); // windows
+#else
+    String initPlugin = filePath.fromLastOccurrenceOf(String("/"), false, true); // linux/mac
+#endif
     initPlugin = initPlugin.upToFirstOccurrenceOf(String("."), false, true);
     
 #if PY_MAJOR_VERSION>=3
@@ -717,13 +720,13 @@ void PythonPlugin::setFile(String fullpath)
     void *initializer;
     
 #ifdef _WIN32
-	initializer = GetProcAddress((HMODULE)plugin, initPluginName.getCharPointer());
+    initializer = GetProcAddress((HMODULE)plugin, initPluginName.getCharPointer());
 #else
-	initializer = dlsym(plugin, initPluginName.getCharPointer());
+    initializer = dlsym(plugin, initPluginName.getCharPointer());
 #endif
 
 #ifdef PYTHON_DEBUG
-	std::cout << "initializer: " << initializer << std::endl;
+    std::cout << "initializer: " << initializer << std::endl;
 #endif
     if (!initializer)
     {
@@ -740,24 +743,24 @@ void PythonPlugin::setFile(String fullpath)
     }
 
     initfunc_t initF = (initfunc_t) initializer;
-	void *cfunc;
+    void *cfunc;
 #ifdef _WIN32
     cfunc = GetProcAddress((HMODULE)plugin, "pluginisready");
 #else
-	cfunc = dlsym(plugin, "pluginisready");
+    cfunc = dlsym(plugin, "pluginisready");
 #endif
     if (!cfunc)
     {
-		std::cout << "Can't find ready function in plugin "
-			<< '"' << path << "\"" << std::endl
+        std::cout << "Can't find ready function in plugin "
+            << '"' << path << "\"" << std::endl
 #ifdef _WIN32
             << GetLastErrorAsString()
 #else
             << dlerror()
 #endif
-			<< std::endl;
-		plugin = 0;
-		return;
+            << std::endl;
+        plugin = 0;
+        return;
     }
     pluginIsReady = (isreadyfunc_t)cfunc;
 
@@ -780,46 +783,47 @@ void PythonPlugin::setFile(String fullpath)
 		return;
     }
     pluginStartupFunction = (startupfunc_t)cfunc;
+    std::cout<<"loaded pluginStartup \n \n \n \n \n ";
     
 #ifdef _WIN32
-	cfunc = GetProcAddress((HMODULE)plugin, "getParamNum");
+    cfunc = GetProcAddress((HMODULE)plugin, "getParamNum");
 #else
-	cfunc = dlsym(plugin, "getParamNum");
+    cfunc = dlsym(plugin, "getParamNum");
 #endif
 
     if (!cfunc)
     {
-		std::cout << "Can't find getParamNum function in plugin "
-			<< '"' << path << "\"" << std::endl
+        std::cout << "Can't find getParamNum function in plugin "
+            << '"' << path << "\"" << std::endl
 #ifdef _WIN32
             << GetLastErrorAsString()
 #else
-            << dlerror()	  
+            << dlerror()      
 #endif
-			<< std::endl;
-		plugin = 0;
-		return;
+            << std::endl;
+        plugin = 0;
+        return;
     }
     getParamNumFunction = (getparamnumfunc_t)cfunc;
     
 
 #ifdef _WIN32
-	cfunc = GetProcAddress((HMODULE)plugin, "getParamConfig");
+    cfunc = GetProcAddress((HMODULE)plugin, "getParamConfig");
 #else
-	cfunc = dlsym(plugin, "getParamConfig");
+    cfunc = dlsym(plugin, "getParamConfig");
 #endif
     if (!cfunc)
     {
-		std::cout << "Can't find getParamNum function in plugin "
-			<< '"' << path << "\"" << std::endl
+        std::cout << "Can't find getParamNum function in plugin "
+            << '"' << path << "\"" << std::endl
 #ifdef _WIN32
             << GetLastErrorAsString()
 #else
             << dlerror()
 #endif
-			<< std::endl;
-		   	plugin = 0;
-		   	return;
+            << std::endl;
+               plugin = 0;
+               return;
 
     }
     getParamConfigFunction = (getparamconfigfunc_t)cfunc;
@@ -848,59 +852,59 @@ void PythonPlugin::setFile(String fullpath)
     
     // CJB added start
 #ifdef _WIN32
-	cfunc = GetProcAddress((HMODULE)plugin, "eventFunction");
+    cfunc = GetProcAddress((HMODULE)plugin, "eventFunction");
 #else
     cfunc = dlsym(plugin,"eventFunction");
 #endif
     // std::cout << "plugin:   " << cfunc << std::endl;
     if (!cfunc)
     {
-		std::cout << "Can't find plugin function in plugin "
-			<< '"' << path << "\"" << std::endl
+        std::cout << "Can't find plugin function in plugin "
+            << '"' << path << "\"" << std::endl
 #ifdef _WIN32
             << GetLastErrorAsString()
 #else
             << dlerror()
 #endif
-			<< std::endl;
-		plugin = 0;
-		return;
+            << std::endl;
+        plugin = 0;
+        return;
 
     }
     eventFunction = (eventfunc_t)cfunc;
     
 #ifdef _WIN32
-	cfunc = GetProcAddress((HMODULE)plugin, "spikeFunction");
+    cfunc = GetProcAddress((HMODULE)plugin, "spikeFunction");
 #else
     cfunc = dlsym(plugin,"spikeFunction");
 #endif
     // std::cout << "plugin:   " << cfunc << std::endl;
     if (!cfunc)
     {
-		std::cout << "Can't find plugin function in plugin "
-			<< '"' << path << "\"" << std::endl
+        std::cout << "Can't find plugin function in plugin "
+            << '"' << path << "\"" << std::endl
 #ifdef _WIN32
             << GetLastErrorAsString()
 #else
             << dlerror()
 #endif
-			<< std::endl;
-		plugin = 0;
-		return;
+            << std::endl;
+        plugin = 0;
+        return;
     }
     spikeFunction = (spikefunc_t)cfunc;
     
     // CJB added end
 
 #ifdef _WIN32
-	cfunc = GetProcAddress((HMODULE)plugin, "setIntParam");
+    cfunc = GetProcAddress((HMODULE)plugin, "setIntParam");
 #else
-	cfunc = dlsym(plugin, "setIntParam");
+    cfunc = dlsym(plugin, "setIntParam");
 #endif
     // std::cout << "plugin:   " << cfunc << std::endl;
     if (!cfunc)
     {
-    	std::cout << "Can't find setIntParam function in plugin "
+        std::cout << "Can't find setIntParam function in plugin "
         << '"' << path << "\"" << std::endl
 #ifdef _WIN32
         << GetLastErrorAsString()
@@ -908,37 +912,37 @@ void PythonPlugin::setFile(String fullpath)
         << dlerror()
 #endif
         << std::endl;
-    	plugin = 0;
-    	return;
+        plugin = 0;
+        return;
     }
     setIntParamFunction = (setintparamfunc_t)cfunc;
     
 #ifdef _WIN32
-	cfunc = GetProcAddress((HMODULE)plugin, "setFloatParam");
+    cfunc = GetProcAddress((HMODULE)plugin, "setFloatParam");
 #else
-	cfunc = dlsym(plugin, "setFloatParam");
+    cfunc = dlsym(plugin, "setFloatParam");
 #endif
     // std::cout << "plugin:   " << cfunc << std::endl;
     if (!cfunc)
     {
-		std::cout << "Can't find setFloatParam function in plugin "
-			<< '"' << path << "\"" << std::endl
+        std::cout << "Can't find setFloatParam function in plugin "
+            << '"' << path << "\"" << std::endl
 #ifdef _WIN32
             << GetLastErrorAsString()
 #else
             << dlerror()
 #endif
-			<< std::endl;
-		plugin = 0;
-		return;
+            << std::endl;
+        plugin = 0;
+        return;
     }
 
     setFloatParamFunction = (setfloatparamfunc_t)cfunc;
 
 #ifdef _WIN32
-	cfunc = GetProcAddress((HMODULE)plugin, "getIntParam");
+    cfunc = GetProcAddress((HMODULE)plugin, "getIntParam");
 #else
-	cfunc = dlsym(plugin, "getIntParam");
+    cfunc = dlsym(plugin, "getIntParam");
 #endif
 
     // std::cout << "plugin:   " << cfunc << std::endl;
@@ -958,23 +962,23 @@ void PythonPlugin::setFile(String fullpath)
     getIntParamFunction = (getintparamfunc_t)cfunc;
     
 #ifdef _WIN32
-	cfunc = GetProcAddress((HMODULE)plugin, "getFloatParam");
+    cfunc = GetProcAddress((HMODULE)plugin, "getFloatParam");
 #else
-	cfunc = dlsym(plugin, "getFloatParam");
+    cfunc = dlsym(plugin, "getFloatParam");
 #endif
     // std::cout << "plugin:   " << cfunc << std::endl;
     if (!cfunc)
     {
-		std::cout << "Can't find getFloatParam function in plugin "
-			<< '"' << path << "\"" << std::endl
+        std::cout << "Can't find getFloatParam function in plugin "
+            << '"' << path << "\"" << std::endl
 #ifdef _WIN32
             << GetLastErrorAsString()
 #else
             << dlerror()
 #endif
-			<< std::endl;
-		plugin = 0;
-		return;
+            << std::endl;
+        plugin = 0;
+        return;
     }
     
     getFloatParamFunction = (getfloatparamfunc_t)cfunc;
