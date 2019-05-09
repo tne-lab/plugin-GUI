@@ -15,39 +15,27 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\OpenEphysLib.cpp">
+    <ClCompile Include="..\..\..\..\Source\Plugins\VirtualRef\OpenEphysLib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculator.cpp">
+    <ClCompile Include="..\..\..\..\Source\Plugins\VirtualRef\VirtualRef.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorEditor.cpp">
+    <ClCompile Include="..\..\..\..\Source\Plugins\VirtualRef\VirtualRefCanvas.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorCanvas.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\HTransformers.cpp">
+    <ClCompile Include="..\..\..\..\Source\Plugins\VirtualRef\VirtualRefEditor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculator.h">
+    <ClInclude Include="..\..\..\..\Source\Plugins\VirtualRef\VirtualRef.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorEditor.h">
+    <ClInclude Include="..\..\..\..\Source\Plugins\VirtualRef\VirtualRefCanvas.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorCanvas.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\FFTWWrapper.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\ARModeler.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\HTransformers.h">
+    <ClInclude Include="..\..\..\..\Source\Plugins\VirtualRef\VirtualRefEditor.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

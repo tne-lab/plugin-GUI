@@ -139,6 +139,7 @@
     <PostBuildEvent />
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\HTransformers.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\OpenEphysLib.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculator.cpp" />
     <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorCanvas.cpp" />
@@ -150,6 +151,7 @@
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculator.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorCanvas.h" />
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorEditor.h" />
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\HTransformers.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

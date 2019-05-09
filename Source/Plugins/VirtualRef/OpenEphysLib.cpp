@@ -1,8 +1,8 @@
 /*
 ------------------------------------------------------------------
 
-This file is part of a plugin for the Open Ephys GUI
-Copyright (C) 2017 Translational NeuroEngineering Laboratory, MGH
+This file is part of the Open Ephys GUI
+Copyright (C) 2013 Open Ephys
 
 ------------------------------------------------------------------
 
@@ -22,13 +22,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <PluginInfo.h>
-#include "PhaseCalculator.h"
+#include "VirtualRef.h"
 #include <string>
 #ifdef WIN32
 #include <Windows.h>
 #define EXPORT __declspec(dllexport)
 #else
-#define EXPORT __attribute__((visibility("default")))
+#define EXPORT
 #endif
 
 using namespace Plugin;
@@ -36,36 +36,35 @@ using namespace Plugin;
 
 extern "C" EXPORT void getLibInfo(Plugin::LibraryInfo* info)
 {
-    info->apiVersion = PLUGIN_API_VER;
-    info->name = "Phase Calculator";
-    info->libVersion = 1;
-    info->numPlugins = NUM_PLUGINS;
+	info->apiVersion = PLUGIN_API_VER;
+	info->name = "Virtual Ref";
+	info->libVersion = 1;
+	info->numPlugins = NUM_PLUGINS;
 }
 
 extern "C" EXPORT int getPluginInfo(int index, Plugin::PluginInfo* info)
 {
-    switch (index)
-    {
-    case 0:
-        info->type = Plugin::PLUGIN_TYPE_PROCESSOR;
-        info->processor.name = "Phase Calculator";
-        info->processor.type = Plugin::FilterProcessor;
-        info->processor.creator = &(Plugin::createProcessor<PhaseCalculator::Node>);
-        break;
-
-    default:
-        return -1;
-        break;
-    }
-    return 0;
+	switch (index)
+	{
+	case 0:
+		info->type = Plugin::PLUGIN_TYPE_PROCESSOR;
+		info->processor.name = "Virtual Ref";
+		info->processor.type = Plugin::FilterProcessor;
+		info->processor.creator = &(Plugin::createProcessor<VirtualRef>);
+		break;
+	default:
+		return -1;
+		break;
+	}
+	return 0;
 }
 
 #ifdef WIN32
 BOOL WINAPI DllMain(IN HINSTANCE hDllHandle,
-    IN DWORD     nReason,
-    IN LPVOID    Reserved)
+	IN DWORD     nReason,
+	IN LPVOID    Reserved)
 {
-    return TRUE;
+	return TRUE;
 }
 
 #endif
