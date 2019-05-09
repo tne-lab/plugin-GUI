@@ -31,17 +31,16 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLe
     , stepLen       (stepLen)
     , nTimes        (nt)
     , nfft          (int(fftSec * Fs))
-    , convInput     (nfft)
-    , freqData      (nfft)
-    , convOutput    (nfft)
-    , fftPlan       (nfft, &convInput, &freqData, FFTW_FORWARD, FFTW_ESTIMATE)
-    , ifftPlan      (nfft, &freqData, &convOutput, FFTW_BACKWARD, FFTW_ESTIMATE)
+    , fftArray      (nfft)
+    , ifftArray     (nfft)
+    , fftPlan       (nfft, &fftArray, FFTW_FORWARD, FFTW_ESTIMATE)
+    , ifftPlan      (nfft, &ifftArray, FFTW_BACKWARD, FFTW_ESTIMATE)
     , alpha         (alpha)
     , pxys          (ng1 * ng2,
                     vector<vector<ComplexWeightedAccum>>(nf,
                     vector<ComplexWeightedAccum>(nt, ComplexWeightedAccum(alpha))))
     , windowLen     (winLen)
-    , waveletArray  (nf, vector<std::complex<double>>(int(fftSec * Fs))) // nfft breaks here...
+    , waveletArray  (nf, vector<std::complex<double>>(nfft))
     , spectrumBuffer(ng1 + ng2, 
                      vector<vector<const std::complex<double>>>(nf,
                      vector<const std::complex<double>>(nt)))
@@ -64,7 +63,7 @@ void CumulativeTFR::addTrial(const double* fftIn, int chan)
     
     //// Update convInput ////
     // copy dataBuffer input to fft input
-    convInput.copyFrom(fftIn, nfft);
+    fftArray.copyFrom(fftIn, nfft);
 
     //// Execute fft ////
     fftPlan.execute();
@@ -75,7 +74,7 @@ void CumulativeTFR::addTrial(const double* fftIn, int chan)
 		// Multiple fft data by wavelet
 		for (int n = 0; n < nfft; n++)
 		{
-            freqData.set(n, freqData.getAsComplex(n) * waveletArray[freq][n]);
+            ifftArray.set(n, fftArray.getAsComplex(n) * waveletArray[freq][n]);
 		}
 		// Inverse FFT on data multiplied by wavelet
 		ifftPlan.execute();
@@ -84,14 +83,14 @@ void CumulativeTFR::addTrial(const double* fftIn, int chan)
 		for (int t = 0; t < nTimes; t++)
 		{
             int tIndex = int(((t * stepLen) + trimTime)  * Fs); // get index of time of interest
-            std::complex<double> complex = convOutput.getAsComplex(tIndex);
+            std::complex<double> complex = ifftArray.getAsComplex(tIndex);
             complex *= sqrt(2.0 / nWindow) / double(nfft); // divide by nfft from matlab ifft
                                                            // sqrt(2/nWindow) from ft_specest_mtmconvol.m 
             // Save convOutput for crss later
             spectrumBuffer[chan][freq][t] = complex;
             // Get power
-			double power = pow(abs(complex),2); 
-            powBuffer.at(chan).at(freq).at(t).addValue(power);
+            double power = std::norm(complex);
+            powBuffer[chan][freq][t].addValue(power);
 		}
 	}
 }
@@ -104,7 +103,7 @@ void CumulativeTFR::getMeanCoherence(int chanX, int chanY, double* meanDest, int
         // Get crss from specturm of both chanX and chanY
         for (int t = 0; t < nTimes; t++)
         {
-            std::complex<double> crss = spectrumBuffer[chanX][f][t] * conj(spectrumBuffer[chanY][f][t]);
+            std::complex<double> crss = spectrumBuffer[chanX][f][t] * std::conj(spectrumBuffer[chanY][f][t]);
             pxys[comb][f][t].addValue(crss);
         }
     }
@@ -154,9 +153,8 @@ void CumulativeTFR::generateWavelet()
 	std::vector<double> cosWave(nfft);
     
 	waveletArray.resize(nFreqs);
-	const double PI = 3.14;
+
     // Hann window
-    FFTWArray waveletIn(nfft);
 
     float nSampWindow = Fs * windowLen;
     for (int position = 0; position < nfft; position++)
@@ -166,7 +164,7 @@ void CumulativeTFR::generateWavelet()
         if (position <= nSampWindow / 2)
         {
             // Shifted by one half cycle (pi/2)
-            hann[position] = pow(sin(PI*position / nSampWindow + (PI/2.0)), 2); 
+            hann[position] = square(std::sin(double_Pi*position / nSampWindow + (double_Pi/2.0))); 
         }
         // Pad with zeroes
         else if (position <= (nfft - nSampWindow / 2)) 
@@ -178,7 +176,7 @@ void CumulativeTFR::generateWavelet()
         {
             // Move start of wave to nfft - windowSize/2
             int hannPosition = position - (nfft - nSampWindow / 2); 
-            hann[position] = pow(sin((hannPosition*PI / nSampWindow)), 2);
+            hann[position] = square(std::sin(hannPosition*double_Pi / nSampWindow));
         }
     }
 
@@ -191,15 +189,15 @@ void CumulativeTFR::generateWavelet()
         for (int position = 0; position < nfft; position++)
         {
             // Make sin and cos wave. Also noramlize hann here.
-            sinWave[position] = sin(position * freqNormalized * (2*PI));
-            cosWave[position] = cos(position * freqNormalized * (2*PI));
+            sinWave[position] = std::sin(position * freqNormalized * (2*double_Pi) / Fs);
+            cosWave[position] = std::cos(position * freqNormalized * (2*double_Pi) / Fs);
         }
 
 		//// Wavelet ////
 		// Put into fft input array
 		for (int position = 0; position < nfft; position++)
 		{
-			convInput.set(position, std::complex<double>(cosWave.at(position) * hann.at(position), sinWave.at(position) * hann.at(position)));
+			fftArray.set(position, std::complex<double>(cosWave.at(position) * hann.at(position), sinWave.at(position) * hann.at(position)));
         }
 		
 		fftPlan.execute();
@@ -207,7 +205,7 @@ void CumulativeTFR::generateWavelet()
 		// Save fft output for use later
         for (int i = 0; i < nfft; i++)
         {
-            waveletArray[freq][i] = freqData.getAsComplex(i);
+            waveletArray[freq][i] = fftArray.getAsComplex(i);
         }
     }	
 }

@@ -110,6 +110,7 @@ private:
     const int nFreqs;
     const int Fs;
     const int nTimes;
+    const int nfft;
     int segmentLen;
     int windowLen;
     float stepLen;
@@ -124,11 +125,8 @@ private:
 	vector<vector<vector<const std::complex<double>>>> spectrumBuffer;
     vector<vector<std::complex<double>>> waveletArray;
 
-    const int nfft;
-
-    FFTWArray convInput;
-    FFTWArray freqData;
-    FFTWArray convOutput;
+    FFTWArray fftArray;
+    FFTWArray ifftArray;
 
     FFTWPlan fftPlan;
     FFTWPlan ifftPlan;

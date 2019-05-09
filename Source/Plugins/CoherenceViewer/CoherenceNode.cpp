@@ -173,28 +173,14 @@ void CoherenceNode::updateDataBufferSize(int newSize)
     int totalChans = nGroup1Chans + nGroup2Chans;
 
     // no writers or readers can exist here
-    // so this probably can't be called during acquisition
-    // I changed it because it doesn't really make sense to just change the buffer we're currently
-    // writing to when acquisition is stopped, and we need to figure out how to
-    // make changes when acquisition is running anyway.
+    // so this can't be called during acquisition
     dataBuffer.map([=](Array<FFTWArray>& arr)
     {
+        arr.resize(totalChans);
+
         for (int i = 0; i < jmin(totalChans, arr.size()); i++)
         {
             arr.getReference(i).resize(newSize);
-        }
-
-        int nChansChange = totalChans - arr.size();
-        if (nChansChange > 0)
-        {
-            for (int i = 0; i < nChansChange; i++)
-            {
-                arr.add(FFTWArray(newSize));
-            }
-        }
-        else if (nChansChange < 0)
-        {
-            arr.removeLast(-nChansChange);
         }
     });
 }
@@ -203,40 +189,14 @@ void CoherenceNode::updateMeanCoherenceSize()
 {
     meanCoherence.map([=](std::vector<std::vector<double>>& vec)
     {
-        
         // Update meanCoherence size to new num combinations
-        int nCombChange = nGroupCombs - vec.size();
-        if (nCombChange > 0)
-        {
-            for (int i = 0; i < nCombChange; i++)
-            {
-                vec.push_back(std::vector<double>());
-            }
-        }
-        else if (nCombChange < 0)
-        {
-            vec.resize(nGroupCombs);
-        }
+        vec.resize(nGroupCombs);
 
-        // Update meanCoherence to new num freq at each combination
-        int nFreqChange = nFreqs - vec[0].size();
-        if (nFreqChange > 0)
+        // Update meanCoherence to new num freq at each existing combination
+        for (int comb = 0; comb < nGroupCombs; comb++)
         {
-            for (int comb = 0; comb < vec.size(); comb++)
-            {
-                for (int i = 0; i < nFreqChange; i++)
-                {
-                    vec[comb].emplace_back(nFreqs);
-                }
-            }
+            vec[comb].resize(nFreqs);
         }
-        else if (nFreqChange < 0)
-        {
-            for (int comb = 0; comb < vec.size(); comb++)
-            {
-                vec[comb].resize(nFreqs);
-            }
-        }     
     });
 }
 
