@@ -36,7 +36,7 @@ in units of z-score.
 #include <ProcessorHeaders.h>
 #include <VisualizerEditorHeaders.h>
 
-#include "CoherenceVisualizer.h"
+//#include "CoherenceVisualizer.h"
 //
 #include "AtomicSynchronizer.h"
 #include "CumulativeTFR.h"

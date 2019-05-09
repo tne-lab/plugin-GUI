@@ -24,6 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef COHERENCE_VIS_H_INCLUDED
 #define COHERENCE_VIS_H_INCLUDED
 
+#include "AtomicSynchronizer.h"
 #include "CoherenceNode.h"
 #include <VisualizerWindowHeaders.h>
 #include "../../Processors/Visualization/MatlabLikePlot.h"
@@ -54,7 +55,6 @@ private:
     ScopedPointer<MatlabLikePlot> currentPlot;
 
     MatlabLikePlot* cohPlot;
-    std::vector<double> freq;
     std::vector<double> coherence;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceVisualizer);
