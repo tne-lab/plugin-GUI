@@ -119,14 +119,12 @@ void CoherenceNode::run()
     
     while (!threadShouldExit())
     {
-        //// Check for new filled data buffer and run stats ////
-
-        Array<int> activeInputs = getActiveInputs();
-        int nActiveInputs = activeInputs.size();
+        //// Check for new filled data buffer and run stats ////        
         if (dataBuffer.hasUpdate())
         {
             dataReader.pullUpdate();
-
+            Array<int> activeInputs = getActiveInputs();
+            int nActiveInputs = activeInputs.size();
             for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
             {
                 int chan = activeInputs[activeChan];

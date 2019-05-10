@@ -188,7 +188,7 @@ void CumulativeTFR::generateWavelet()
         
         for (int position = 0; position < nfft; position++)
         {
-            // Make sin and cos wave. Also noramlize hann here.
+            // Make sin and cos wave.
             sinWave[position] = std::sin(position * freqNormalized * (2*double_Pi) / Fs);
             cosWave[position] = std::cos(position * freqNormalized * (2*double_Pi) / Fs);
         }
