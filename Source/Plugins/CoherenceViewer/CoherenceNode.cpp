@@ -176,11 +176,22 @@ void CoherenceNode::updateDataBufferSize(int newSize)
     // so this can't be called during acquisition
     dataBuffer.map([=](Array<FFTWArray>& arr)
     {
-        arr.resize(totalChans);
-
         for (int i = 0; i < jmin(totalChans, arr.size()); i++)
         {
             arr.getReference(i).resize(newSize);
+        }
+
+        int nChansChange = totalChans - arr.size();
+        if (nChansChange > 0)
+        {
+            for (int i = 0; i < nChansChange; i++)
+            {
+                arr.add(FFTWArray(newSize));
+            }
+        }
+        else if (nChansChange < 0)
+        {
+            arr.removeLast(-nChansChange);
         }
     });
 }

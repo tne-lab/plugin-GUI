@@ -89,15 +89,6 @@ private:
     // # Freqs x # Combinations
     AtomicallyShared<std::vector<std::vector<double>>> meanCoherence;
 
-    // we should refactor so that these only exist during acquisition
-    // so that updateDataBufferSize and maybe other functions can be called to
-    // modify the underlying data when settings are changed.
-   // AtomicScopedWritePtr<Array<FFTWArray>> dataWriter;
-   // AtomicScopedReadPtr<std::vector<std::vector<double>>> coherenceReader;
-
-   // AtomicScopedWritePtr<std::vector<std::vector<double>>> coherenceWriter;
-   // AtomicScopedReadPtr<Array<FFTWArray>> dataReader;
-
     ScopedPointer<CumulativeTFR> TFR;
     Array<bool> CHANNEL_READY;
 

@@ -75,18 +75,22 @@ void CoherenceVisualizer::refresh()
 {
     float freqStep = processor->freqStep;
 
-    AtomicScopedReadPtr<std::vector<std::vector<double>>> coherenceReader(processor->meanCoherence);
-    coherenceReader.pullUpdate();
-    std::vector<float> coh;
-    for (int i = 0; i < coherenceReader->at(0).size(); i++)
+    if (processor->meanCoherence.hasUpdate())
     {
-         coh[i] = coherenceReader->at(0).at(i);
+        AtomicScopedReadPtr<std::vector<std::vector<double>>> coherenceReader(processor->meanCoherence);
+        coherenceReader.pullUpdate();
+        
+        std::vector<float> coh;
+        for (int i = 0; i < coherenceReader->at(0).size(); i++)
+        {
+            coh[i] = coherenceReader->at(0).at(i);
+        }
+
+        XYline cohLine(0, freqStep, coh, 1, Colours::yellow);
+
+        cohPlot->plotxy(cohLine);
+        cohPlot->repaint();
     }
-    
-    XYline cohLine(0, freqStep, coh, 1, Colours::yellow);
-  
-    cohPlot->plotxy(cohLine);
-    cohPlot->repaint();
 }
 
 
