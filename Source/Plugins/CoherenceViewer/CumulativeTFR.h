@@ -125,8 +125,10 @@ private:
 	vector<vector<vector<const std::complex<double>>>> spectrumBuffer;
     vector<vector<std::complex<double>>> waveletArray;
 
-    FFTWArray fftArray;
-    FFTWArray ifftArray;
+    FFTWArray convInput;
+    FFTWArray freqData;
+    FFTWArray region2Data;
+    FFTWArray convOutput;
 
     FFTWPlan fftPlan;
     FFTWPlan ifftPlan;
@@ -140,11 +142,6 @@ private:
 
     // calculate a single magnitude-squared coherence from cross spectrum and auto-power values
     static double singleCoherence(double pxx, double pyy, std::complex<double> pxy);
-
-    int getChanGroupIndex(int chan);
-
-    Array<std::pair<int, int>> combPairs;
-    Array<int> combPairHandled;
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CumulativeTFR);
 };

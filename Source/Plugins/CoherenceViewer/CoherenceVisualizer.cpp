@@ -34,8 +34,8 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
 
     cohPlot = new MatlabLikePlot();
     cohPlot->setBounds(bounds = { 50, 50, 800, 300 });
-    cohPlot->setRange(0, 30, 0, 20, true);
-    cohPlot->setControlButtonsVisibile(true);
+    cohPlot->setRange(0, 40, 0, 1, true);
+    cohPlot->setControlButtonsVisibile(false);
 
     //XYline testLine(0.5, 0.5, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 1, Colours::red);
     //testPlot->plotxy(testLine);

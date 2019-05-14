@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 CoherenceNode::CoherenceNode()
     : GenericProcessor  ("Coherence")
     , Thread            ("Coherence Calc")
-    , segLen            (4)
+    , segLen            (8)
     , freqStep          (1)
     , freqStart         (1)
     , freqEnd           (40)
@@ -160,7 +160,12 @@ void CoherenceNode::run()
             }
 
             // Update coherence and reset data buffer
-            std::cout << "coherence at freq 20, comb 1: " << coherenceWriter->at(0)[20] << std::endl;
+            /*for (int f = 0; f < nFreqs; f++)
+            {
+                std::cout << "coherence at freq X, comb 1: " << coherenceWriter->at(0)[f] << std::endl;
+            }*/
+            std::cout << "coherence update!" << std::endl;
+
             coherenceWriter.pushUpdate();
         }
     }
@@ -215,8 +220,8 @@ void CoherenceNode::updateSettings()
     nSamplesAdded = 0;
     
     // (Start - end freq) / stepsize
-    //freqStep = 1.0/float(winLen*interpRatio);
-    freqStep = 1; // for debugging
+    freqStep = 1.0/float(winLen*interpRatio);
+    //freqStep = 1; // for debugging
     nFreqs = int((freqEnd - freqStart) / freqStep);
     // foi = 0.5:1/(win_len*interp_ratio):30
 
@@ -250,7 +255,7 @@ void CoherenceNode::updateSettings()
     int nSamplesWin = winLen * Fs;
     int nTimes = ((segLen * Fs) - (nSamplesWin)) / Fs * (1 / stepLen) + 1; // Trim half of window on both sides, so 1 window length is trimmed total
 
-    float alpha = 0; // exponential weighting of current segment, 0 is linear
+    float alpha = .1; // exponential weighting of current segment, 0 is linear
 
     updateMeanCoherenceSize();
 
