@@ -33,7 +33,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     juce::Rectangle<int> bounds;
 
     cohPlot = new MatlabLikePlot();
-    cohPlot->setBounds(bounds = { 50, 50, 800, 300 });
+    cohPlot->setBounds(bounds = { 30, 30, 600, 500 });
     cohPlot->setRange(0, 40, 0, 1, true);
     cohPlot->setControlButtonsVisibile(false);
 

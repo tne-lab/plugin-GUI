@@ -144,7 +144,6 @@ void CumulativeTFR::getMeanCoherence(int chanX, int chanY, double* meanDest, int
 
 double CumulativeTFR::singleCoherence(double pxx, double pyy, std::complex<double> pxy)
 {
-    std::cout << "pxx * pyy = x : " << pxx << " * " << pyy << " = " << static_cast<double>(pxx*pyy) << std::endl;
     return std::norm(pxy) / (pxx * pyy);
 }
 
