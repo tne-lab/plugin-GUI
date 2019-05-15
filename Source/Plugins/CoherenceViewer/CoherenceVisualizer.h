@@ -57,6 +57,8 @@ private:
     ScopedPointer<MatlabLikePlot> currentPlot;
 
     ScopedPointer<Label> optionsTitle;
+    ScopedPointer<Label> group1Title;
+    ScopedPointer<Label> group2Title;
     ScopedPointer<ComboBox> combinationBox;
 
     float freqStep;

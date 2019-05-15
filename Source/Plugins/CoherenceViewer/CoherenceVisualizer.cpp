@@ -37,17 +37,30 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
 
     const int TEXT_HT = 18;
 
-    // ------- Options ------- //
-    int xPos = 15;
+    // ------- Options Title ------- //
+    int xPos = 5;
     optionsTitle = new Label("OptionsTitle", "Coherence Viewer Additional Settings");
     optionsTitle->setBounds(bounds = { xPos, 30, 400, 50 });
     optionsTitle->setFont(Font(20, Font::bold));
     canvas->addAndMakeVisible(optionsTitle);
     opBounds = opBounds.getUnion(bounds);
 
-    //// Grouping
+    // ------- OGrouping Titles ------- //
+    group1Title = new Label("Group1Title", "G1 Chans");
+    group1Title->setBounds(bounds = { xPos, 130, 50, 50 });
+    group1Title->setFont(Font(20, Font::bold));
+    canvas->addAndMakeVisible(group1Title);
+    opBounds = opBounds.getUnion(bounds);
 
-    //// Combination choice
+    group2Title = new Label("Group2Title", "G2 Chans");
+    group2Title->setBounds(bounds = { xPos + 50, 130, 50, 50 });
+    group2Title->setFont(Font(20, Font::bold));
+    canvas->addAndMakeVisible(group2Title);
+    opBounds = opBounds.getUnion(bounds);
+
+    // ------- Group Boxes ------- //
+
+    // ------- Combination Choice ------- //
     combinationBox = new ComboBox("Combination Selection Box");
     combinationBox->setTooltip("Combination to graph");
     combinationBox->setBounds(xPos, 90, 40, TEXT_HT);
@@ -56,7 +69,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
 
     // ------- Plot ------- //
     cohPlot = new MatlabLikePlot();
-    cohPlot->setBounds(bounds = { 80, 70, 600, 500 });
+    cohPlot->setBounds(bounds = { 150, 70, 600, 500 });
     cohPlot->setRange(0, 40, 0, 1, true);
     cohPlot->setControlButtonsVisibile(false);
 

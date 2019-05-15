@@ -125,10 +125,10 @@ private:
 	vector<vector<vector<const std::complex<double>>>> spectrumBuffer;
     vector<vector<std::complex<double>>> waveletArray;
 
-    FFTWArray convInput;
-    FFTWArray freqData;
-    FFTWArray region2Data;
-    FFTWArray convOutput;
+    FFTWArray fftInput;
+    FFTWArray fftOutput;
+    FFTWArray ifftInput;
+    FFTWArray ifftOutput;
 
     FFTWPlan fftPlan;
     FFTWPlan ifftPlan;

@@ -266,7 +266,7 @@ void CoherenceNode::updateSettings()
         int nSamplesWin = winLen * Fs;
         int nTimes = ((segLen * Fs) - (nSamplesWin)) / Fs * (1 / stepLen) + 1; // Trim half of window on both sides, so 1 window length is trimmed total
 
-        float alpha = .2; // exponential weighting of current segment, 0 is linear
+        float alpha = 0; // exponential weighting of current segment, 0 is linear
 
         updateMeanCoherenceSize();
 
