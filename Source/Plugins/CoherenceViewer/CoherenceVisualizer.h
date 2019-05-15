@@ -30,6 +30,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "../../Processors/Visualization/MatlabLikePlot.h"
 
 class CoherenceVisualizer : public Visualizer
+    , public ComboBox::Listener
 {
 public:
     CoherenceVisualizer(CoherenceNode* n);
@@ -44,6 +45,7 @@ public:
     void endAnimation() override;
     void setParameter(int, float) override;
     void setParameter(int, int, int, float) override;
+    void comboBoxChanged(ComboBox* comboBoxThatHasChanged) override;
 
 private:
     CoherenceNode* processor;
@@ -53,6 +55,13 @@ private:
 
     ScopedPointer<MatlabLikePlot> referencePlot;
     ScopedPointer<MatlabLikePlot> currentPlot;
+
+    ScopedPointer<Label> optionsTitle;
+    ScopedPointer<ComboBox> combinationBox;
+
+    float freqStep;
+    int nCombs;
+    int curComb;
 
     MatlabLikePlot* cohPlot;
     std::vector<double> coherence;

@@ -225,43 +225,55 @@ void CoherenceNode::updateSettings()
     nFreqs = int((freqEnd - freqStart) / freqStep);
     // foi = 0.5:1/(win_len*interp_ratio):30
 
-    // Set channels in group (need to update from editor)
     group1Channels.clear();
-    //group1Channels.addArray({ 1, 2, 3, 4, 5, 6, 7, 8 });
-    group1Channels.addArray({ 0 });
     group2Channels.clear();
-    //group2Channels.addArray({ 9, 10, 11, 12, 13, 14, 15, 16 });
-    group2Channels.addArray({ 1 });
 
-    // Set number of channels in each group
-    nGroup1Chans = group1Channels.size();
-    nGroup2Chans = group2Channels.size();
-    nGroupCombs = nGroup1Chans * nGroup2Chans;
-
-    // Seg/win/step/interp - move to params eventually
-    interpRatio = 2;
-
-    if (nGroup1Chans > 0)
+    // Default to this. Probably will move to canvas tab.
+    Array<int> numActiveInputs(getActiveInputs());
+    if (numActiveInputs.size() > 0)
     {
-        float newFs = getDataChannel(group1Channels[0])->getSampleRate();
-        if (newFs != Fs)
+        for (int i = 0; i < numActiveInputs.size(); i++)
         {
-            Fs = newFs;
-            updateDataBufferSize(segLen * Fs);
+            if (i < numActiveInputs.size() / 2)
+            {
+                group1Channels.add(numActiveInputs[i]);
+            }
+            else
+            {
+                group2Channels.add(numActiveInputs[i]);
+            }
         }
+
+        // Set number of channels in each group
+        nGroup1Chans = group1Channels.size();
+        nGroup2Chans = group2Channels.size();
+        nGroupCombs = nGroup1Chans * nGroup2Chans;
+
+        // Seg/win/step/interp - move to params eventually
+        interpRatio = 2;
+
+        if (nGroup1Chans > 0)
+        {
+            float newFs = getDataChannel(group1Channels[0])->getSampleRate();
+            if (newFs != Fs)
+            {
+                Fs = newFs;
+                updateDataBufferSize(segLen * Fs);
+            }
+        }
+
+        // Trim time close to edge
+        int nSamplesWin = winLen * Fs;
+        int nTimes = ((segLen * Fs) - (nSamplesWin)) / Fs * (1 / stepLen) + 1; // Trim half of window on both sides, so 1 window length is trimmed total
+
+        float alpha = .2; // exponential weighting of current segment, 0 is linear
+
+        updateMeanCoherenceSize();
+
+        // Overwrite TFR 
+        TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, stepLen,
+            freqStep, freqStart, segLen, alpha);
     }
-
-    // Trim time close to edge
-    int nSamplesWin = winLen * Fs;
-    int nTimes = ((segLen * Fs) - (nSamplesWin)) / Fs * (1 / stepLen) + 1; // Trim half of window on both sides, so 1 window length is trimmed total
-
-    float alpha = .2; // exponential weighting of current segment, 0 is linear
-
-    updateMeanCoherenceSize();
-
-    // Overwrite TFR 
-	TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, stepLen, 
-        freqStep, freqStart, segLen, alpha);
 }
 
 void CoherenceNode::setParameter(int parameterIndex, float newValue)
@@ -311,18 +323,20 @@ int CoherenceNode::getChanGroup(int chan)
 
 int CoherenceNode::getGroupIt(int group, int chan)
 {
-    int groupIt;
     if (group == 1)
     {
         int * it = std::find(group1Channels.begin(), group1Channels.end(), chan);
-        groupIt = it - group1Channels.begin();
+        return it - group1Channels.begin();
+    }
+    else if (group == 2)
+    {
+        int * it = std::find(group2Channels.begin(), group2Channels.end(), chan);
+        return it - group2Channels.begin();
     }
     else
     {
-        int * it = std::find(group2Channels.begin(), group2Channels.end(), chan);
-        groupIt = it - group2Channels.begin();
+        jassertfalse;
     }
-    return groupIt;
 }
 
 bool CoherenceNode::enable()
@@ -350,6 +364,7 @@ Array<int> CoherenceNode::getActiveInputs()
 {
     int numInputs = getNumInputs();
     auto ed = static_cast<CoherenceEditor*>(getEditor());
+    
     if (numInputs == 0 || !ed)
     {
         return Array<int>();

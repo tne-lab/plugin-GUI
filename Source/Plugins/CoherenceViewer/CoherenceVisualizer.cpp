@@ -31,14 +31,34 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     refreshRate = .5;
     juce::Rectangle<int> canvasBounds(0, 0, 1, 1);
     juce::Rectangle<int> bounds;
+    juce::Rectangle<int> opBounds(0, 0, 1, 1);
 
+    curComb = 0;
+
+    const int TEXT_HT = 18;
+
+    // ------- Options ------- //
+    int xPos = 15;
+    optionsTitle = new Label("OptionsTitle", "Coherence Viewer Additional Settings");
+    optionsTitle->setBounds(bounds = { xPos, 30, 400, 50 });
+    optionsTitle->setFont(Font(20, Font::bold));
+    canvas->addAndMakeVisible(optionsTitle);
+    opBounds = opBounds.getUnion(bounds);
+
+    //// Grouping
+
+    //// Combination choice
+    combinationBox = new ComboBox("Combination Selection Box");
+    combinationBox->setTooltip("Combination to graph");
+    combinationBox->setBounds(xPos, 90, 40, TEXT_HT);
+    combinationBox->addListener(this);
+    canvas->addAndMakeVisible(combinationBox);
+
+    // ------- Plot ------- //
     cohPlot = new MatlabLikePlot();
-    cohPlot->setBounds(bounds = { 30, 30, 600, 500 });
+    cohPlot->setBounds(bounds = { 80, 70, 600, 500 });
     cohPlot->setRange(0, 40, 0, 1, true);
     cohPlot->setControlButtonsVisibile(false);
-
-    //XYline testLine(0.5, 0.5, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 1, Colours::red);
-    //testPlot->plotxy(testLine);
 
     canvas->addAndMakeVisible(cohPlot);
     canvasBounds = canvasBounds.getUnion(bounds);
@@ -68,22 +88,32 @@ void CoherenceVisualizer::resized()
 }
 
 void CoherenceVisualizer::refreshState() {}
-void CoherenceVisualizer::update() {}
+void CoherenceVisualizer::update()
+{
+    int numInputs = processor->getNumInputs();
+    freqStep = processor->freqStep;
+
+    nCombs = processor->nGroupCombs;
+    combinationBox->clear(dontSendNotification);
+    for (int i = 1; i <= nCombs; i++)
+    {
+        // using 1-based ids since 0 is reserved for "nothing selected"
+        combinationBox->addItem(String(i), i);
+    }
+}
 
 
 void CoherenceVisualizer::refresh() 
 {
-    float freqStep = processor->freqStep;
-
     if (processor->meanCoherence.hasUpdate())
     {
         AtomicScopedReadPtr<std::vector<std::vector<double>>> coherenceReader(processor->meanCoherence);
         coherenceReader.pullUpdate();
         
-        std::vector<float> coh(coherenceReader->at(0).size(), 0);
-        for (int i = 0; i < coherenceReader->at(0).size() - 1; i++)
+        std::vector<float> coh(coherenceReader->at(curComb).size());
+        for (int i = 0; i < coherenceReader->at(curComb).size() - 1; i++)
         {
-            coh[i] = coherenceReader->at(0)[i];
+            coh[i] = coherenceReader->at(curComb)[i];
         }
 
         XYline cohLine(0, freqStep, coh, 1, Colours::yellow);
@@ -94,6 +124,13 @@ void CoherenceVisualizer::refresh()
     }
 }
 
+void CoherenceVisualizer::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
+{
+    if (comboBoxThatHasChanged == combinationBox)
+    {
+        curComb = static_cast<int>(combinationBox->getSelectedId() - 1);
+    }
+}
 
 void CoherenceVisualizer::beginAnimation() {}
 void CoherenceVisualizer::endAnimation() {}
