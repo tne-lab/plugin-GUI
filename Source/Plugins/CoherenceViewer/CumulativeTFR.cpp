@@ -76,7 +76,7 @@ void CumulativeTFR::addTrial(const double* fftIn, int chan)
 		// Multiple fft data by wavelet
 		for (int n = 0; n < nfft; n++)
 		{
-            ifftInput.set(n, fftOutput.getAsComplex(n) * waveletArray[freq][n] / double(nfft)); // Divide by 2 so we don't go over double limits later..
+            ifftInput.set(n, fftOutput.getAsComplex(n) * waveletArray[freq][n] ); // Divide by 2 so we don't go over double limits later..
 		}
 		// Inverse FFT on data multiplied by wavelet
 		ifftPlan.execute();
@@ -86,12 +86,12 @@ void CumulativeTFR::addTrial(const double* fftIn, int chan)
 		{
             int tIndex = int(((t * stepLen) + trimTime)  * Fs); // get index of time of interest
             std::complex<double> complex = ifftOutput.getAsComplex(tIndex);
-            complex *= sqrt(2.0 / nWindow) ; // divide by nfft from matlab ifft
+            complex *= sqrt(2.0 / nWindow) / double(nfft); // divide by nfft from matlab ifft
                                                            // sqrt(2/nWindow) from ft_specest_mtmconvol.m 
             // Save convOutput for crss later
             spectrumBuffer[chan][freq][t] = complex;
             // Get power
-            long double power = std::norm(complex);
+            double power = std::norm(complex);
             
             powBuffer[chan][freq][t].addValue(power);
 		}
