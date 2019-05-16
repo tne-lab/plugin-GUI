@@ -59,6 +59,28 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     opBounds = opBounds.getUnion(bounds);
 
     // ------- Group Boxes ------- //
+	int numInputs = processor->getActiveInputs().size();
+	for (int i = 0; i < numInputs; i+=1)
+	{
+		// Group 1 buttons
+		ElectrodeButton* button = new ElectrodeButton(i + 1);
+		button->setBounds(xPos, 180 + i * 30, 20, 15);
+		button->setToggleState(false, dontSendNotification);
+		button->setRadioGroupId(0);
+		button->setButtonText(String(i + 1));
+		
+		addAndMakeVisible(button);
+		
+		// Group 2 buttons
+		ElectrodeButton* button2 = new ElectrodeButton(i + 1 + numInputs);
+		button->setBounds(xPos + 50, 180 + i * 30, 20, 15);
+		button->setToggleState(false, dontSendNotification);
+		button->setRadioGroupId(0);
+		button->setButtonText(String(i + 1));
+
+		addAndMakeVisible(button);
+	}
+	
 
     // ------- Combination Choice ------- //
     combinationBox = new ComboBox("Combination Selection Box");
