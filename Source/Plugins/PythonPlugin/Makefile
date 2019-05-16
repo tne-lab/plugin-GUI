@@ -1,29 +1,28 @@
-PYTHON_HOME = $(CONDA_HOME)
-PYTHON_INCDIR = $(CONDA_HOME)/include/python3.5m
-PYTHON_LIBDIR = $(CONDA_HOME)/lib
-PYTHON_RTLIBDIR = $(PYTHON_LIBDIR)
+PYTHON_HOME := $(CONDA_HOME)
+PYTHON_INCDIR := $(CONDA_HOME)/include/$(PYTHON_VERSION)
+PYTHON_LIBDIR := $(CONDA_HOME)/lib
+PYTHON_RTLIBDIR := $(PYTHON_LIBDIR)
 
-LIBNAME = $(CURDIR)
-LIBNAME = $(**F)
-OBJDIR = $(OBJDIR)/$(LIBNAME)
-TARGET = $(LIBNAME).so
-OS = $(shell uname)
+LIBNAME := $(notdir $(CURDIR))
+OBJDIR := $(OBJDIR)/$(LIBNAME)
+TARGET := $(LIBNAME).so
+OS := $(shell uname)
 
-SRC_DIR = ${shell find ./ -type d -print}
-VPATH = $(SOURCE_DIRS)
+SRC_DIR := ${shell find ./ -type d -print}
+VPATH := $(SOURCE_DIRS)
 
-SRC = $(foreach sdir,$(SRC_DIR),$(wildcard $(sdir)/*.cpp))
-OBJ = $(addprefix $(OBJDIR)/,$(notdir $(SRC:.cpp=.o)))
+SRC := $(foreach sdir,$(SRC_DIR),$(wildcard $(sdir)/*.cpp))
+OBJ := $(addprefix $(OBJDIR)/,$(notdir $(SRC:.cpp=.o)))
 
 
 
 #Extra macros and libraries needed by the plugin
 #CXXFLAGS := $(CXXFLAGS) -D "PYTHON_HOME=$(PYTHON_HOME)" -I $(PYTHON_INCDIR)
-CXXFLAGS = $(CXXFLAGS) -D "PYTHON_HOME=$(PYTHON_HOME)" -I $(PYTHON_INCDIR)
-LDFLAGS = $(LDFLAGS) -lpython3.5m -L$(PYTHON_LIBDIR) -Wl,-rpath=$(PYTHON_RTLIBDIR)
+CXXFLAGS := $(CXXFLAGS) -D "PYTHON_HOME=$(PYTHON_HOME)" -I $(PYTHON_INCDIR)
+LDFLAGS := $(LDFLAGS) -l$(PYTHON_VERSION) -L$(PYTHON_LIBDIR) -Wl,-rpath=$(PYTHON_RTLIBDIR)
 
 
-BLDCMD = $(CXX) -shared -o $(OUTDIR)/$(TARGET) $(OBJ) $(LDFLAGS) $(RESOURCES) $(TARGET_ARCH)
+BLDCMD := $(CXX) -shared -o $(OUTDIR)/$(TARGET) $(OBJ) $(LDFLAGS) $(RESOURCES) $(TARGET_ARCH)
 
 VPATH = $(SRC_DIR)
 
