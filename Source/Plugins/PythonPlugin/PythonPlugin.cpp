@@ -144,12 +144,15 @@ PythonPlugin::PythonPlugin(const String &processorName)
 
 PythonPlugin::~PythonPlugin()
 {
+    if (plugin)
+    {
 #ifdef _WIN32
-    //Close libary
-    FreeLibrary((HMODULE)plugin);
+        //Close libary
+        FreeLibrary((HMODULE)plugin);
 #else
-    dlclose(plugin);
+        dlclose(plugin);
 #endif
+    }
 }
 
 
