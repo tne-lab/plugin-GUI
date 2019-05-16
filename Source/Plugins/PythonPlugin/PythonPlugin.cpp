@@ -59,16 +59,8 @@ v
 #endif
 #endif
 
-
-PythonPlugin::PythonPlugin(const String &processorName)
-    : GenericProcessor(processorName) //, threshold(200.0), state(true)
-
+static PyThreadState* startInterpreter()
 {
-
-    //parameters.add(Parameter("thresh", 0.0, 500.0, 200.0, 0));
-    filePath = "";
-    plugin = 0;
-
     // if on windows, PYTHON_HOME_NAME is set by PythonEnv.props (corresponds to CONDA_HOME environment variable)
 #ifndef _WIN32
 #define QUOTE(name) #name
@@ -98,6 +90,33 @@ PythonPlugin::PythonPlugin(const String &processorName)
     // set PYTHONPATH to avoid error described here: https://stackoverflow.com/questions/5694706/py-initialize-fails-unable-to-load-the-file-system-codec
     _putenv_s("PYTHONPATH", PYTHON_HOME_NAME "\\DLLs;" PYTHON_HOME_NAME "\\Lib;" PYTHON_HOME_NAME "\\Lib\\site-packages");
 #endif
+
+#if PY_MAJOR_VERSION==3
+    Py_SetProgramName((wchar_t *)"PythonPlugin");
+#else
+    Py_SetProgramName((char *)"PythonPlugin");
+#endif
+    Py_Initialize();
+    PyEval_InitThreads();
+
+    PyRun_SimpleString("import sys");
+    PyRun_SimpleString("sys.setcheckinterval(10000)");
+#ifdef PYTHON_DEBUG
+    std::cout << Py_GetPrefix() << std::endl;
+    std::cout << Py_GetVersion() << std::endl;
+#endif
+    return PyEval_SaveThread();
+}
+
+
+PythonPlugin::PythonPlugin(const String &processorName)
+    : GenericProcessor(processorName) //, threshold(200.0), state(true)
+
+{
+
+    //parameters.add(Parameter("thresh", 0.0, 500.0, 200.0, 0));
+    filePath = "";
+    plugin = 0;
     
 #ifdef PYTHON_DEBUG
 #if defined(__linux__)
@@ -112,34 +131,27 @@ PythonPlugin::PythonPlugin(const String &processorName)
     std::cout << "in constructor pthread_threadid_np()=" << tid << std::endl;
 #endif
 
-#if PY_MAJOR_VERSION==3
-    Py_SetProgramName ((wchar_t *)"PythonPlugin");
-#else
-    Py_SetProgramName ((char *)"PythonPlugin");
-#endif
-    Py_Initialize ();
-    PyEval_InitThreads();
-
-    
-    PyRun_SimpleString("import sys");
-    PyRun_SimpleString("sys.setcheckinterval(10000)");
-#ifdef PYTHON_DEBUG
-    std::cout << Py_GetPrefix() << std::endl;
-    std::cout << Py_GetVersion() << std::endl;
-#endif
-    GUIThreadState = PyEval_SaveThread();
+    if (Py_IsInitialized())
+    {
+        // have a thread state already, just need to retrieve it
+        GUIThreadState = PyGILState_GetThisThreadState();
+    }
+    else
+    {
+        GUIThreadState = startInterpreter();
+    }
 }
 
 PythonPlugin::~PythonPlugin()
 {
 #ifdef _WIN32
     //Close libary
-    PyGILState_Ensure();
     FreeLibrary((HMODULE)plugin);
 #else
     dlclose(plugin);
 #endif
 }
+
 
 void PythonPlugin::createEventChannels()
 {
