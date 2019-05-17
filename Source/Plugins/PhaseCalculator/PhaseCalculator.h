@@ -143,7 +143,7 @@ namespace PhaseCalculator
 
         // for visualization:
         int hilbertLengthMultiplier;
-        FFTWTransformableArray<> visHilbertBuffer;
+        FFTWTransformableArray visHilbertBuffer;
         BandpassFilter reverseFilter;
 
         const ChannelInfo& chanInfo;

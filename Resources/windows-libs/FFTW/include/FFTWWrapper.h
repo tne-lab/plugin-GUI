@@ -290,18 +290,18 @@ private:
 
 
 // copyable, movable array that can do an in-place transform
-template <unsigned int flags = FFTW_MEASURE> 
 class FFTWTransformableArray : public FFTWArray
 {
 public:
-    FFTWTransformableArray(int n = 0)
-        : FFTWArray     (0)
+    FFTWTransformableArray(int n = 0, unsigned int flags = FFTW_MEASURE)
+        : FFTWArray(0)
+        , flags(flags)
     {
         resize(n);
     }
 
     FFTWTransformableArray(const FFTWTransformableArray& other)
-        : FFTWTransformableArray(other.getLength())
+        : FFTWTransformableArray(other.getLength(), other.flags)
     {
         // delegate to copy assignment
         *this = other;
@@ -317,6 +317,11 @@ public:
     {
         if (this != &other)
         {
+            if (flags != other.flags)
+            {
+                flags = other.flags;
+                resize(0); // force plans to be remade
+            }
             FFTWArray::operator=(other);
             // the plans will be copied if/when the overridden "resize" is called
         }
@@ -327,6 +332,7 @@ public:
     {
         if (this != &other)
         {
+            flags = other.flags;
             forwardPlan = other.forwardPlan;
             inversePlan = other.inversePlan;
             r2cPlan = other.r2cPlan;
@@ -382,11 +388,24 @@ public:
     }
 
 private:
+    unsigned int flags;
     ScopedPointer<FFTWPlan> forwardPlan;
     ScopedPointer<FFTWPlan> inversePlan;
     ScopedPointer<FFTWPlan> r2cPlan;
 
-    JUCE_LEAK_DETECTOR(FFTWTransformableArray<flags>);
+    JUCE_LEAK_DETECTOR(FFTWTransformableArray);
+};
+
+
+// version with different flags that's still default-constructible
+// TODO think of a better name?
+template<unsigned int f>
+class FFTWTransformableArrayUsing : public FFTWTransformableArray 
+{
+public:
+    FFTWTransformableArrayUsing(int n = 0)
+        : FFTWTransformableArray(n, f)
+    {}
 };
 
 #endif // FFTW_WRAPPER_H_INCLUDED
