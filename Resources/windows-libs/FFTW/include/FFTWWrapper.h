@@ -55,6 +55,42 @@ public:
         fftw_free(data);
     }
 
+    FFTWArray(const FFTWArray& other)
+        : FFTWArray(other.length)
+    {
+        // delegate to copy assignment
+        *this = other;
+    }
+
+    // Move to new FFTWArray. Needed to store in an array
+    FFTWArray(FFTWArray&& other)
+    {
+        // delegate to move assignment
+        *this = std::move(other);
+    }
+
+    FFTWArray& operator=(const FFTWArray& other)
+    {
+        if (this != &other)
+        {
+            resize(other.length);
+            copyFrom(other.data, other.length);
+        }
+        return *this;
+    }
+
+    FFTWArray& operator=(FFTWArray&& other)
+    {
+        if (this != &other)
+        {
+            data = other.data;
+            length = other.length;
+            other.data = nullptr;
+            other.length = 0;
+        }
+        return *this;
+    }
+
     // returns true if a resize actually occurred
     virtual bool resize(int newLength)
     {
@@ -171,42 +207,32 @@ public:
         return numToCopy;
     }
 
-    FFTWArray(const FFTWArray& other)
-        : FFTWArray(other.length)
+    // Does the part of the Hilbert transform in the frequency domain (see FFTWTransformableArray::hilbert)
+    void freqDomainHilbert()
     {
-        // delegate to copy assignment
-        *this = other;
-    }
+        if (length <= 0) { return; }
 
-    // Move to new FFTWArray. Needed to store in an array
-    FFTWArray(FFTWArray&& other)
-    {
-        // delegate to move assignment
-        *this = std::move(other);
-    }
+        // normalize DC and Nyquist, normalize and double positive freqs, and set negative freqs to 0.
+        int lastPosFreq = (length + 1) / 2 - 1;
+        int firstNegFreq = length / 2 + 1;
+        int numPosNegFreqDoubles = lastPosFreq * 2; // sizeof(complex<double>) = 2 * sizeof(double)
+        bool hasNyquist = (length % 2 == 0);
 
-    FFTWArray& operator=(const FFTWArray& other)
-    {
-        if (this != &other)
+        // normalize but don't double DC value
+        data[0] /= length;
+
+        // normalize and double positive frequencies
+        FloatVectorOperations::multiply(reinterpret_cast<double*>(data + 1), 2.0 / length, numPosNegFreqDoubles);
+
+        if (hasNyquist)
         {
-            resize(other.length);
-            copyFrom(other.data, other.length);
+            // normalize but don't double Nyquist frequency
+            data[lastPosFreq + 1] /= length;
         }
-        return *this;
-    }
 
-    FFTWArray& operator=(FFTWArray&& other)
-    {
-        if (this != &other)
-        {
-            data = other.data;
-            length = other.length;
-            other.data = nullptr;
-            other.length = 0;
-        }
-        return *this;
+        // set negative frequencies to 0
+        FloatVectorOperations::clear(reinterpret_cast<double*>(data + firstNegFreq), numPosNegFreqDoubles);
     }
-
     
 private:
     std::complex<double>* data;
@@ -350,35 +376,8 @@ public:
     // analytic signal, defined as x + H[x]*i. This is consistent with Matlab's 'hilbert'.
     void hilbert()
     {
-        int n = getLength();
-
-        // enter the frequency domain
         fftReal();
-
-        // normalize DC and Nyquist, normalize and double positive freqs, and set negative freqs to 0.
-        int lastPosFreq = (n + 1) / 2 - 1;
-        int firstNegFreq = n / 2 + 1;
-        int numPosNegFreqDoubles = lastPosFreq * 2; // sizeof(complex<double>) = 2 * sizeof(double)
-        bool hasNyquist = (n % 2 == 0);
-
-        std::complex<double>* wp = getComplexPointer();
-
-        // normalize but don't double DC value
-        wp[0] /= n;
-
-        // normalize and double positive frequencies
-        FloatVectorOperations::multiply(reinterpret_cast<double*>(wp + 1), 2.0 / n, numPosNegFreqDoubles);
-
-        if (hasNyquist)
-        {
-            // normalize but don't double Nyquist frequency
-            wp[lastPosFreq + 1] /= n;
-        }
-
-        // set negative frequencies to 0
-        FloatVectorOperations::clear(reinterpret_cast<double*>(wp + firstNegFreq), numPosNegFreqDoubles);
-
-        // finally IFFT to get back to time domain
+        freqDomainHilbert();
         ifft();
     }
 
