@@ -96,7 +96,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
         // Add to buffer the new samples.
         for (int n = 0; n < nSamples; n++)
         {
-            dataWriter->getReference(activeChan).set(n, rpIn[n]);
+            dataWriter->getReference(activeChan).set(nSamplesAdded + n, rpIn[n]);
         }  
     }
 
