@@ -83,6 +83,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
         group2Buttons.add(button2);
 
         canvas->addAndMakeVisible(button2);
+        opBounds = opBounds.getUnion(bounds);
 	}
 
     // ------- Combination Choice ------- //
@@ -128,15 +129,14 @@ void CoherenceVisualizer::resized()
 void CoherenceVisualizer::refreshState() {}
 void CoherenceVisualizer::update()
 {
-    int numInputs = processor->getNumInputs();
-    freqStep = processor->freqStep;
-
-    nCombs = processor->nGroupCombs;
     combinationBox->clear(dontSendNotification);
-    for (int i = 1; i <= nCombs; i++)
+    for (int i = 0, comb = 1; i < group1Channels.size(); i++)
     {
-        // using 1-based ids since 0 is reserved for "nothing selected"
-        combinationBox->addItem(String(i), i);
+        for (int j = 0; j < group2Channels.size(); j++, ++comb)
+        {
+            // using 1-based comb ids since 0 is reserved for "nothing selected"
+            combinationBox->addItem(String(group1Channels[i] + 1) + " x " + String(group2Channels[j] + 1), comb);
+        }
     }
 }
 
@@ -174,7 +174,7 @@ void CoherenceVisualizer::buttonClicked(Button* buttonClicked)
 {
     std::cout << "button clicked! " << std::endl;
     ElectrodeButton* eButton = static_cast<ElectrodeButton*>(buttonClicked);
-    int buttonChan = eButton->getChannelNum();
+    int buttonChan = eButton->getChannelNum() - 1;
     std::cout << buttonChan << std::endl;
 
     if (group1Buttons.contains((ElectrodeButton*)buttonClicked))
@@ -191,7 +191,7 @@ void CoherenceVisualizer::buttonClicked(Button* buttonClicked)
         {
             if (group2Channels.contains(buttonChan))
             {
-                group2Buttons[buttonChan-1]->setToggleState(false, dontSendNotification);
+                group2Buttons[buttonChan]->setToggleState(false, dontSendNotification);
                 int it = group2Channels.indexOf(buttonChan);
                 group2Channels.remove(it);
             }
@@ -212,7 +212,7 @@ void CoherenceVisualizer::buttonClicked(Button* buttonClicked)
         {
             if (group1Channels.contains(buttonChan))
             {
-                group1Buttons[buttonChan - 1]->setToggleState(false, dontSendNotification);
+                group1Buttons[buttonChan]->setToggleState(false, dontSendNotification);
                 int it = group1Channels.indexOf(buttonChan);
                 group1Channels.remove(it);
             }
@@ -235,7 +235,27 @@ void CoherenceVisualizer::buttonClicked(Button* buttonClicked)
     std::cout << std::endl;
 }
 
-void CoherenceVisualizer::beginAnimation() {}
-void CoherenceVisualizer::endAnimation() {}
+void CoherenceVisualizer::beginAnimation() 
+{
+    for (int i = 0; i < group1Buttons.size(); i++)
+    {
+        group1Buttons[i]->setEnabled(false);
+    }
+    for (int i = 0; i < group2Buttons.size(); i++)
+    {
+        group2Buttons[i]->setEnabled(false);
+    }
+}
+void CoherenceVisualizer::endAnimation() 
+{
+    for (int i = 0; i < group1Buttons.size(); i++)
+    {
+        group1Buttons[i]->setEnabled(true);
+    }
+    for (int i = 0; i < group2Buttons.size(); i++)
+    {
+        group2Buttons[i]->setEnabled(true);
+    }
+}
 void CoherenceVisualizer::setParameter(int, float) {}
 void CoherenceVisualizer::setParameter(int, int, int, float) {}

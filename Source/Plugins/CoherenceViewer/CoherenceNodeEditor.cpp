@@ -203,6 +203,15 @@ bool CoherenceEditor::updateFloatLabel(Label* label, float min, float max,
     return true;
 }
 
+void CoherenceEditor::startAcquisition()
+{
+    canvas->beginAnimation();
+}
+
+void CoherenceEditor::stopAcquisition()
+{
+    canvas->endAnimation();
+}
 
 Visualizer* CoherenceEditor::createNewCanvas()
 {

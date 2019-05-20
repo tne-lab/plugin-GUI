@@ -49,7 +49,7 @@ public:
     void comboBoxChanged(ComboBox* comboBoxThatHasChanged) override;
     void buttonEvent(Button* buttonEvent);
     void buttonClicked(Button* buttonClick) override;
-
+    
 private:
     CoherenceNode* processor;
 

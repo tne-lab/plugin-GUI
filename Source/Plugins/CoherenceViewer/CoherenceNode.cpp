@@ -317,7 +317,7 @@ int CoherenceNode::getChanGroup(int chan)
     }
     else
     {
-        return -1; // Channel isn't in group 1 or 2. Error!
+        jassertfalse; // Channel isn't in group 1 or 2. Error!
     }
 }
 
