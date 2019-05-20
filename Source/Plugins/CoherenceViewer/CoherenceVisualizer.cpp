@@ -64,23 +64,26 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
 	{
 		// Group 1 buttons
 		ElectrodeButton* button = new ElectrodeButton(i + 1);
-		button->setBounds(xPos, 180 + i * 30, 20, 15);
+		button->setBounds(xPos, 180 + i * 15, 20, 15);
 		button->setToggleState(false, dontSendNotification);
 		button->setRadioGroupId(0);
 		button->setButtonText(String(i + 1));
+        button->addListener(this);
+        group1Buttons.add(button);
 		
-		addAndMakeVisible(button);
+		canvas->addAndMakeVisible(button);
 		
 		// Group 2 buttons
-		ElectrodeButton* button2 = new ElectrodeButton(i + 1 + numInputs);
-		button->setBounds(xPos + 50, 180 + i * 30, 20, 15);
-		button->setToggleState(false, dontSendNotification);
-		button->setRadioGroupId(0);
-		button->setButtonText(String(i + 1));
+		ElectrodeButton* button2 = new ElectrodeButton(i + 1);
+        button2->setBounds(xPos + 50, 180 + i * 15, 20, 15);
+		button2->setToggleState(false, dontSendNotification);
+		button2->setRadioGroupId(0);
+		button2->setButtonText(String(i + 1));
+        button2->addListener(this);
+        group2Buttons.add(button2);
 
-		addAndMakeVisible(button);
+        canvas->addAndMakeVisible(button2);
 	}
-	
 
     // ------- Combination Choice ------- //
     combinationBox = new ComboBox("Combination Selection Box");
@@ -95,7 +98,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     cohPlot->setRange(0, 40, 0, 1, true);
     cohPlot->setControlButtonsVisibile(false);
 
-    canvas->addAndMakeVisible(cohPlot);
+    //canvas->addAndMakeVisible(cohPlot);
     canvasBounds = canvasBounds.getUnion(bounds);
     
     // some extra padding
@@ -165,6 +168,71 @@ void CoherenceVisualizer::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
     {
         curComb = static_cast<int>(combinationBox->getSelectedId() - 1);
     }
+}
+
+void CoherenceVisualizer::buttonClicked(Button* buttonClicked)
+{
+    std::cout << "button clicked! " << std::endl;
+    ElectrodeButton* eButton = static_cast<ElectrodeButton*>(buttonClicked);
+    int buttonChan = eButton->getChannelNum();
+    std::cout << buttonChan << std::endl;
+
+    if (group1Buttons.contains((ElectrodeButton*)buttonClicked))
+    {
+        // Add to group 1 channels
+        // Make sure to check that not in group2Buttons..
+        if (group1Channels.contains(buttonChan))
+        {
+            int it = group1Channels.indexOf(buttonChan);
+            group1Channels.remove(it);
+        }
+
+        else
+        {
+            if (group2Channels.contains(buttonChan))
+            {
+                group2Buttons[buttonChan-1]->setToggleState(false, dontSendNotification);
+                int it = group2Channels.indexOf(buttonChan);
+                group2Channels.remove(it);
+            }
+
+            group1Channels.addUsingDefaultSort(buttonChan);
+        }
+      
+    }
+    if (group2Buttons.contains((ElectrodeButton*)buttonClicked))
+    {
+        if (group2Channels.contains(buttonChan))
+        {
+            int it = group2Channels.indexOf(buttonChan);
+            group2Channels.remove(it);
+        }
+        
+        else
+        {
+            if (group1Channels.contains(buttonChan))
+            {
+                group1Buttons[buttonChan - 1]->setToggleState(false, dontSendNotification);
+                int it = group1Channels.indexOf(buttonChan);
+                group1Channels.remove(it);
+            }
+
+            group2Channels.addUsingDefaultSort(buttonChan);
+        }      
+    }
+
+    std::cout << "Group 1 Channels:";
+    for (int i = 0; i < group1Channels.size(); i++)
+    {
+        std::cout << " " << group1Channels[i];
+    }
+
+    std::cout << std::endl << "Group 2 Channels:";
+    for (int i = 0; i < group2Channels.size(); i++)
+    {
+        std::cout << " " << group2Channels[i];
+    }
+    std::cout << std::endl;
 }
 
 void CoherenceVisualizer::beginAnimation() {}

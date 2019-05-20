@@ -31,6 +31,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 class CoherenceVisualizer : public Visualizer
     , public ComboBox::Listener
+    , public Button::Listener
 {
 public:
     CoherenceVisualizer(CoherenceNode* n);
@@ -46,6 +47,8 @@ public:
     void setParameter(int, float) override;
     void setParameter(int, int, int, float) override;
     void comboBoxChanged(ComboBox* comboBoxThatHasChanged) override;
+    void buttonEvent(Button* buttonEvent);
+    void buttonClicked(Button* buttonClick) override;
 
 private:
     CoherenceNode* processor;
@@ -60,6 +63,12 @@ private:
     ScopedPointer<Label> group1Title;
     ScopedPointer<Label> group2Title;
     ScopedPointer<ComboBox> combinationBox;
+
+    Array<ElectrodeButton*> group1Buttons;
+    Array<ElectrodeButton*> group2Buttons;
+
+    Array<int> group1Channels;
+    Array<int> group2Channels;
 
     float freqStep;
     int nCombs;
