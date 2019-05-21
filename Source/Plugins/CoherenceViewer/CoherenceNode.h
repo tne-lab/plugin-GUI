@@ -92,6 +92,8 @@ private:
     ScopedPointer<CumulativeTFR> TFR;
     Array<bool> CHANNEL_READY;
 
+    bool ready;
+
     // freq of interest
     Array<float> foi;
 

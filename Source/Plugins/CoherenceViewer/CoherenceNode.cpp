@@ -38,6 +38,7 @@ CoherenceNode::CoherenceNode()
     , nGroup2Chans      (0)
     , Fs                (0)
     , alpha             (0)
+    , ready             (false)
 {
     setProcessorType(PROCESSOR_TYPE_SINK);
 }
@@ -343,6 +344,11 @@ void CoherenceNode::updateAlpha(float a)
 
 void CoherenceNode::resetTFR()
 {
+
+    if (!ready)
+    {
+        ready = true;
+    }
     nSamplesAdded = 0;
     updateDataBufferSize(segLen*Fs);
     updateMeanCoherenceSize();
@@ -367,7 +373,7 @@ void CoherenceNode::resetTFR()
 
 bool CoherenceNode::enable()
 {
-    if (isEnabled)
+    if (isEnabled && ready)
     {
         // Start coherence calculation thread
         startThread(COH_PRIORITY);
