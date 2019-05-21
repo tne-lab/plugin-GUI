@@ -44,10 +44,11 @@ accuracy of phase-locked stimulation in real time.
 
 #include <ProcessorHeaders.h>
 #include <DspLib.h>  // Filtering
+#include <FFTWWrapper.h>   // Fourier transform
+
 #include <queue>
 #include <utility>  // pair
 
-#include "FFTWWrapper.h"   // Fourier transform
 #include "ARModeler.h"     // Autoregressive modeling
 #include "HTransformers.h" // Hilbert transformers & frequency bands
 
@@ -138,8 +139,7 @@ namespace PhaseCalculator
 
         // for visualization:
         int hilbertLengthMultiplier;
-        FFTWArray visHilbertBuffer;
-        ScopedPointer<FFTWPlan> visForwardPlan, visBackwardPlan;
+        FFTWTransformableArray visHilbertBuffer;
         BandpassFilter reverseFilter;
 
         const ChannelInfo& chanInfo;
@@ -330,12 +330,6 @@ namespace PhaseCalculator
         */
         static void arPredict(const ReverseStack& history, int interpCountdown, double* prediction,
             const double* params, int samps, int stride, int order);
-
-        /*
-        * hilbertManip: Hilbert transforms data in the frequency domain (including normalization by length of data).
-        * Modifies fftData in place.
-        */
-        static void hilbertManip(FFTWArray* fftData, int n);
 
         // Get the htScaleFactor for the given band's Hilbert transformer,
         // over the range from lowCut and highCut. This is the reciprocal of the geometric
