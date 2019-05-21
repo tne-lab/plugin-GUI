@@ -99,7 +99,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     cohPlot->setRange(0, 40, 0, 1, true);
     cohPlot->setControlButtonsVisibile(false);
 
-    //canvas->addAndMakeVisible(cohPlot);
+    canvas->addAndMakeVisible(cohPlot);
     canvasBounds = canvasBounds.getUnion(bounds);
     
     // some extra padding
@@ -129,6 +129,8 @@ void CoherenceVisualizer::resized()
 void CoherenceVisualizer::refreshState() {}
 void CoherenceVisualizer::update()
 {
+    freqStep = processor->freqStep;
+    
     combinationBox->clear(dontSendNotification);
     for (int i = 0, comb = 1; i < group1Channels.size(); i++)
     {
