@@ -32,6 +32,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 class CoherenceVisualizer : public Visualizer
     , public ComboBox::Listener
     , public Button::Listener
+    , public Label::Listener
 {
 public:
     CoherenceVisualizer(CoherenceNode* n);
@@ -47,10 +48,13 @@ public:
     void setParameter(int, float) override;
     void setParameter(int, int, int, float) override;
     void comboBoxChanged(ComboBox* comboBoxThatHasChanged) override;
+    void labelTextChanged(Label* labelThatHasChanged) override;
     void buttonEvent(Button* buttonEvent);
     void buttonClicked(Button* buttonClick) override;
     
 private:
+    void updateCombList();
+
     CoherenceNode* processor;
 
     ScopedPointer<Viewport>  viewport;
@@ -63,6 +67,11 @@ private:
     ScopedPointer<Label> group1Title;
     ScopedPointer<Label> group2Title;
     ScopedPointer<ComboBox> combinationBox;
+    ScopedPointer<ToggleButton> linearButton;
+    ScopedPointer<ToggleButton> expButton;
+    ScopedPointer<Label> alpha;
+    ScopedPointer<Label> alphaE;
+    ScopedPointer<TextButton> resetTFR;
 
     Array<ElectrodeButton*> group1Buttons;
     Array<ElectrodeButton*> group2Buttons;
@@ -76,6 +85,10 @@ private:
 
     MatlabLikePlot* cohPlot;
     std::vector<double> coherence;
+    std::vector<std::vector<float>> coh;// (coherenceReader->at(curComb).size());
+
+    bool updateFloatLabel(Label* label, float min, float max,
+        float defaultValue, float* out);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceVisualizer);
 };

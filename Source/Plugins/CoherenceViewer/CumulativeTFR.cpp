@@ -54,7 +54,7 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLe
     trimTime = windowLen / 2;
 }
 
-void CumulativeTFR::addTrial(FFTWArrayType& fftBuffer, int chan)
+void CumulativeTFR::addTrial(FFTWArrayType& fftBuffer, int chanIt)
 
 {
     float winsPerSegment = (segmentLen - windowLen) / stepLen;

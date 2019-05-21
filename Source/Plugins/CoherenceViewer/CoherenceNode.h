@@ -132,6 +132,8 @@ private:
     // Fs (sampling rate?)
     float Fs;
 
+    float alpha;
+
     int nSamplesAdded; // holds how many samples were added for each channel
     AudioBuffer<float> channelData; // Holds the segment buffer for each channel.
 
@@ -143,6 +145,10 @@ private:
 
     // Get iterator for this channel in it's respective group
     int getGroupIt(int group, int chan);
+
+    void updateGroup(Array<int> group1Channels, Array<int> group2Channels);
+    void updateAlpha(float alpha);
+    void resetTFR();
 
     enum Parameter
     {

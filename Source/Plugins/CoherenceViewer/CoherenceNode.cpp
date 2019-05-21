@@ -37,6 +37,7 @@ CoherenceNode::CoherenceNode()
     , nGroup1Chans      (0)
     , nGroup2Chans      (0)
     , Fs                (0)
+    , alpha             (0)
 {
     setProcessorType(PROCESSOR_TYPE_SINK);
 }
@@ -78,26 +79,32 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
     for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
     {
         int chan = activeInputs[activeChan];
-        nSamples = getNumSamples(chan); // all channels the same?
-        if (nSamples == 0)
+        int groupNum = getChanGroup(chan);
+        if (groupNum != -1)
         {
-            continue;
-        }
+            int groupIt = (groupNum == 1 ? getGroupIt(groupNum, chan) : getGroupIt(groupNum, chan) + nGroup1Chans);
+            
+            nSamples = getNumSamples(chan); // all channels the same?
+            if (nSamples == 0)
+            {
+                continue;
+            }
 
-        // Get read pointer of incoming data to move to the stored data buffer
-        const float* rpIn = continuousBuffer.getReadPointer(chan);
+            // Get read pointer of incoming data to move to the stored data buffer
+            const float* rpIn = continuousBuffer.getReadPointer(chan);
 
-        // Handle overflow 
-        if (nSamplesAdded + nSamples >= segLen * Fs)
-        {
-            nSamples = segLen * Fs - nSamplesAdded;
-        }
+            // Handle overflow 
+            if (nSamplesAdded + nSamples >= segLen * Fs)
+            {
+                nSamples = segLen * Fs - nSamplesAdded;
+            }
 
-        // Add to buffer the new samples.
-        for (int n = 0; n < nSamples; n++)
-        {
-            dataWriter->getReference(activeChan).set(nSamplesAdded + n, rpIn[n]);
-        }  
+            // Add to buffer the new samples.
+            for (int n = 0; n < nSamples; n++)
+            {
+                dataWriter->getReference(groupIt).set(nSamplesAdded + n, rpIn[n]);
+            }
+        }       
     }
 
     nSamplesAdded += nSamples;
@@ -134,7 +141,7 @@ void CoherenceNode::run()
                 if (groupNum != -1)
                 {
                     int groupIt = (groupNum == 1 ? getGroupIt(groupNum, chan) : getGroupIt(groupNum, chan) + nGroup1Chans);
-                    TFR->addTrial(dataReader->getReference(activeChan), groupIt);
+                    TFR->addTrial(dataReader->getReference(groupIt), groupIt);
                 }
                 else
                 {
@@ -159,12 +166,7 @@ void CoherenceNode::run()
             }
 
             // Update coherence and reset data buffer
-            for (int f = 0; f < nFreqs; f++)
-            {
-                std::cout << "coherence at freq X, comb 1: " << coherenceWriter->at(0)[f] << std::endl;
-            }
-            std::cout << "coherence update!" << std::endl;
-
+      
             coherenceWriter.pushUpdate();
         }
     }
@@ -250,17 +252,12 @@ void CoherenceNode::updateSettings()
             }
         }
 
-        // Trim time close to edge
-        int nSamplesWin = winLen * Fs;
-        int nTimes = ((segLen * Fs) - (nSamplesWin)) / Fs * (1 / stepLen) + 1; // Trim half of window on both sides, so 1 window length is trimmed total
-
-        float alpha = 0; // exponential weighting of current segment, 0 is linear
-
+        
         updateMeanCoherenceSize();
 
         // Overwrite TFR 
-        TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, stepLen,
-            freqStep, freqStart, segLen, alpha);
+        //TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, stepLen,
+         //   freqStep, freqStart, segLen, alpha);
     }
 }
 
@@ -305,7 +302,7 @@ int CoherenceNode::getChanGroup(int chan)
     }
     else
     {
-        jassertfalse; // Channel isn't in group 1 or 2. Error!
+        return -1; // Channel isn't in group 1 or 2. Error!
     }
 }
 
@@ -327,12 +324,54 @@ int CoherenceNode::getGroupIt(int group, int chan)
     }
 }
 
+
+void CoherenceNode::updateGroup(Array<int> group1Chans, Array<int> group2Chans)
+{
+    group1Channels = group1Chans;
+    group2Channels = group2Chans;
+
+    nGroup1Chans = group1Channels.size();
+    nGroup2Chans = group2Channels.size();
+
+    nGroupCombs = nGroup1Chans * nGroup2Chans;
+}
+
+void CoherenceNode::updateAlpha(float a)
+{
+    alpha = a;
+}
+
+void CoherenceNode::resetTFR()
+{
+    nSamplesAdded = 0;
+    updateDataBufferSize(segLen*Fs);
+    updateMeanCoherenceSize();
+
+    // Trim time close to edge
+    int nSamplesWin = winLen * Fs;
+    nTimes = ((segLen * Fs) - (nSamplesWin)) / Fs * (1 / stepLen) + 1; // Trim half of window on both sides, so 1 window length is trimmed total
+    
+    if (nGroup1Chans > 0)
+    {
+        float newFs = getDataChannel(group1Channels[0])->getSampleRate();
+        if (newFs != Fs)
+        {
+            Fs = newFs;
+            updateDataBufferSize(segLen * Fs);
+        }
+    }
+    
+    TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, stepLen,
+        freqStep, freqStart, segLen, alpha);
+}
+
 bool CoherenceNode::enable()
 {
     if (isEnabled)
     {
         // Start coherence calculation thread
         startThread(COH_PRIORITY);
+        //editor->enable();
     }
     return isEnabled;
 }
