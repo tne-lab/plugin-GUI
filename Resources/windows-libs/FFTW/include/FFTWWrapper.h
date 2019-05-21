@@ -32,6 +32,7 @@ transform library
 #include <JuceHeader.h> // assertions, etc.
 #include <complex>
 #include <algorithm>    // reverse array
+#include <utility>
 
 #include "fftw3.h" // Fast Fourier Transform library
 
@@ -54,7 +55,44 @@ public:
         fftw_free(data);
     }
 
-    void resize(int newLength)
+    FFTWArray(const FFTWArray& other)
+        : FFTWArray(other.length)
+    {
+        // delegate to copy assignment
+        *this = other;
+    }
+
+    // Move to new FFTWArray. Needed to store in an array
+    FFTWArray(FFTWArray&& other)
+    {
+        // delegate to move assignment
+        *this = std::move(other);
+    }
+
+    FFTWArray& operator=(const FFTWArray& other)
+    {
+        if (this != &other)
+        {
+            resize(other.length);
+            copyFrom(other.data, other.length);
+        }
+        return *this;
+    }
+
+    FFTWArray& operator=(FFTWArray&& other)
+    {
+        if (this != &other)
+        {
+            data = other.data;
+            length = other.length;
+            other.data = nullptr;
+            other.length = 0;
+        }
+        return *this;
+    }
+
+    // returns true if a resize actually occurred
+    virtual bool resize(int newLength)
     {
         jassert(newLength >= 0);
         if (newLength != length)
@@ -62,7 +100,9 @@ public:
             length = newLength;
             fftw_free(data);
             data = reinterpret_cast<std::complex<double>*>(fftw_alloc_complex(newLength));
+            return true;
         }
+        return false;
     }
 
     std::complex<double> getAsComplex(int i)
@@ -104,7 +144,7 @@ public:
         return nullptr;
     }
 
-    int getLength()
+    int getLength() const
     {
         return length;
     }
@@ -167,23 +207,38 @@ public:
         return numToCopy;
     }
 
-    // Move to new FFTWArray. Needed to store in an array
-    FFTWArray(FFTWArray&& other)
-        : data(nullptr)
-        , length(0)
+    // Does the part of the Hilbert transform in the frequency domain (see FFTWTransformableArray::hilbert)
+    void freqDomainHilbert()
     {
-        data = other.data;
-        length = other.length;
-        other.data = nullptr;
-        other.length = 0;
-    }
+        if (length <= 0) { return; }
 
+        // normalize DC and Nyquist, normalize and double positive freqs, and set negative freqs to 0.
+        int lastPosFreq = (length + 1) / 2 - 1;
+        int firstNegFreq = length / 2 + 1;
+        int numPosNegFreqDoubles = lastPosFreq * 2; // sizeof(complex<double>) = 2 * sizeof(double)
+        bool hasNyquist = (length % 2 == 0);
+
+        // normalize but don't double DC value
+        data[0] /= length;
+
+        // normalize and double positive frequencies
+        FloatVectorOperations::multiply(reinterpret_cast<double*>(data + 1), 2.0 / length, numPosNegFreqDoubles);
+
+        if (hasNyquist)
+        {
+            // normalize but don't double Nyquist frequency
+            data[lastPosFreq + 1] /= length;
+        }
+
+        // set negative frequencies to 0
+        FloatVectorOperations::clear(reinterpret_cast<double*>(data + firstNegFreq), numPosNegFreqDoubles);
+    }
     
 private:
     std::complex<double>* data;
     int length;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FFTWArray);
+    JUCE_LEAK_DETECTOR(FFTWArray);
 };
 
 class FFTWPlan
@@ -229,7 +284,128 @@ public:
 private:
     fftw_plan plan;
     const int length;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FFTWPlan);
+};
+
+
+// copyable, movable array that can do an in-place transform
+class FFTWTransformableArray : public FFTWArray
+{
+public:
+    FFTWTransformableArray(int n = 0, unsigned int flags = FFTW_MEASURE)
+        : FFTWArray(0)
+        , flags(flags)
+    {
+        resize(n);
+    }
+
+    FFTWTransformableArray(const FFTWTransformableArray& other)
+        : FFTWTransformableArray(other.getLength(), other.flags)
+    {
+        // delegate to copy assignment
+        *this = other;
+    }
+
+    FFTWTransformableArray(FFTWTransformableArray&& other)
+    {
+        // delegate to move assignment
+        *this = std::move(other);
+    }
+
+    FFTWTransformableArray& operator=(const FFTWTransformableArray& other)
+    {
+        if (this != &other)
+        {
+            if (flags != other.flags)
+            {
+                flags = other.flags;
+                resize(0); // force plans to be remade
+            }
+            FFTWArray::operator=(other);
+            // the plans will be copied if/when the overridden "resize" is called
+        }
+        return *this;
+    }
+
+    FFTWTransformableArray& operator=(FFTWTransformableArray&& other)
+    {
+        if (this != &other)
+        {
+            flags = other.flags;
+            forwardPlan = other.forwardPlan;
+            inversePlan = other.inversePlan;
+            r2cPlan = other.r2cPlan;
+            FFTWArray::operator=(std::move(other));
+        }
+        return *this;
+    }
+
+    bool resize(int newLength) override
+    {
+        if (FFTWArray::resize(newLength))
+        {
+            forwardPlan = newLength > 0 ? new FFTWPlan(newLength, this, FFTW_FORWARD, flags) : nullptr;
+            inversePlan = newLength > 0 ? new FFTWPlan(newLength, this, FFTW_BACKWARD, flags) : nullptr;
+            r2cPlan = newLength > 0 ? new FFTWPlan(newLength, this, flags) : nullptr;
+            return true;
+        }
+        return false;
+    }
+
+    void fftComplex()
+    {
+        if (forwardPlan != nullptr)
+        {
+            forwardPlan->execute();
+        }
+    }
+
+    void fftReal()
+    {
+        if (r2cPlan != nullptr)
+        {
+            r2cPlan->execute();
+        }
+    }
+
+    void ifft()
+    {
+        if (inversePlan != nullptr)
+        {
+            inversePlan->execute();
+        }
+    }
+
+    // Do Hilbert transform of real data by taking the fft, zeroing out negative frequencies,
+    // and taking the ifft. The result is not technically the Hilbert transform but the
+    // analytic signal, defined as x + H[x]*i. This is consistent with Matlab's 'hilbert'.
+    void hilbert()
+    {
+        fftReal();
+        freqDomainHilbert();
+        ifft();
+    }
+
+private:
+    unsigned int flags;
+    ScopedPointer<FFTWPlan> forwardPlan;
+    ScopedPointer<FFTWPlan> inversePlan;
+    ScopedPointer<FFTWPlan> r2cPlan;
+
+    JUCE_LEAK_DETECTOR(FFTWTransformableArray);
+};
+
+
+// version with different flags that's still default-constructible
+// TODO think of a better name?
+template<unsigned int f>
+class FFTWTransformableArrayUsing : public FFTWTransformableArray 
+{
+public:
+    FFTWTransformableArrayUsing(int n = 0)
+        : FFTWTransformableArray(n, f)
+    {}
 };
 
 #endif // FFTW_WRAPPER_H_INCLUDED
