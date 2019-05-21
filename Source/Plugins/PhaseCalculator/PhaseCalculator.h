@@ -44,7 +44,7 @@ accuracy of phase-locked stimulation in real time.
 
 #include <ProcessorHeaders.h>
 #include <DspLib.h>  // Filtering
-#include <FFTWWrapper.h>   // Fourier transform
+#include <OpenEphysFFTW/OpenEphysFFTW.h>   // Fourier transform
 
 #include <queue>
 #include <utility>  // pair
