@@ -55,7 +55,7 @@ AudioProcessorEditor* CoherenceNode::createEditor()
 
 void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
 {  
-    AtomicScopedWritePtr<Array<FFTWArray>> dataWriter(dataBuffer);
+    AtomicScopedWritePtr<Array<FFTWArrayType>> dataWriter(dataBuffer);
     //AtomicScopedReadPtr<std::vector<std::vector<double>>> coherenceReader(meanCoherence);
     //// Get current coherence vector ////
     //if (meanCoherence.hasUpdate())
@@ -68,7 +68,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
     // Check writer
     if (!dataWriter.isValid())
     {
-        jassert("atomic sync data writer broken");
+        jassertfalse; // atomic sync data writer broken
     }
 
     //for loop over active channels and update buffer with new data
@@ -96,7 +96,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
         // Add to buffer the new samples.
         for (int n = 0; n < nSamples; n++)
         {
-            dataWriter->getReference(activeChan).set(n, rpIn[n]);
+            dataWriter->getReference(activeChan).set(nSamplesAdded + n, rpIn[n]);
         }  
     }
 
@@ -114,7 +114,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
 
 void CoherenceNode::run()
 {  
-    AtomicScopedReadPtr<Array<FFTWArray>> dataReader(dataBuffer);
+    AtomicScopedReadPtr<Array<FFTWArrayType>> dataReader(dataBuffer);
     AtomicScopedWritePtr<std::vector<std::vector<double>>> coherenceWriter(meanCoherence);
     
     while (!threadShouldExit())
@@ -134,19 +134,19 @@ void CoherenceNode::run()
                 if (groupNum != -1)
                 {
                     int groupIt = (groupNum == 1 ? getGroupIt(groupNum, chan) : getGroupIt(groupNum, chan) + nGroup1Chans);
-                    TFR->addTrial(dataReader->getReference(activeChan).getReadPointer(activeChan), groupIt);
+                    TFR->addTrial(dataReader->getReference(activeChan), groupIt);
                 }
                 else
                 {
                     // channel isn't part of group 1 or 2
-                    jassert("ungrouped channel");
+                    jassertfalse; // ungrouped channel
                 }
             }
 
             //// Get and send updated coherence  ////
             if (!coherenceWriter.isValid())
             {
-                jassert("atomic sync coherence writer broken");
+                jassertfalse; // atomic sync coherence writer broken
             }
 
             // Calc coherence at each combination of interest
@@ -176,24 +176,13 @@ void CoherenceNode::updateDataBufferSize(int newSize)
 
     // no writers or readers can exist here
     // so this can't be called during acquisition
-    dataBuffer.map([=](Array<FFTWArray>& arr)
+    dataBuffer.map([=](Array<FFTWArrayType>& arr)
     {
-        for (int i = 0; i < jmin(totalChans, arr.size()); i++)
+        arr.resize(totalChans);
+
+        for (int i = 0; i < totalChans; i++)
         {
             arr.getReference(i).resize(newSize);
-        }
-
-        int nChansChange = totalChans - arr.size();
-        if (nChansChange > 0)
-        {
-            for (int i = 0; i < nChansChange; i++)
-            {
-                arr.add(FFTWArray(newSize));
-            }
-        }
-        else if (nChansChange < 0)
-        {
-            arr.removeLast(-nChansChange);
         }
     });
 }

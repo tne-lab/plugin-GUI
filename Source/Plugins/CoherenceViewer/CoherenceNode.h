@@ -85,7 +85,7 @@ public:
 
 private:
 
-    AtomicallyShared<Array<FFTWArray>> dataBuffer;
+    AtomicallyShared<Array<FFTWArrayType>> dataBuffer;
     // # Freqs x # Combinations
     AtomicallyShared<std::vector<std::vector<double>>> meanCoherence;
 

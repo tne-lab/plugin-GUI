@@ -31,6 +31,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <vector>
 #include <complex>
 
+using FFTWArrayType = FFTWTransformableArrayUsing<FFTW_ESTIMATE>;
+// should we change it to use FFTW_MEASURE? let's discuss
+
 class CumulativeTFR
 {
     // shorten some things
@@ -98,7 +101,7 @@ public:
         int freqStart = 1, double fftSec = 10.0, double alpha = 0);
 
     // Handle a new buffer of data. Preform FFT and create pxxs, pyys.
-    void addTrial(const double* fftIn, int chan);
+    void addTrial(FFTWArrayType& fftBuffer, int chan);
 
     // Function to get coherence between two channels
     void getMeanCoherence(int chanX, int chanY, double* meanDest, int comb);
@@ -125,13 +128,7 @@ private:
 	vector<vector<vector<const std::complex<double>>>> spectrumBuffer;
     vector<vector<std::complex<double>>> waveletArray;
 
-    FFTWArray fftInput;
-    FFTWArray fftOutput;
-    FFTWArray ifftInput;
-    FFTWArray ifftOutput;
-
-    FFTWPlan fftPlan;
-    FFTWPlan ifftPlan;
+    FFTWArrayType ifftBuffer;
 
     // For exponential average
     double alpha;
