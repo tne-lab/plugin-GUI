@@ -3,7 +3,7 @@ LIBNAME := $(notdir $(CURDIR))
 OBJDIR := $(OBJDIR)/$(LIBNAME)
 TARGET := $(LIBNAME).so
 
-LDFLAGS := $(LDFLAGS) -l:DspLib.so -lfftw3
+LDFLAGS := $(LDFLAGS) -l:OpenEphysFFTW.so
 
 SRC_DIR := ${shell find ./ -type d -print}
 VPATH := $(SOURCE_DIRS)
