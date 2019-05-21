@@ -40,6 +40,9 @@ public:
     void comboBoxChanged(ComboBox* comboBoxThatHasChanged) override;
     void labelTextChanged(Label* labelThatHasChanged) override;
 
+    void startAcquisition() override;
+    void stopAcquisition() override;
+
     Visualizer* createNewCanvas() override;
 
 private:

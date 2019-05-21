@@ -133,7 +133,8 @@ void CoherenceNode::run()
                 int groupNum = getChanGroup(chan);
                 if (groupNum != -1)
                 {
-                    TFR->addTrial(dataReader->getReference(activeChan), chan);
+                    int groupIt = (groupNum == 1 ? getGroupIt(groupNum, chan) : getGroupIt(groupNum, chan) + nGroup1Chans);
+                    TFR->addTrial(dataReader->getReference(activeChan), groupIt);
                 }
                 else
                 {
@@ -151,19 +152,17 @@ void CoherenceNode::run()
             // Calc coherence at each combination of interest
             for (int itX = 0, comb = 0; itX < nGroup1Chans; itX++)
             {
-                int chanX = group1Channels[itX];
                 for (int itY = 0; itY < nGroup2Chans; itY++, comb++)
                 {
-                    int chanY = group2Channels[itY];
-                    TFR->getMeanCoherence(chanX, chanY, coherenceWriter->at(comb).data(), comb);
+                    TFR->getMeanCoherence(itX, itY + nGroup1Chans, coherenceWriter->at(comb).data(), comb);
                 }
             }
 
             // Update coherence and reset data buffer
-           /* for (int f = 0; f < nFreqs; f++)
+            for (int f = 0; f < nFreqs; f++)
             {
                 std::cout << "coherence at freq X, comb 1: " << coherenceWriter->at(0)[f] << std::endl;
-            }*/
+            }
             std::cout << "coherence update!" << std::endl;
 
             coherenceWriter.pushUpdate();
@@ -209,8 +208,8 @@ void CoherenceNode::updateSettings()
     nSamplesAdded = 0;
     
     // (Start - end freq) / stepsize
-    freqStep = 1.0/float(winLen*interpRatio);
-    //freqStep = 1; // for debugging
+    //freqStep = 1.0/float(winLen*interpRatio);
+    freqStep = 1; // for debugging
     nFreqs = int((freqEnd - freqStart) / freqStep);
     // foi = 0.5:1/(win_len*interp_ratio):30
 
@@ -306,7 +305,7 @@ int CoherenceNode::getChanGroup(int chan)
     }
     else
     {
-        return -1; // Channel isn't in group 1 or 2. Error!
+        jassertfalse; // Channel isn't in group 1 or 2. Error!
     }
 }
 
