@@ -170,14 +170,7 @@ namespace PhaseCalculator
 
         // visualization stuff
         hilbertLengthMultiplier = Hilbert::fs * chanInfo.dsFactor / 1000;
-        int visHilbertLength = visHilbertLengthMs * hilbertLengthMultiplier;
-
-        if (visHilbertBuffer.getLength() != visHilbertLength)
-        {
-            visHilbertBuffer.resize(visHilbertLength);
-            visForwardPlan = new FFTWPlan(visHilbertLength, &visHilbertBuffer, FFTW_MEASURE);
-            visBackwardPlan = new FFTWPlan(visHilbertLength, &visHilbertBuffer, FFTW_BACKWARD, FFTW_MEASURE);
-        }
+        visHilbertBuffer.resize(visHilbertLengthMs * hilbertLengthMultiplier);
 
         reset();
     }
@@ -1197,9 +1190,8 @@ namespace PhaseCalculator
             // un-reverse values
             acInfo->visHilbertBuffer.reverseReal(hilbertLength);
 
-            acInfo->visForwardPlan->execute();
-            hilbertManip(&acInfo->visHilbertBuffer, hilbertLength);
-            acInfo->visBackwardPlan->execute();
+            // Hilbert transform!
+            acInfo->visHilbertBuffer.hilbert();
 
             juce::int64 ts;
             ScopedLock phaseBufferLock(visPhaseBufferCS);
@@ -1296,34 +1288,6 @@ namespace PhaseCalculator
                 prediction[s] -= params[p] * pastSamp;
             }
         }
-    }
-
-    void Node::hilbertManip(FFTWArray* fftData, int n)
-    {
-        jassert(fftData->getLength() >= n);
-
-        // Normalize DC and Nyquist, normalize and double positive freqs, and set negative freqs to 0.
-        int lastPosFreq = (n + 1) / 2 - 1;
-        int firstNegFreq = n / 2 + 1;
-        int numPosNegFreqDoubles = lastPosFreq * 2; // sizeof(complex<double>) = 2 * sizeof(double)
-        bool hasNyquist = (n % 2 == 0);
-
-        std::complex<double>* wp = fftData->getComplexPointer();
-
-        // normalize but don't double DC value
-        wp[0] /= n;
-
-        // normalize and double positive frequencies
-        FloatVectorOperations::multiply(reinterpret_cast<double*>(wp + 1), 2.0 / n, numPosNegFreqDoubles);
-
-        if (hasNyquist)
-        {
-            // normalize but don't double Nyquist frequency
-            wp[lastPosFreq + 1] /= n;
-        }
-
-        // set negative frequencies to 0
-        FloatVectorOperations::clear(reinterpret_cast<double*>(wp + firstNegFreq), numPosNegFreqDoubles);
     }
 
     double Node::getScaleFactor(Band band, double lowCut, double highCut)

@@ -3,7 +3,8 @@ LIBNAME := $(notdir $(CURDIR))
 OBJDIR := $(OBJDIR)/$(LIBNAME)
 TARGET := $(LIBNAME).so
 
-LDFLAGS := $(LDFLAGS) -l:OpenEphysFFTW.so
+CXXFLAGS := $(CXXFLAGS)
+LDFLAGS := $(LDFLAGS) -lfftw3
 
 SRC_DIR := ${shell find ./ -type d -print}
 VPATH := $(SOURCE_DIRS)
@@ -27,8 +28,8 @@ $(OUTDIR)/$(TARGET): objdir $(OBJ)
 $(OBJDIR)/%.o : %.cpp
 	@echo "Compiling $<"
 	@$(CXX) $(CXXFLAGS) -o "$@" -c "$<"
-
-
+	
+	
 objdir:
 	-@mkdir -p $(OBJDIR)
 
