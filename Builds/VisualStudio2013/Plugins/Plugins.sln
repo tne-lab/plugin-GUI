@@ -52,6 +52,9 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EvntTrigAvg", "EvntTrigAvg\EvntTrigAvg.vcxproj", "{BEE7D50B-D914-43EC-975C-3FE2FC36E40D}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PhaseCalculator", "PhaseCalculator\PhaseCalculator.vcxproj", "{01D5D00F-B1FC-4E48-A8C0-3037344855DB}"
+	ProjectSection(ProjectDependencies) = postProject
+		{22EA690C-454B-49D3-AEEC-49CE10096888} = {22EA690C-454B-49D3-AEEC-49CE10096888}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CrossingDetector", "CrossingDetector\CrossingDetector.vcxproj", "{C9A8CFB7-4911-4E58-AC96-53271B87DF72}"
 EndProject
@@ -74,6 +77,8 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PythonPlugin", "Python\Python.vcxproj", "{03F9F201-3F09-48C1-B4EC-73C5904632F6}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtualRef", "VirtualRef\VirtualRef.vcxproj", "{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OpenEphysFFTW", "CommonLibs\OpenEphysFFTW\OpenEphysFFTW.vcxproj", "{22EA690C-454B-49D3-AEEC-49CE10096888}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -445,11 +450,24 @@ Global
 		{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}.Release|Win32.Build.0 = Release|Win32
 		{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}.Release|x64.ActiveCfg = Release|x64
 		{C32CCC95-0D84-4B6A-98B8-06B4C7B18743}.Release|x64.Build.0 = Release|x64
+		{22EA690C-454B-49D3-AEEC-49CE10096888}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
+		{22EA690C-454B-49D3-AEEC-49CE10096888}.Debug|Mixed Platforms.Build.0 = Debug|Win32
+		{22EA690C-454B-49D3-AEEC-49CE10096888}.Debug|Win32.ActiveCfg = Debug|Win32
+		{22EA690C-454B-49D3-AEEC-49CE10096888}.Debug|Win32.Build.0 = Debug|Win32
+		{22EA690C-454B-49D3-AEEC-49CE10096888}.Debug|x64.ActiveCfg = Debug|x64
+		{22EA690C-454B-49D3-AEEC-49CE10096888}.Debug|x64.Build.0 = Debug|x64
+		{22EA690C-454B-49D3-AEEC-49CE10096888}.Release|Mixed Platforms.ActiveCfg = Release|Win32
+		{22EA690C-454B-49D3-AEEC-49CE10096888}.Release|Mixed Platforms.Build.0 = Release|Win32
+		{22EA690C-454B-49D3-AEEC-49CE10096888}.Release|Win32.ActiveCfg = Release|Win32
+		{22EA690C-454B-49D3-AEEC-49CE10096888}.Release|Win32.Build.0 = Release|Win32
+		{22EA690C-454B-49D3-AEEC-49CE10096888}.Release|x64.ActiveCfg = Release|x64
+		{22EA690C-454B-49D3-AEEC-49CE10096888}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{F250DB70-6E3E-408C-BD9E-1483D574499D} = {B49D0C12-70A8-4762-A4FE-74FA3D16FFDD}
+		{22EA690C-454B-49D3-AEEC-49CE10096888} = {B49D0C12-70A8-4762-A4FE-74FA3D16FFDD}
 	EndGlobalSection
 EndGlobal
