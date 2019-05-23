@@ -63,28 +63,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     group2Channels = processor->group2Channels;
 	for (int i = 0; i < numInputs; i+=1)
 	{
-		// Group 1 buttons
-		ElectrodeButton* button = new ElectrodeButton(i + 1);
-        button->setBounds(bounds = { xPos + 5, 180 + i * 15, 20, 15 });
-		button->setRadioGroupId(0);
-		button->setButtonText(String(i + 1));
-        button->addListener(this);
-        group1Buttons.add(button);
-        canvasBounds = canvasBounds.getUnion(bounds);
-		
-		canvas->addAndMakeVisible(button);
-		
-		// Group 2 buttons
-		ElectrodeButton* button2 = new ElectrodeButton(i + 1);
-        button2->setBounds(bounds = { xPos + 55, 180 + i * 15, 20, 15 });      
-		button2->setRadioGroupId(0);
-		button2->setButtonText(String(i + 1));
-        button2->addListener(this);
-        group2Buttons.add(button2);
-        canvasBounds = canvasBounds.getUnion(bounds);
-
-        canvas->addAndMakeVisible(button2);
-        
+        createElectrodeButton(i);
 	}
 
     updateGroupState();
@@ -231,29 +210,7 @@ void CoherenceVisualizer::updateEleButtons(int numInputs, int groupSize)
     {
         for (int i = groupSize; i < numInputs; i++)
         {
-            // Group 1 buttons
-            ElectrodeButton* button = new ElectrodeButton(i + 1);
-            button->setBounds(bounds = { xPos + 5, 180 + i * 15, 20, 15 });
-            button->setRadioGroupId(0);
-            button->setButtonText(String(i + 1));
-            button->addListener(this);
-            group1Buttons.add(button);
-            canvasBounds = canvasBounds.getUnion(bounds);
-
-            canvas->addAndMakeVisible(button);
-
-            // Group 2 buttons
-            ElectrodeButton* button2 = new ElectrodeButton(i + 1);
-            button2->setBounds(bounds = { xPos + 55, 180 + i * 15, 20, 15 });
-            button2->setRadioGroupId(0);
-            button2->setButtonText(String(i + 1));
-            button2->addListener(this);
-            group2Buttons.add(button2);
-            canvasBounds = canvasBounds.getUnion(bounds);
-
-            canvas->addAndMakeVisible(button2);
-
-            canvas->setBounds(canvasBounds);
+            createElectrodeButton(i);
         }
     }
     else
@@ -450,9 +407,6 @@ void CoherenceVisualizer::buttonClicked(Button* buttonClicked)
         processor->updateGroup(group1Channels, group2Channels);
         updateCombList();
     }
-
-    
-
 }
 
 void CoherenceVisualizer::channelChanged(int chan, bool newState)
@@ -487,6 +441,8 @@ void CoherenceVisualizer::channelChanged(int chan, bool newState)
             }
         }
     }
+    updateGroupState();
+    updateCombList();
 }
 
 void CoherenceVisualizer::createElectrodeButton(int chan)
@@ -518,9 +474,6 @@ void CoherenceVisualizer::createElectrodeButton(int chan)
     canvas->setBounds(canvasBounds);
     group1Buttons.insert(chan, button);
     group2Buttons.insert(chan, button2);
-
-    updateGroupState();
-    updateCombList();
 }
 
 void CoherenceVisualizer::beginAnimation() 
