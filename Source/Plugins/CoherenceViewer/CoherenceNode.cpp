@@ -213,13 +213,10 @@ void CoherenceNode::updateSettings()
     nSamplesAdded = 0;
     
     // (Start - end freq) / stepsize
-    //freqStep = 1.0/float(winLen*interpRatio);
-    freqStep = 1; // for debugging
+    freqStep = 1.0/float(winLen*interpRatio);
+    //freqStep = 1; // for debugging
     nFreqs = int((freqEnd - freqStart) / freqStep);
-    // foi = 0.5:1/(win_len*interp_ratio):30
-
-    //group1Channels.clear();
-    //group2Channels.clear();
+    //foi = 0.5:1 / (win_len*interp_ratio) : 30
 
     // Default to this. Probably will move to canvas tab.
     int numInputs = getNumInputs();
@@ -260,10 +257,6 @@ void CoherenceNode::updateSettings()
 
         
         updateMeanCoherenceSize();
-
-        // Overwrite TFR 
-        //TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, stepLen,
-         //   freqStep, freqStart, segLen, alpha);
     }
 }
 
@@ -288,12 +281,6 @@ void CoherenceNode::setParameter(int parameterIndex, float newValue)
         stepLen = static_cast<float>(newValue);
         break;
     }
-
-    // This generally shouldn't be called during acquisition (the way it is now, it will definitely
-    // cause some issues if the thread is running). On the other hand, all the parameters here
-    // could also cause problems if they're changed during acquisition. Since I think at least some
-    // of them could be useful to change during a run, we should think about how to do that safely...
-    //updateSettings();
 }
 
 int CoherenceNode::getChanGroup(int chan)
@@ -326,7 +313,7 @@ int CoherenceNode::getGroupIt(int group, int chan)
     }
     else
     {
-        jassertfalse;
+        return -1;
     }
 }
 

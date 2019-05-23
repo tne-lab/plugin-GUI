@@ -44,7 +44,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     canvas->addAndMakeVisible(optionsTitle);
     canvasBounds = canvasBounds.getUnion(bounds);
 
-    // ------- OGrouping Titles ------- //
+    // ------- Grouping Titles ------- //
     group1Title = new Label("Group1Title", "G1 Chans");
     group1Title->setBounds(bounds = { xPos, 130, 50, 50 });
     group1Title->setFont(Font(20, Font::bold));
@@ -88,7 +88,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     canvasBounds = canvasBounds.getUnion(bounds);
     updateCombList();
 
-    // ------- Exponential ------- //
+    
     static const String linearTip = "Linear weighting of coherence.";
     static const String expTip = "Exponential weighting of coherence. Set alpha using -1/alpha weighting.";
     static const String resetTip = "Clears and resets the algorithm. Must be done after changes are made on this page!";
@@ -107,11 +107,10 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     clearGroups = new TextButton("Clear Groups");
     clearGroups->setBounds(bounds = { xPos, yPos, 90, TEXT_HT });
     clearGroups->addListener(this);
-    //clearGroups->setTooltip(resetTip);
     canvas->addAndMakeVisible(clearGroups);
     canvasBounds = canvasBounds.getUnion(bounds);
 
-    
+    // ------- Exponential or Linear Button ------- //
     yPos += 40;
     linearButton = new ToggleButton("Linear");
     linearButton->setBounds(bounds = { xPos, yPos, 90, TEXT_HT });
@@ -127,10 +126,11 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     expButton->setToggleState(false, dontSendNotification);
     expButton->addListener(this);
     expButton->setTooltip(expTip);
-    //expButton->setFont(Font(16, Font::bold));
+    //expButton->setFont(Font(16, Font::bold)); // lets change the font/background here
     canvas->addAndMakeVisible(expButton);
     canvasBounds = canvasBounds.getUnion(bounds);
 
+    // ------- Alpha ------- //
     xPos += 15;
     yPos += 20;
     alpha = new Label("alpha", "Alpha: ");
@@ -185,7 +185,7 @@ void CoherenceVisualizer::update()
 {
     int numInputs = processor->getActiveInputs().size();
     int groupSize = group1Buttons.size();
-    updateEleButtons(numInputs, groupSize);
+    updateElectrodeButtons(numInputs, groupSize);
     
     float alpha = processor->alpha;
     if (alpha != 0.0)
@@ -197,7 +197,7 @@ void CoherenceVisualizer::update()
     }
 }
 
-void CoherenceVisualizer::updateEleButtons(int numInputs, int groupSize)
+void CoherenceVisualizer::updateElectrodeButtons(int numInputs, int groupSize)
 {
     juce::Rectangle<int> bounds;
 
@@ -362,7 +362,7 @@ void CoherenceVisualizer::buttonClicked(Button* buttonClicked)
         ElectrodeButton* eButton = static_cast<ElectrodeButton*>(buttonClicked);
         int buttonChan = eButton->getChannelNum() - 1;
         // Add to group 1 channels
-        // Make sure to check that not in group2Buttons..
+        // Make sure to check that not in group2Buttons
         if (group1Channels.contains(buttonChan))
         {
             int it = group1Channels.indexOf(buttonChan);
@@ -478,6 +478,7 @@ void CoherenceVisualizer::createElectrodeButton(int chan)
 
 void CoherenceVisualizer::beginAnimation() 
 {
+    // Can't change things during data acq.
     for (int i = 0; i < group1Buttons.size(); i++)
     {
         group1Buttons[i]->setEnabled(false);
@@ -494,6 +495,7 @@ void CoherenceVisualizer::beginAnimation()
 }
 void CoherenceVisualizer::endAnimation() 
 {
+    // allow things to change again
     for (int i = 0; i < group1Buttons.size(); i++)
     {
         group1Buttons[i]->setEnabled(true);

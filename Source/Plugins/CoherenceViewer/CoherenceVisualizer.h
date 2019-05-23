@@ -52,12 +52,16 @@ public:
     void buttonEvent(Button* buttonEvent);
     void buttonClicked(Button* buttonClick) override;
 
+    // Add remove active channels from group options
     void channelChanged(int chan, bool newState);
     
 private:
     void updateCombList();
+    // Update state of buttons based on grouping changing from non clicking ways
     void updateGroupState();
-    void updateEleButtons(int numInputs, int groupSize);
+    // Update buttons based on inputs
+    void updateElectrodeButtons(int numInputs, int groupSize);
+    // creates a button for both group 1 and 2
     void createElectrodeButton(int index);
 
     CoherenceNode* processor;
@@ -92,7 +96,7 @@ private:
 
     MatlabLikePlot* cohPlot;
     std::vector<double> coherence;
-    std::vector<std::vector<float>> coh;// (coherenceReader->at(curComb).size());
+    std::vector<std::vector<float>> coh;
 
     bool updateFloatLabel(Label* label, float min, float max,
         float defaultValue, float* out);
