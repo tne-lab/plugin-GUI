@@ -51,11 +51,14 @@ public:
     void labelTextChanged(Label* labelThatHasChanged) override;
     void buttonEvent(Button* buttonEvent);
     void buttonClicked(Button* buttonClick) override;
+
+    void channelChanged(int chan, bool newState);
     
 private:
     void updateCombList();
     void updateGroupState();
     void updateEleButtons(int numInputs, int groupSize);
+    void createElectrodeButton(int index);
 
     CoherenceNode* processor;
 

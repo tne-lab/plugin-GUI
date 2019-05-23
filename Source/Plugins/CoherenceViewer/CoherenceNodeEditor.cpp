@@ -210,6 +210,12 @@ void CoherenceEditor::stopAcquisition()
     canvas->endAnimation();
 }
 
+void CoherenceEditor::channelChanged(int chan, bool newState)
+{
+    CoherenceVisualizer* cohCanvas = static_cast<CoherenceVisualizer*>(canvas.get());
+    cohCanvas->channelChanged(chan, newState);
+}
+
 Visualizer* CoherenceEditor::createNewCanvas()
 {
     canvas = new CoherenceVisualizer(processor);

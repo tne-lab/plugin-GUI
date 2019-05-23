@@ -43,6 +43,8 @@ public:
     void startAcquisition() override;
     void stopAcquisition() override;
 
+    void channelChanged(int chan, bool newState) override;
+
     Visualizer* createNewCanvas() override;
 
 private:

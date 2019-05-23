@@ -289,7 +289,7 @@ void CoherenceVisualizer::updateGroupState()
 {
     for (int i = 0; i < group1Buttons.size(); i++)
     {
-        if (group1Channels.contains(i))
+        if (group1Channels.contains(group1Buttons[i]->getChannelNum()-1))
         {
             group1Buttons[i]->setToggleState(true, dontSendNotification);
         }
@@ -301,7 +301,7 @@ void CoherenceVisualizer::updateGroupState()
 
     for (int i = 0; i < group2Buttons.size(); i++)
     {
-        if (group2Channels.contains(i))
+        if (group2Channels.contains(group2Buttons[i]->getChannelNum()-1))
         {
             group2Buttons[i]->setToggleState(true, dontSendNotification);
         }
@@ -453,6 +453,74 @@ void CoherenceVisualizer::buttonClicked(Button* buttonClicked)
 
     
 
+}
+
+void CoherenceVisualizer::channelChanged(int chan, bool newState)
+{
+    int buttonChan = chan + 1;
+   // Only do if not during data acquistion!
+    if (newState)
+    {
+        createElectrodeButton(chan);
+    }
+    else
+    {
+        for (int i = 0; i < group1Buttons.size(); i++)
+        {
+            // Channel clicked off
+            if (group1Buttons[i]->getChannelNum() == buttonChan)
+            {
+                group1Buttons[i]->~ElectrodeButton();
+                group1Buttons.remove(i);
+                group2Buttons[i]->~ElectrodeButton();
+                group2Buttons.remove(i);
+            }
+            if (group1Channels.contains(chan))
+            {
+                group1Channels.removeFirstMatchingValue(chan);
+                processor->updateGroup(group1Channels, group2Channels);
+            }
+            if (group2Channels.contains(chan))
+            {
+                group2Channels.removeFirstMatchingValue(chan);
+                processor->updateGroup(group1Channels, group2Channels);
+            }
+        }
+    }
+}
+
+void CoherenceVisualizer::createElectrodeButton(int chan)
+{
+    int xPos = 5;
+    juce::Rectangle<int> bounds;
+
+    juce::Rectangle<int> canvasBounds = canvas->getBounds();
+    // Group 1 buttons
+    ElectrodeButton* button = new ElectrodeButton(chan + 1);
+    button->setBounds(bounds = { xPos + 5, 180 + chan * 15, 20, 15 });
+    button->setRadioGroupId(0);
+    button->setButtonText(String(chan + 1));
+    button->addListener(this);
+    canvasBounds = canvasBounds.getUnion(bounds);
+
+    canvas->addAndMakeVisible(button);
+
+    // Group 2 buttons
+    ElectrodeButton* button2 = new ElectrodeButton(chan + 1);
+    button2->setBounds(bounds = { xPos + 55, 180 + chan * 15, 20, 15 });
+    button2->setRadioGroupId(0);
+    button2->setButtonText(String(chan + 1));
+    button2->addListener(this);
+    canvasBounds = canvasBounds.getUnion(bounds);
+
+    canvas->addAndMakeVisible(button2);
+
+    canvas->setBounds(canvasBounds);
+    group1Buttons.insert(chan, button);
+    group2Buttons.insert(chan, button2);
+
+    updateGroupState();
+    updateCombList();
 }
 
 void CoherenceVisualizer::beginAnimation() 

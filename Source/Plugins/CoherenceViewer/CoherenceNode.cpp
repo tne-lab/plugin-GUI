@@ -222,22 +222,21 @@ void CoherenceNode::updateSettings()
     //group2Channels.clear();
 
     // Default to this. Probably will move to canvas tab.
-    Array<int> numActiveInputs(getActiveInputs());
-    if (numActiveInputs.size() > 0)
+    int numInputs = getNumInputs();
+    // Default selected groups
+    if (numInputs > 0)
     {
-        if (group1Channels.size() == 0)
+        if (group1Channels.size() == 0) // if groups are empty currently
         {
-            for (int i = 0; i < numActiveInputs.size(); i++)
+            for (int i = 0; i < numInputs; i++)
             {
-                if (i < numActiveInputs.size() / 2)
+                if (i < numInputs / 2)
                 {
-                    group1Channels.add(numActiveInputs[i]);
-                    std::cout << "group1chan NODE: " << group1Channels[i] << std::endl;
+                    group1Channels.add(i);
                 }
                 else
                 {
-                    group2Channels.add(numActiveInputs[i]);
-                    std::cout << "group2chan NODE: " << group2Channels[i - numActiveInputs.size() / 2] << std::endl;
+                    group2Channels.add(i);
                 }
             }
         }
@@ -499,7 +498,6 @@ void CoherenceNode::loadCustomParametersFromXml()
         //Start TFR
         if (group1Channels.size() > 0 && group2Channels.size() > 0)
         {
-            std::cout << "Reseting tfr !!!!!!!!" << std::endl;
             resetTFR();
         }
     }
