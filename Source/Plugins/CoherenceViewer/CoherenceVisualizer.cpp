@@ -59,12 +59,13 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
 
     // ------- Group Boxes ------- //
 	int numInputs = processor->getActiveInputs().size();
+    group1Channels = processor->group1Channels;
+    group2Channels = processor->group2Channels;
 	for (int i = 0; i < numInputs; i+=1)
 	{
 		// Group 1 buttons
 		ElectrodeButton* button = new ElectrodeButton(i + 1);
-        button->setBounds(bounds = { xPos, 180 + i * 15, 20, 15 });
-		button->setToggleState(false, dontSendNotification);
+        button->setBounds(bounds = { xPos + 5, 180 + i * 15, 20, 15 });
 		button->setRadioGroupId(0);
 		button->setButtonText(String(i + 1));
         button->addListener(this);
@@ -75,8 +76,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
 		
 		// Group 2 buttons
 		ElectrodeButton* button2 = new ElectrodeButton(i + 1);
-        button2->setBounds(bounds = { xPos + 50, 180 + i * 15, 20, 15 });
-		button2->setToggleState(false, dontSendNotification);
+        button2->setBounds(bounds = { xPos + 55, 180 + i * 15, 20, 15 });      
 		button2->setRadioGroupId(0);
 		button2->setButtonText(String(i + 1));
         button2->addListener(this);
@@ -87,21 +87,35 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
         
 	}
 
-    int yPos = 90;
+    updateGroupState();
 
+    int yPos = 90;
+    // ------- Combination Label ------- // 
+    combinationLabel = new Label("CombinationLabel" , "Cur Combination");
+    combinationLabel->setBounds (bounds = { xPos, yPos, 90, TEXT_HT });
+    combinationLabel->setColour(Label::backgroundColourId, Colours::grey);
+    //group1Title->setFont(Font(18, Font::bold));
+    canvas->addAndMakeVisible(combinationLabel);
+    canvasBounds = canvasBounds.getUnion(bounds);
+
+
+    yPos += TEXT_HT + 5;
     // ------- Combination Choice ------- //
     combinationBox = new ComboBox("Combination Selection Box");
     combinationBox->setTooltip("Combination to graph");
-    combinationBox->setBounds(bounds = { xPos, 90, 70, TEXT_HT });
+    combinationBox->setBounds(bounds = { xPos, yPos, 90, TEXT_HT });
     combinationBox->addListener(this);
     canvas->addAndMakeVisible(combinationBox);
+    canvasBounds = canvasBounds.getUnion(bounds);
+    updateCombList();
 
     // ------- Exponential ------- //
     static const String linearTip = "Linear weighting of coherence.";
     static const String expTip = "Exponential weighting of coherence. Set alpha using -1/alpha weighting.";
     static const String resetTip = "Clears and resets the algorithm. Must be done after changes are made on this page!";
 
-    xPos += 100;
+    yPos -= (TEXT_HT + 5);
+    xPos += 110;
 
     resetTFR = new TextButton("Reset Algorithm");
     resetTFR->setBounds(bounds = { xPos, yPos, 90, TEXT_HT });
@@ -109,6 +123,15 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     resetTFR->setTooltip(resetTip);
     canvas->addAndMakeVisible(resetTFR);
     canvasBounds = canvasBounds.getUnion(bounds);
+
+    yPos += 40;
+    clearGroups = new TextButton("Clear Groups");
+    clearGroups->setBounds(bounds = { xPos, yPos, 90, TEXT_HT });
+    clearGroups->addListener(this);
+    //clearGroups->setTooltip(resetTip);
+    canvas->addAndMakeVisible(clearGroups);
+    canvasBounds = canvasBounds.getUnion(bounds);
+
     
     yPos += 40;
     linearButton = new ToggleButton("Linear");
@@ -125,6 +148,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     expButton->setToggleState(false, dontSendNotification);
     expButton->addListener(this);
     expButton->setTooltip(expTip);
+    //expButton->setFont(Font(16, Font::bold));
     canvas->addAndMakeVisible(expButton);
     canvasBounds = canvasBounds.getUnion(bounds);
 
@@ -180,7 +204,72 @@ void CoherenceVisualizer::resized()
 void CoherenceVisualizer::refreshState() {}
 void CoherenceVisualizer::update() 
 {
-    freqStep = processor->freqStep;
+    int numInputs = processor->getActiveInputs().size();
+    int groupSize = group1Buttons.size();
+    updateEleButtons(numInputs, groupSize);
+    
+    float alpha = processor->alpha;
+    if (alpha != 0.0)
+    {
+        linearButton->setToggleState(false, dontSendNotification);
+
+        expButton->setToggleState(true, dontSendNotification);
+        alphaE->setText(String(alpha), dontSendNotification);
+    }
+}
+
+void CoherenceVisualizer::updateEleButtons(int numInputs, int groupSize)
+{
+    juce::Rectangle<int> bounds;
+
+    juce::Rectangle<int> canvasBounds = canvas->getBounds();
+
+    int xPos = 5;
+    group1Channels = processor->group1Channels;
+    group2Channels = processor->group2Channels;
+    if (numInputs > groupSize)
+    {
+        for (int i = groupSize; i < numInputs; i++)
+        {
+            // Group 1 buttons
+            ElectrodeButton* button = new ElectrodeButton(i + 1);
+            button->setBounds(bounds = { xPos + 5, 180 + i * 15, 20, 15 });
+            button->setRadioGroupId(0);
+            button->setButtonText(String(i + 1));
+            button->addListener(this);
+            group1Buttons.add(button);
+            canvasBounds = canvasBounds.getUnion(bounds);
+
+            canvas->addAndMakeVisible(button);
+
+            // Group 2 buttons
+            ElectrodeButton* button2 = new ElectrodeButton(i + 1);
+            button2->setBounds(bounds = { xPos + 55, 180 + i * 15, 20, 15 });
+            button2->setRadioGroupId(0);
+            button2->setButtonText(String(i + 1));
+            button2->addListener(this);
+            group2Buttons.add(button2);
+            canvasBounds = canvasBounds.getUnion(bounds);
+
+            canvas->addAndMakeVisible(button2);
+
+            canvas->setBounds(canvasBounds);
+        }
+    }
+    else
+    {
+        for (int i = numInputs; i < groupSize; i++)
+        {
+            group1Buttons[i]->~ElectrodeButton();
+            group2Buttons[i]->~ElectrodeButton();
+        }
+
+        group1Buttons.removeLast(groupSize - numInputs);
+        group2Buttons.removeLast(groupSize - numInputs);
+    }
+
+    updateGroupState();
+    updateCombList();
 }
 
 void CoherenceVisualizer::updateCombList()
@@ -196,9 +285,37 @@ void CoherenceVisualizer::updateCombList()
     }
 }
 
+void CoherenceVisualizer::updateGroupState()
+{
+    for (int i = 0; i < group1Buttons.size(); i++)
+    {
+        if (group1Channels.contains(i))
+        {
+            group1Buttons[i]->setToggleState(true, dontSendNotification);
+        }
+        else
+        {
+            group1Buttons[i]->setToggleState(false, dontSendNotification);
+        }
+    }
+
+    for (int i = 0; i < group2Buttons.size(); i++)
+    {
+        if (group2Channels.contains(i))
+        {
+            group2Buttons[i]->setToggleState(true, dontSendNotification);
+        }
+        else
+        {
+            group2Buttons[i]->setToggleState(false, dontSendNotification);
+        }
+    } 
+}
 
 void CoherenceVisualizer::refresh() 
 {
+    freqStep = processor->freqStep;
+
     if (processor->meanCoherence.hasUpdate())
     {
         AtomicScopedReadPtr<std::vector<std::vector<double>>> coherenceReader(processor->meanCoherence);
@@ -256,6 +373,18 @@ void CoherenceVisualizer::buttonClicked(Button* buttonClicked)
     {
         processor->resetTFR();
         std::cout << "Done with TFR reset" << std::endl;;
+    }
+
+    if (buttonClicked == clearGroups)
+    {
+        group1Channels.clear();
+        group2Channels.clear();
+
+        processor->group1Channels = group1Channels;
+        processor->group2Channels = group2Channels;
+
+        updateGroupState();
+        updateCombList();
     }
 
     if (buttonClicked == linearButton)
@@ -336,6 +465,11 @@ void CoherenceVisualizer::beginAnimation()
     {
         group2Buttons[i]->setEnabled(false);
     }
+
+    resetTFR->setEnabled(false);
+    clearGroups->setEnabled(false);
+    linearButton->setEnabled(false);
+    expButton->setEnabled(false);
 }
 void CoherenceVisualizer::endAnimation() 
 {
@@ -347,6 +481,11 @@ void CoherenceVisualizer::endAnimation()
     {
         group2Buttons[i]->setEnabled(true);
     }
+
+    resetTFR->setEnabled(true);
+    clearGroups->setEnabled(true);
+    linearButton->setEnabled(true);
+    expButton->setEnabled(true);
 }
 
 bool CoherenceVisualizer::updateFloatLabel(Label* label, float min, float max,

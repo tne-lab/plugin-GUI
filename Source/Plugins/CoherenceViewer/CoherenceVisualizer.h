@@ -54,6 +54,8 @@ public:
     
 private:
     void updateCombList();
+    void updateGroupState();
+    void updateEleButtons(int numInputs, int groupSize);
 
     CoherenceNode* processor;
 
@@ -66,12 +68,14 @@ private:
     ScopedPointer<Label> optionsTitle;
     ScopedPointer<Label> group1Title;
     ScopedPointer<Label> group2Title;
+    ScopedPointer<Label> combinationLabel;
     ScopedPointer<ComboBox> combinationBox;
     ScopedPointer<ToggleButton> linearButton;
     ScopedPointer<ToggleButton> expButton;
     ScopedPointer<Label> alpha;
     ScopedPointer<Label> alphaE;
     ScopedPointer<TextButton> resetTFR;
+    ScopedPointer<TextButton> clearGroups;
 
     Array<ElectrodeButton*> group1Buttons;
     Array<ElectrodeButton*> group2Buttons;

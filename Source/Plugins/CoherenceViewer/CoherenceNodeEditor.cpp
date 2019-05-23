@@ -77,9 +77,6 @@ CoherenceEditor::CoherenceEditor(CoherenceNode* p)
     fendEditable = createEditable("fendEditable", "40", "End of range of frequencies", { x + 70, y + 25, w + 35, h + 27 });
     addAndMakeVisible(fendEditable);
 
-    // Set regions/groups! 
-    
-
     setEnabledState(false);
 }
 

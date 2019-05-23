@@ -39,6 +39,8 @@ CoherenceNode::CoherenceNode()
     , Fs                (0)
     , alpha             (0)
     , ready             (false)
+    , group1Channels    ({})
+    , group2Channels    ({})
 {
     setProcessorType(PROCESSOR_TYPE_SINK);
 }
@@ -216,25 +218,29 @@ void CoherenceNode::updateSettings()
     nFreqs = int((freqEnd - freqStart) / freqStep);
     // foi = 0.5:1/(win_len*interp_ratio):30
 
-    group1Channels.clear();
-    group2Channels.clear();
+    //group1Channels.clear();
+    //group2Channels.clear();
 
     // Default to this. Probably will move to canvas tab.
     Array<int> numActiveInputs(getActiveInputs());
     if (numActiveInputs.size() > 0)
     {
-        for (int i = 0; i < numActiveInputs.size(); i++)
+        if (group1Channels.size() == 0)
         {
-            if (i < numActiveInputs.size() / 2)
+            for (int i = 0; i < numActiveInputs.size(); i++)
             {
-                group1Channels.add(numActiveInputs[i]);
-            }
-            else
-            {
-                group2Channels.add(numActiveInputs[i]);
+                if (i < numActiveInputs.size() / 2)
+                {
+                    group1Channels.add(numActiveInputs[i]);
+                    std::cout << "group1chan NODE: " << group1Channels[i] << std::endl;
+                }
+                else
+                {
+                    group2Channels.add(numActiveInputs[i]);
+                    std::cout << "group2chan NODE: " << group2Channels[i - numActiveInputs.size() / 2] << std::endl;
+                }
             }
         }
-
         // Set number of channels in each group
         nGroup1Chans = group1Channels.size();
         nGroup2Chans = group2Channels.size();
@@ -344,36 +350,47 @@ void CoherenceNode::updateAlpha(float a)
 
 void CoherenceNode::resetTFR()
 {
-
-    if (!ready)
+    if ((group1Channels.size() > 0) && (group2Channels.size() > 0))
     {
         ready = true;
-    }
-    nSamplesAdded = 0;
-    updateDataBufferSize(segLen*Fs);
-    updateMeanCoherenceSize();
 
-    // Trim time close to edge
-    int nSamplesWin = winLen * Fs;
-    nTimes = ((segLen * Fs) - (nSamplesWin)) / Fs * (1 / stepLen) + 1; // Trim half of window on both sides, so 1 window length is trimmed total
-    
-    if (nGroup1Chans > 0)
-    {
-        float newFs = getDataChannel(group1Channels[0])->getSampleRate();
-        if (newFs != Fs)
+        nSamplesAdded = 0;
+        updateDataBufferSize(segLen*Fs);
+        updateMeanCoherenceSize();
+
+        // Trim time close to edge
+        int nSamplesWin = winLen * Fs;
+        nTimes = ((segLen * Fs) - (nSamplesWin)) / Fs * (1 / stepLen) + 1; // Trim half of window on both sides, so 1 window length is trimmed total
+
+        if (nGroup1Chans > 0)
         {
-            Fs = newFs;
-            updateDataBufferSize(segLen * Fs);
+            float newFs = getDataChannel(group1Channels[0])->getSampleRate();
+            if (newFs != Fs)
+            {
+                Fs = newFs;
+                updateDataBufferSize(segLen * Fs);
+            }
         }
+
+        TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, stepLen,
+            freqStep, freqStart, segLen, alpha);
     }
-    
-    TFR = new CumulativeTFR(nGroup1Chans, nGroup2Chans, nFreqs, nTimes, Fs, winLen, stepLen,
-        freqStep, freqStart, segLen, alpha);
+    else
+    {
+        ready = false;
+    }
+
+}
+
+
+bool CoherenceNode::isReady()
+{
+    return ready && (getNumInputs() > 0);
 }
 
 bool CoherenceNode::enable()
 {
-    if (isEnabled && ready)
+    if (isEnabled)
     {
         // Start coherence calculation thread
         startThread(COH_PRIORITY);
@@ -413,12 +430,77 @@ bool CoherenceNode::hasEditor() const
     return true;
 }
 
-void CoherenceNode::saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType)
+void CoherenceNode::saveCustomParametersToXml(XmlElement* parentElement)
 {
+    XmlElement* mainNode = parentElement->createNewChildElement("COHERENCENODE");
+    
+    // ------ Save Groups ------ //
+    XmlElement* group1Node = mainNode->createNewChildElement("Group1");
+    XmlElement* group2Node = mainNode->createNewChildElement("Group2");
+    
+    for (int i = 0; i < group1Channels.size(); i++)
+    {
+        group1Node->setAttribute("Chan" + String(i), group1Channels[i]);
+    }
+    for (int i = 0; i < group2Channels.size(); i++)
+    {
+        group2Node->setAttribute("Chan" + String(i), group2Channels[i]);
+    }
 
+    // ------ Save Other Params ------ //
+    mainNode->setAttribute("alpha", alpha);
 }
 
-void CoherenceNode::loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType)
+void CoherenceNode::loadCustomParametersFromXml()
 {
-
+    int numActiveInputs = getActiveInputs().size();
+    if (parametersAsXml)
+    {
+        forEachXmlChildElementWithTagName(*parametersAsXml, mainNode, "COHERENCENODE")
+        {
+            // Load group 1 channels
+            forEachXmlChildElementWithTagName(*mainNode, node, "Group1")
+            {
+                group1Channels.clear();
+                for (int i = 0; i < numActiveInputs; i++)
+                {
+                    int channel = node->getIntAttribute("Chan" + String(i), -1);
+                    if (channel != -1)
+                    {
+                        group1Channels.add(channel);
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            // Load group 2 channels
+            forEachXmlChildElementWithTagName(*mainNode, node, "Group2")
+            {
+                group2Channels.clear();
+                for (int i = 0; i < numActiveInputs; i++)
+                {
+                    int channel = node->getIntAttribute("Chan" + String(i), -1);
+                    if (channel != -1)
+                    {
+                        group2Channels.add(channel);
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            // Load other params
+            alpha = mainNode->getDoubleAttribute("alpha");
+        }
+        
+        //Start TFR
+        if (group1Channels.size() > 0 && group2Channels.size() > 0)
+        {
+            std::cout << "Reseting tfr !!!!!!!!" << std::endl;
+            resetTFR();
+        }
+    }
 }

@@ -62,6 +62,7 @@ public:
 
     void process(AudioSampleBuffer& continuousBuffer) override;
 
+    bool isReady() override;
     bool enable() override;
     bool disable() override;
 
@@ -78,8 +79,8 @@ public:
     int getFullSourceID(int chan);
 
     // Save info
-    void saveCustomChannelParametersToXml(XmlElement* channelElement, int channelNumber, InfoObjectCommon::InfoObjectType channelType) override;
-    void loadCustomChannelParametersFromXml(XmlElement* channelElement, InfoObjectCommon::InfoObjectType channelType) override;
+    void saveCustomParametersToXml(XmlElement* parentElement) override;
+    void loadCustomParametersFromXml();
 
     
 
