@@ -281,6 +281,8 @@ void CoherenceVisualizer::updateGroupState()
 void CoherenceVisualizer::refresh() 
 {
     freqStep = processor->freqStep;
+    Colour col = (processor->ready) ? Colours::green : Colours::red;
+    resetTFR->setColour(TextButton::buttonColourId, col);
 
     if (processor->meanCoherence.hasUpdate())
     {
@@ -313,6 +315,7 @@ void CoherenceVisualizer::refresh()
 void CoherenceVisualizer::labelTextChanged(Label* labelThatHasChanged)
 {
     resetTFR->setColour(TextButton::buttonColourId, Colours::red);
+    processor->updateReady(false);
 
     if (labelThatHasChanged == alphaE)
     {
@@ -347,6 +350,7 @@ void CoherenceVisualizer::buttonClicked(Button* buttonClicked)
     else
     {
         resetTFR->setColour(TextButton::buttonColourId, Colours::red);
+        processor->updateReady(false);
     }
 
     if (buttonClicked == clearGroups)
@@ -530,8 +534,10 @@ void CoherenceVisualizer::beginAnimation()
 
     resetTFR->setEnabled(false);
     clearGroups->setEnabled(false);
+    defaultGroups->setEnabled(false);
     linearButton->setEnabled(false);
     expButton->setEnabled(false);
+    alphaE->setEditable(false);
 }
 void CoherenceVisualizer::endAnimation() 
 {
@@ -547,8 +553,10 @@ void CoherenceVisualizer::endAnimation()
 
     resetTFR->setEnabled(true);
     clearGroups->setEnabled(true);
+    defaultGroups->setEnabled(true);
     linearButton->setEnabled(true);
     expButton->setEnabled(true);
+    alphaE->setEditable(false);
 }
 
 bool CoherenceVisualizer::updateFloatLabel(Label* label, float min, float max,

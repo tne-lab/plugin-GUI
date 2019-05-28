@@ -334,6 +334,11 @@ void CoherenceNode::updateAlpha(float a)
     alpha = a;
 }
 
+void CoherenceNode::updateReady(bool isReady)
+{
+    ready = isReady;
+}
+
 void CoherenceNode::resetTFR()
 {
     if ((group1Channels.size() > 0) && (group2Channels.size() > 0))
@@ -371,6 +376,10 @@ void CoherenceNode::resetTFR()
 
 bool CoherenceNode::isReady()
 {
+    if (!ready)
+    {
+        resetTFR();
+    }
     return ready && (getNumInputs() > 0);
 }
 

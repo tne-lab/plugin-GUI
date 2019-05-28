@@ -152,6 +152,7 @@ private:
     void updateGroup(Array<int> group1Channels, Array<int> group2Channels);
     void updateAlpha(float alpha);
     void resetTFR();
+    void updateReady(bool isReady);
 
     enum Parameter
     {
