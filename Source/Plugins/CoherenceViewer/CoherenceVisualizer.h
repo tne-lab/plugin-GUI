@@ -83,6 +83,7 @@ private:
     ScopedPointer<Label> alphaE;
     ScopedPointer<TextButton> resetTFR;
     ScopedPointer<TextButton> clearGroups;
+    ScopedPointer<TextButton> defaultGroups;
 
     Array<ElectrodeButton*> group1Buttons;
     Array<ElectrodeButton*> group2Buttons;

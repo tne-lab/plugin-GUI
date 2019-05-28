@@ -70,7 +70,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
 
     int yPos = 90;
     // ------- Combination Label ------- // 
-    combinationLabel = new Label("CombinationLabel" , "Cur Combination");
+    combinationLabel = new Label("CombinationLabel" , "Comb To Graph");
     combinationLabel->setBounds (bounds = { xPos, yPos, 90, TEXT_HT });
     combinationLabel->setColour(Label::backgroundColourId, Colours::grey);
     //group1Title->setFont(Font(18, Font::bold));
@@ -96,18 +96,27 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     yPos -= (TEXT_HT + 5);
     xPos += 110;
 
-    resetTFR = new TextButton("Reset Algorithm");
-    resetTFR->setBounds(bounds = { xPos, yPos, 90, TEXT_HT });
+    resetTFR = new TextButton("Reset");
+    resetTFR->setBounds(bounds = { xPos, yPos, 90, TEXT_HT + 15 });
     resetTFR->addListener(this);
     resetTFR->setTooltip(resetTip);
+    Colour col = (processor->ready) ? Colours::green : Colours::red;
+    resetTFR->setColour(TextButton::buttonColourId, col);
     canvas->addAndMakeVisible(resetTFR);
     canvasBounds = canvasBounds.getUnion(bounds);
 
-    yPos += 40;
+    yPos += 50;
     clearGroups = new TextButton("Clear Groups");
     clearGroups->setBounds(bounds = { xPos, yPos, 90, TEXT_HT });
     clearGroups->addListener(this);
     canvas->addAndMakeVisible(clearGroups);
+    canvasBounds = canvasBounds.getUnion(bounds);
+
+    yPos += 40;
+    defaultGroups = new TextButton("Default Groups");
+    defaultGroups->setBounds(bounds = { xPos, yPos, 90, TEXT_HT });
+    defaultGroups->addListener(this);
+    canvas->addAndMakeVisible(defaultGroups);
     canvasBounds = canvasBounds.getUnion(bounds);
 
     // ------- Exponential or Linear Button ------- //
@@ -303,6 +312,8 @@ void CoherenceVisualizer::refresh()
 
 void CoherenceVisualizer::labelTextChanged(Label* labelThatHasChanged)
 {
+    resetTFR->setColour(TextButton::buttonColourId, Colours::red);
+
     if (labelThatHasChanged == alphaE)
     {
         float newVal;
@@ -329,7 +340,13 @@ void CoherenceVisualizer::buttonClicked(Button* buttonClicked)
     if (buttonClicked == resetTFR)
     {
         processor->resetTFR();
-        std::cout << "Done with TFR reset" << std::endl;;
+
+        Colour col = (processor->ready) ? Colours::green : Colours::red;
+        resetTFR->setColour(TextButton::buttonColourId, col);
+    }
+    else
+    {
+        resetTFR->setColour(TextButton::buttonColourId, Colours::red);
     }
 
     if (buttonClicked == clearGroups)
@@ -337,8 +354,31 @@ void CoherenceVisualizer::buttonClicked(Button* buttonClicked)
         group1Channels.clear();
         group2Channels.clear();
 
-        processor->group1Channels = group1Channels;
-        processor->group2Channels = group2Channels;
+        processor->updateGroup(group1Channels, group2Channels);
+
+        updateGroupState();
+        updateCombList();
+    }
+
+    if (buttonClicked == defaultGroups)
+    {
+        group1Channels.clear();
+        group2Channels.clear();
+
+        int numInputs = processor->getNumInputs();
+        for (int i = 0; i < numInputs; i++)
+        {
+            if (i < numInputs / 2)
+            {
+                group1Channels.add(i);
+            }
+            else
+            {
+                group2Channels.add(i);
+            }
+        }
+
+        processor->updateGroup(group1Channels, group2Channels);
 
         updateGroupState();
         updateCombList();
