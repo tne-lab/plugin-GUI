@@ -1,5 +1,8 @@
+# noinspection PyUnresolvedReferences
 import numpy as np
+# noinspection PyUnresolvedReferences
 cimport numpy as np
+# noinspection PyUnresolvedReferences
 from cython cimport view
 import serial
 import scipy.signal
@@ -7,14 +10,17 @@ import logging
 
 isDebug = False
 
-class SPWFinder(object):
-    def __init__(self):
-        self.enabled = True
 
+# noinspection PyPep8Naming
+class spwdouble(object):
+    def __init__(self):
+        """initialize object data"""
+        self.Enabled = 1
         self.jitter_count_down_thresh = 0
         self.jitter_count_down = 0
         self.jitter_time = 200. # in ms
         self.refractory_count_down_thresh = 0
+        self.samples_for_average = 0
         self.refractory_count_down = 0
         self.refractory_time = 100. # time that the plugin will not react to trigger after one pulse
         self.double_count_down_thresh = 0
@@ -75,12 +81,12 @@ class SPWFinder(object):
         self.FIRING2 = 6
         self.state = self.READY
         logging.basicConfig(filename='spwdouble.log', format='%(asctime)s %(message)s', level=logging.DEBUG)
-        print ("finished SPWfinder constructor")
 
-    def startup(self, sampling_rate):
-        self.samplingRate = sampling_rate
-        print (self.samplingRate)
+    def startup(self, sr):
+        """to be run upon startup"""
+        self.samplingRate = sr
 
+        # noinspection PyTupleAssignmentBalance
         self.filter_b, self.filter_a = scipy.signal.butter(3,
                                                      (self.band_lo/(self.samplingRate/2), self.band_hi/(self.samplingRate/2)),
                                                      'pass')
@@ -90,26 +96,28 @@ class SPWFinder(object):
         print(self.band_hi)
         print(self.band_lo/(self.samplingRate/2))
         print(self.band_hi/(self.samplingRate/2))
-        self.enabled = 1
+        self.Enabled = 1
         try:
             self.arduino = serial.Serial('/dev/ttyACM0', 57600)
         except (OSError, serial.serialutil.SerialException):
             print("Can't open Arduino")
 
     def plugin_name(self):
-        return "SPWFinder"
+        """tells OE the name of the program"""
+        return "spwdouble"
 
     def is_ready(self):
-        return 1
+        """tells OE everything ran smoothly"""
+        return self.Enabled
 
     def param_config(self):
+        """return button, sliders, etc to be present in the editor OE side"""
         chan_labels = range(1,33)
-        return (("toggle", "enabled", True),
+        return (("toggle", "Enabled", True),
                 ("int_set", "chan_in", chan_labels),
                 ("float_range", "threshold", self.thresh_min, self.thresh_max, self.thresh_start),
                 ("float_range", "swing_thresh", self.swing_thresh_min, self.swing_thresh_max, self.swing_thresh_start),
                 ("float_range", "averaging_time", self.averaging_time_min, self.averaging_time_max, self.averaging_time_start))
-
 
     def spw_condition(self, n_arr):
         return (np.mean(n_arr[self.chan_out+1,:]) > self.threshold) and self.swing_state == self.NOT_SWINGING
@@ -129,7 +137,7 @@ class SPWFinder(object):
         events.append({'type': 3, 'sampleNum': timestamp, 'eventId': code, 'eventChannel': channel})
 
     def bufferfunction(self, n_arr):
-        #print("plugin start")
+        """Access to voltage data buffer. Returns events"""
         if isDebug:
             print("shape: ", n_arr.shape)
         events = []
@@ -148,7 +156,7 @@ class SPWFinder(object):
         self.double_count_down_thresh = self.double_time * self.samplingRate / 1000.
         self.swing_count_down_thresh = self.swing_down_time * self.samplingRate / 1000.
         self.jitter_count_down_thresh = self.jitter_time * self.samplingRate / 1000.
-        self.samples_for_average = self.averaging_time * self.samplingRate / 1000.
+        self.samples_for_average = int(self.averaging_time * self.samplingRate / 1000.)
 
         signal_to_filter = np.hstack((self.lfp_buffer, n_arr[chan_in,:]))
         signal_to_filter = signal_to_filter - signal_to_filter[-1]
@@ -197,7 +205,7 @@ class SPWFinder(object):
         # finite state machine
         if self.state == self.READY:
             if self.spw_condition(n_arr):
-                if self.enabled:
+                if self.Enabled:
                     logging.debug('got spw')
                     self.jitter_count_down = self.jitter_count_down_thresh
                     self.state = self.ARMED
@@ -249,10 +257,15 @@ class SPWFinder(object):
             self.state = self.READY
             logging.debug('READY')
 
-
         return events
 
+    def handleEvents(self, eventType, sourceID, subProcessorIdx, timestamp, sourceIndex):
+        """handle events passed from OE"""
 
-pluginOp = SPWFinder()
+    def handleSpike(self, electrode, sortedID, n_arr):
+        """handle spikes passed from OE"""
 
-include "../plugin.pyx"
+
+pluginOp = spwdouble()
+
+include '../plugin.pyx'
