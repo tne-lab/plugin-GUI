@@ -43,6 +43,7 @@ in units of z-score.
 
 #include <time.h>
 #include <vector>
+#include <chrono>
 
 class CoherenceNode : public GenericProcessor, public Thread
 {

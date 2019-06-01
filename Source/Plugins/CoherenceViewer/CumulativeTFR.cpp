@@ -24,6 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "CumulativeTFR.h"
 #include <cmath>
 
+
 CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLen, float stepLen, float freqStep,
     int freqStart, double fftSec, double alpha)
     : nFreqs        (nf)
@@ -55,12 +56,9 @@ CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLe
 }
 
 void CumulativeTFR::addTrial(FFTWArrayType& fftBuffer, int chanIt)
-
 {
     float winsPerSegment = (segmentLen - windowLen) / stepLen;
     
-    //// Update convInput ////
-
     //// Execute fft ////
     fftBuffer.fftReal();
     float nWindow = Fs * windowLen;
@@ -70,7 +68,7 @@ void CumulativeTFR::addTrial(FFTWArrayType& fftBuffer, int chanIt)
 		// Multiple fft data by wavelet
 		for (int n = 0; n < nfft; n++)
 		{
-            ifftBuffer.set(n, fftBuffer.getAsComplex(n) * waveletArray[freq][n] ); // Divide by 2 so we don't go over double limits later..
+            ifftBuffer.set(n, fftBuffer.getAsComplex(n) * waveletArray[freq][n] );
 		}
 		// Inverse FFT on data multiplied by wavelet
 		ifftBuffer.ifft();

@@ -135,6 +135,7 @@ void CoherenceNode::run()
             dataReader.pullUpdate();
             Array<int> activeInputs = getActiveInputs();
             int nActiveInputs = activeInputs.size();
+            
             for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
             {
                 int chan = activeInputs[activeChan];
@@ -144,7 +145,12 @@ void CoherenceNode::run()
                 if (groupNum != -1)
                 {
                     int groupIt = (groupNum == 1 ? getGroupIt(groupNum, chan) : getGroupIt(groupNum, chan) + nGroup1Chans);
+                    auto t1 = std::chrono::high_resolution_clock::now();
                     TFR->addTrial(dataReader->getReference(groupIt), groupIt);
+                    auto t2 = std::chrono::high_resolution_clock::now();
+                    std::cout << "add trials took "
+                        << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
+                        << " milliseconds" << std::endl;
                 }
                 else
                 {
@@ -152,13 +158,14 @@ void CoherenceNode::run()
                     jassertfalse; // ungrouped channel
                 }
             }
+            
 
             //// Get and send updated coherence  ////
             if (!coherenceWriter.isValid())
             {
                 jassertfalse; // atomic sync coherence writer broken
             }
-
+            
             // Calc coherence at each combination of interest
             for (int itX = 0, comb = 0; itX < nGroup1Chans; itX++)
             {
@@ -167,9 +174,10 @@ void CoherenceNode::run()
                     TFR->getMeanCoherence(itX, itY + nGroup1Chans, coherenceWriter->at(comb).data(), comb);
                 }
             }
+            
 
             // Update coherence and reset data buffer
-      
+            
             coherenceWriter.pushUpdate();
         }
     }

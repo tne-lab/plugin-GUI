@@ -32,27 +32,28 @@ CoherenceEditor::CoherenceEditor(CoherenceNode* p)
     processor = p;
     // Segment length
     int x = 0, y = 0, h = 0, w = 0;
-    segLabel = createLabel("segLabel", "Segment Length:", { x + 5, y + 25, w + 60, h + 27 });
+    // Change to column/row setup
+    segLabel = createLabel("segLabel", "Segment Length(s):", { x + 5, y + 25, w + 70, h + 27 });
     addAndMakeVisible(segLabel);
 
-    segEditable = createEditable("segEditable", "4", "Input length of segment", { x + 70, y + 25, w + 35, h + 27 });
+    segEditable = createEditable("segEditable", "4", "Input length of segment", { x + 75, y + 25, w + 35, h + 27 });
     addAndMakeVisible(segEditable);
 
     // Window Length
     y += 35;
-    winLabel = createLabel("winLabel", "Window Length:", { x + 5, y + 25, w + 60, h + 27 });
+    winLabel = createLabel("winLabel", "Window Length(s):", { x + 5, y + 25, w + 70, h + 27 });
     addAndMakeVisible(winLabel);
 
-    winEditable = createEditable("winEditable", "2", "Input length of window", { x + 70, y + 25, w + 35, h + 27 });
+    winEditable = createEditable("winEditable", "2", "Input length of window", { x + 75, y + 25, w + 35, h + 27 });
     addAndMakeVisible(winEditable);
 
     // Step Length
     y += 35;
-    stepLabel = createLabel("stepLabel", "Step Length:", { x + 5, y + 25, w + 60, h + 27 });
+    stepLabel = createLabel("stepLabel", "Step Length(s):", { x + 5, y + 25, w + 75, h + 27 });
     addAndMakeVisible(stepLabel);
 
     stepEditable = createEditable("stepEditable", "0.1", "Input step size between windows; higher number = less resource intensive",
-    { x + 70, y + 25, w + 35, h + 27 });
+    { x + 75, y + 25, w + 35, h + 27 });
     addAndMakeVisible(stepEditable);
 
     // Frequencies of interest
@@ -63,18 +64,18 @@ CoherenceEditor::CoherenceEditor(CoherenceNode* p)
 
     // Start freq
     y += 35;
-    fstartLabel = createLabel("fstartLabel", "Freq Start:", { x + 5, y + 25, w + 60, h + 27 });
+    fstartLabel = createLabel("fstartLabel", "Freq Start(Hz):", { x + 5, y + 25, w + 70, h + 27 });
     addAndMakeVisible(fstartLabel);
 
-    fstartEditable = createEditable("fstartEditable", "1", "Start of range of frequencies", { x + 70, y + 25, w + 35, h + 27 });
+    fstartEditable = createEditable("fstartEditable", "1", "Start of range of frequencies", { x + 75, y + 25, w + 35, h + 27 });
     addAndMakeVisible(fstartEditable);
 
     // End Freq
     y += 35;
-    fendLabel = createLabel("fendLabel", "Freq End:", { x + 5, y + 25, w + 60, h + 27 });
+    fendLabel = createLabel("fendLabel", "Freq End(Hz):", { x + 5, y + 25, w + 70, h + 27 });
     addAndMakeVisible(fendLabel);
 
-    fendEditable = createEditable("fendEditable", "40", "End of range of frequencies", { x + 70, y + 25, w + 35, h + 27 });
+    fendEditable = createEditable("fendEditable", "40", "End of range of frequencies", { x + 75, y + 25, w + 35, h + 27 });
     addAndMakeVisible(fendEditable);
 
     setEnabledState(false);
@@ -115,6 +116,7 @@ void CoherenceEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
 
 void CoherenceEditor::labelTextChanged(Label* labelThatHasChanged)
 {
+    processor->updateReady(false);
     auto processor = static_cast<CoherenceNode*>(getProcessor());
     if (labelThatHasChanged == segEditable)
     {

@@ -160,7 +160,9 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     // ------- Plot ------- //
     cohPlot = new MatlabLikePlot();
     cohPlot->setBounds(bounds = { 230, 90, 600, 500 });
-    cohPlot->setRange(0, 40, 0, 1, true);
+    //cohPlot->setAuxiliaryString("Hz x Coh"); //Confusing with the base string on the graph.
+    cohPlot->setTitle("Coherence at Selected Combination");
+    cohPlot->setRange(0, 40, 0.0, 1.01, true);  
     cohPlot->setControlButtonsVisibile(false);
 
     canvas->addAndMakeVisible(cohPlot);
