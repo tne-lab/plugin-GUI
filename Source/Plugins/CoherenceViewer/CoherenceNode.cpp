@@ -221,8 +221,8 @@ void CoherenceNode::updateSettings()
     nSamplesAdded = 0;
     
     // (Start - end freq) / stepsize
-    freqStep = 1.0/float(winLen*interpRatio);
-    //freqStep = 1; // for debugging
+    //freqStep = 1.0/float(winLen*interpRatio);
+    freqStep = 1; // for debugging
     nFreqs = int((freqEnd - freqStart) / freqStep);
     //foi = 0.5:1 / (win_len*interp_ratio) : 30
 
@@ -249,9 +249,6 @@ void CoherenceNode::updateSettings()
         nGroup1Chans = group1Channels.size();
         nGroup2Chans = group2Channels.size();
         nGroupCombs = nGroup1Chans * nGroup2Chans;
-
-        // Seg/win/step/interp - move to params eventually
-        interpRatio = 2;
 
         if (nGroup1Chans > 0)
         {
