@@ -27,6 +27,9 @@
     <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorCanvas.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Source\Plugins\PhaseCalculator\HTransformers.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculator.h">
@@ -38,10 +41,10 @@
     <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\PhaseCalculatorCanvas.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\FFTWWrapper.h">
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\ARModeler.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\ARModeler.h">
+    <ClInclude Include="..\..\..\..\Source\Plugins\PhaseCalculator\HTransformers.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

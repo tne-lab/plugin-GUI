@@ -1,3 +1,4 @@
+# cython: language_level=3
 import sys
 import numpy as np
 cimport numpy as np
@@ -7,13 +8,13 @@ from libc.string cimport memcpy
 
 sr = 1.
 
-cdef extern from "../PythonParamConfig.h":
+cdef extern from "PythonParamConfig.h":
     enum paramType:
         TOGGLE, INT_SET, FLOAT_RANGE
 
 
 
-cdef extern from "../PythonParamConfig.h":
+cdef extern from "PythonParamConfig.h":
     struct ParamConfig:
         paramType type
         char *name
@@ -25,7 +26,7 @@ cdef extern from "../PythonParamConfig.h":
         float startValue
 
 
-cdef extern from "../PythonEvent.h":
+cdef extern from "PythonEvent.h":
     struct PythonEvent:
         unsigned char type
         int sampleNum
@@ -37,26 +38,19 @@ cdef extern from "../PythonEvent.h":
 
 
 # noinspection PyPep8Naming
-cdef public void pluginStartup(float sampling_rate) with gil:
-    global sr
+cdef public void pluginStartup(float sampling_rate):
+    print("pre anything")
     global isDebug
+    print("after is debug")
     global pluginOp
-    #import scipy.signal
-    #import PIL
-    #print "executable is", sys.executable
-#    print "signal is", scipy.signal
-    if isDebug:
-        print("The python path is")
-        print(sys.path)
-    sr = sampling_rate
-    pluginOp.startup(sr)
+    pluginOp.startup(sampling_rate)
 
 # noinspection PyPep8Naming
-cdef public int getParamNum()  with gil:
+cdef public int getParamNum():
     return len(pluginOp.param_config())
 
 # noinspection PyPep8Naming
-cdef public void getParamConfig(ParamConfig *params) with gil:
+cdef public void getParamConfig(ParamConfig *params):
     cdef int *ent
     cdef char * par_name
     cdef size_t par_len
@@ -66,19 +60,16 @@ cdef public void getParamConfig(ParamConfig *params) with gil:
         print("par[0], ", par[0])
         print("par[1], ", par[1])
         print("par[2], ", par[2])
-
         par_len = len(par[1])+1
         print("par len: ",par_len)
         par_name = <char *>malloc(par_len)
         par_bytes = par[1].encode('utf-8')
         print("par_bytes: ", par_bytes)
         print("par_name 1: ", par_name)
-
         memcpy(par_name, <char*>par_bytes, int(par_len-1))
         #par_name = par_bytes
         par_name[par_len-1] = 0
         print("par_name 2: ", par_name)
-
         if par[0] == "toggle":
             params[i].type = TOGGLE
             params[i].name = par_name
@@ -101,19 +92,17 @@ cdef public void getParamConfig(ParamConfig *params) with gil:
 
 
 # noinspection PyPep8Naming
-cdef public void pluginFunction(float *data_buffer, int nChans, int nSamples, int nRealSamples, PythonEvent *events) with gil:
+cdef public void pluginFunction(float *data_buffer, int nChans, int nSamples, int nRealSamples, PythonEvent *events):
     global sr
     n_arr = np.asarray(<np.float32_t[:nChans, :nSamples]> data_buffer)
     #pluginOp.set_events(events)
     #pm2 = PluginModule(pm)
-
     if isDebug:
         print("sr: ", sr)
     samples_to_read = nRealSamples
     events_to_add = []
     if samples_to_read > 0:
         events_to_add = pluginOp.bufferfunction(n_arr[:,0:samples_to_read])
-
         # struct PythonEvent:
         # unsigned char type
         # int sampleNum
@@ -139,7 +128,16 @@ cdef public void pluginFunction(float *data_buffer, int nChans, int nSamples, in
             last_e_c = e_c
         last_e_c.nextEvent = NULL
 
-cdef void add_event(PythonEvent *e_c, object e_py) with gil:
+# noinspection PyPep8Naming
+cdef public void eventFunction(int eventType, int sourceID, int subProcessorIdx, double timestamp, int sourceIndex):
+    pluginOp.handleEvents(eventType,sourceID,subProcessorIdx,timestamp,sourceIndex)
+
+# noinspection PyPep8Naming
+cdef public void spikeFunction(int electrode, int sortedID, float[18] spikeSample):
+    n_arr = np.asarray(<np.float32_t[:1, :18]> spikeSample)
+    pluginOp.handleSpike(electrode,sortedID,n_arr)
+
+cdef void add_event(PythonEvent *e_c, object e_py):
     e_c.type = <unsigned char>e_py['type']
     e_c.sampleNum = <int>e_py['sampleNum']
     if 'eventId' in e_py:
@@ -152,29 +150,30 @@ cdef void add_event(PythonEvent *e_c, object e_py) with gil:
         e_c.eventData = <unsigned char *>e_py['eventData']
         # TODO to be tested if this works with a numpy input
 
-cdef public int pluginisready() with gil:
+
+cdef public int pluginisready():
     return pluginOp.is_ready()
 
 # noinspection PyPep8Naming
-cdef public void setIntParam(char *name, int value) with gil:
+cdef public void setIntParam(char *name, int value):
     if isDebug:
         print("In Python: ", name, ": ", value)
     setattr(pluginOp, name.decode('utf-8'), value)
 
 # noinspection PyPep8Naming
-cdef public void setFloatParam(char *name, float value) with gil:
-    # print "In Python: ", name, ": ", value
+cdef public void setFloatParam(char *name, float value):
+    # print ("In Python: ", name, ": ", value)
     setattr(pluginOp, name.decode('utf-8'), value)
 
 # noinspection PyPep8Naming
-cdef public int getIntParam(char *name) with gil:
+cdef public int getIntParam(char *name):
     if isDebug:
         print("In Python getIntParam: ", name)
     value = getattr(pluginOp, name.decode('utf-8'))
     return <int>value
 
 # noinspection PyPep8Naming
-cdef public float getFloatParam(char *name) with gil:
-    # print "In Python: ", name, ": ", value
+cdef public float getFloatParam(char *name):
+    # print( "In Python: ", name, ": ", value)
     value =  getattr(pluginOp, name.decode('utf-8'))
     return <float>value
