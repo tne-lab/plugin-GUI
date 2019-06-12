@@ -333,7 +333,7 @@ void PythonPlugin::setFile(String fullpath)
         std::cout << "Can't find init function in plugin "
             << '"' << pluginName << '"' << std::endl
             << lastError() << std::endl;
-        plugin.close();
+        resetPlugin();
         return;
     }
     initfunc_t initF = (initfunc_t)initializer;
@@ -344,7 +344,7 @@ void PythonPlugin::setFile(String fullpath)
         std::cout << "Can't find ready function in plugin "
             << '"' << pluginName << '"' << std::endl
             << lastError() << std::endl;
-        plugin.close();
+        resetPlugin();
         return;
     }
     pluginIsReady = (isreadyfunc_t)cfunc;
@@ -355,7 +355,7 @@ void PythonPlugin::setFile(String fullpath)
         std::cout << "Can't find startup function in plugin "
             << '"' << pluginName << '"' << std::endl
             << lastError() << std::endl;
-        plugin.close();
+        resetPlugin();
         return;
     }
     pluginStartupFunction = (startupfunc_t)cfunc;
@@ -367,7 +367,7 @@ void PythonPlugin::setFile(String fullpath)
         std::cout << "Can't find getParamNum function in plugin "
             << '"' << pluginName << '"' << std::endl
             << lastError() << std::endl;
-        plugin.close();
+        resetPlugin();
         return;
     }
     getParamNumFunction = (getparamnumfunc_t)cfunc;
@@ -378,7 +378,7 @@ void PythonPlugin::setFile(String fullpath)
         std::cout << "Can't find getParamConfig function in plugin "
             << '"' << pluginName << '"' << std::endl
             << lastError() << std::endl;
-        plugin.close();
+        resetPlugin();
         return;
     }
     getParamConfigFunction = (getparamconfigfunc_t)cfunc;
@@ -389,7 +389,7 @@ void PythonPlugin::setFile(String fullpath)
         std::cout << "Can't find plugin function in plugin "
             << '"' << pluginName << '"' << std::endl
             << lastError() << std::endl;
-        plugin.close();
+        resetPlugin();
         return;
     }
     pluginFunction = (pluginfunc_t)cfunc;
@@ -401,7 +401,7 @@ void PythonPlugin::setFile(String fullpath)
         std::cout << "Can't find event function in plugin "
             << '"' << pluginName << '"' << std::endl
             << lastError() << std::endl;
-        plugin.close();
+        resetPlugin();
         return;
     }
     eventFunction = (eventfunc_t)cfunc;
@@ -412,12 +412,34 @@ void PythonPlugin::setFile(String fullpath)
         std::cout << "Can't find spike function in plugin "
             << '"' << pluginName << '"' << std::endl
             << lastError() << std::endl;
-        plugin.close();
+        resetPlugin();
         return;
     }
     spikeFunction = (spikefunc_t)cfunc;
 
     // CJB added end
+
+    cfunc = plugin.getFunction("updateSettings");
+    if (!cfunc)
+    {
+        std::cout << "Can't find updateSettings function in plugin "
+            << '"' << pluginName << "\"" << std::endl
+            << lastError() << std::endl;
+        resetPlugin();
+        return;
+    }
+    updateSettingsFunction = (updatefunc_t)cfunc;
+
+    cfunc = plugin.getFunction("channelChanged");
+    if (!cfunc)
+    {
+        std::cout << "Can't find channelChanged function in plugin "
+            << '"' << pluginName << "\"" << std::endl
+            << lastError() << std::endl;
+        resetPlugin();
+        return;
+    }
+    channelChangedFunction = (chanchangefunc_t)cfunc;
 
     cfunc = plugin.getFunction("setIntParam");
     if (!cfunc)
@@ -425,7 +447,7 @@ void PythonPlugin::setFile(String fullpath)
         std::cout << "Can't find setIntParam function in plugin "
             << '"' << pluginName << "\"" << std::endl
             << lastError() << std::endl;
-        plugin.close();
+        resetPlugin();
         return;
     }
     setIntParamFunction = (setintparamfunc_t)cfunc;
@@ -436,7 +458,7 @@ void PythonPlugin::setFile(String fullpath)
         std::cout << "Can't find setFloatParam function in plugin "
             << '"' << pluginName << "\"" << std::endl
             << lastError() << std::endl;
-        plugin.close();
+        resetPlugin();
         return;
     }
     setFloatParamFunction = (setfloatparamfunc_t)cfunc;
@@ -447,7 +469,7 @@ void PythonPlugin::setFile(String fullpath)
         std::cout << "Can't find getIntParam function in plugin "
             << '"' << pluginName << "\"" << std::endl
             << lastError() << std::endl;
-        plugin.close();
+        resetPlugin();
         return;
     }
     getIntParamFunction = (getintparamfunc_t)cfunc;
@@ -458,7 +480,7 @@ void PythonPlugin::setFile(String fullpath)
         std::cout << "Can't find getFloatParam function in plugin "
             << '"' << pluginName << "\"" << std::endl
             << lastError() << std::endl;
-        plugin.close();
+        resetPlugin();
         return;
     }
     getFloatParamFunction = (getfloatparamfunc_t)cfunc;
@@ -475,7 +497,7 @@ void PythonPlugin::setFile(String fullpath)
     DEBUG_LOG("after initplugin");
 
 
-    (*pluginStartupFunction)(dataSampleRate);
+    (*pluginStartupFunction)(nChans, dataSampleRate, chanEnabled.getRawDataPointer());
     
     // load the parameter configuration
     numPythonParams = (*getParamNumFunction)();
@@ -525,6 +547,36 @@ void PythonPlugin::updateSettings()
     } else {
         dataSampleRate = GenericProcessor::getSampleRate();
     }
+
+    // update number of channels
+    int prevChans = nChans;
+    nChans = getNumInputs();
+
+    chanEnabled.resize(nChans);
+
+    for (int c = prevChans; c < nChans; ++c)
+    {
+        // new channels are enabled by default
+        chanEnabled.set(c, true);
+    }
+
+    if (updateSettingsFunction)
+    {
+        const PythonLock pyLock;
+        (*updateSettingsFunction)(nChans, dataSampleRate);
+    }
+}
+
+void PythonPlugin::channelChanged(int chan, bool state)
+{
+    jassert(chan >= 0 && chan < chanEnabled.size());
+    chanEnabled.set(chan, state);
+
+    if (channelChangedFunction)
+    {
+        const PythonLock pyLock;
+        (*channelChangedFunction)(chan, state);
+    }
 }
 
 void PythonPlugin::setIntPythonParameter(String name, int value)
@@ -561,6 +613,25 @@ float PythonPlugin::getFloatPythonParameter(String name)
     const PythonLock pyLock;
     value = (*getFloatParamFunction)(name.getCharPointer().getAddress());
     return value;
+}
+
+void PythonPlugin::resetPlugin()
+{
+    pluginFunction = nullptr;
+    pluginIsReady = nullptr;
+    pluginStartupFunction = nullptr;
+    getParamNumFunction = nullptr;
+    getParamConfigFunction = nullptr;
+    updateSettingsFunction = nullptr;
+    channelChangedFunction = nullptr;
+    setIntParamFunction = nullptr;
+    setFloatParamFunction = nullptr;
+    getIntParamFunction = nullptr;
+    getFloatParamFunction = nullptr;
+    eventFunction = nullptr;
+    spikeFunction = nullptr;
+
+    plugin.close();
 }
 
 
