@@ -27,12 +27,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 CoherenceNode::CoherenceNode()
     : GenericProcessor  ("Coherence")
     , Thread            ("Coherence Calc")
-    , segLen            (8)
+    , segLen            (4)
     , freqStep          (1)
     , freqStart         (1)
     , freqEnd           (40)
     , stepLen           (0.1)
-    , winLen            (2)
+    , winLen            (1)
     , interpRatio       (2)
     , nGroup1Chans      (0)
     , nGroup2Chans      (0)
@@ -60,15 +60,8 @@ AudioProcessorEditor* CoherenceNode::createEditor()
 void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
 {  
     AtomicScopedWritePtr<Array<FFTWArrayType>> dataWriter(dataBuffer);
-    //AtomicScopedReadPtr<std::vector<std::vector<double>>> coherenceReader(meanCoherence);
-    //// Get current coherence vector ////
-    //if (meanCoherence.hasUpdate())
-    //{
-        //coherenceReader.pullUpdate();
-        // Do something with coherence!
-    //}
    
-    ///// Add incoming data to data buffer. Let thread get the ok to start at 8seconds ////
+    ///// Add incoming data to data buffer. Let thread get the ok to start at 8seconds of data ////
     // Check writer
     if (!dataWriter.isValid())
     {
@@ -92,6 +85,11 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
             {
                 continue;
             }
+            else if(nSamplesAdded < 0)
+            {
+                nSamplesAdded += nSamples;
+                break;
+            }
 
             // Get read pointer of incoming data to move to the stored data buffer
             const float* rpIn = continuousBuffer.getReadPointer(chan);
@@ -105,7 +103,15 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
             // Add to buffer the new samples.
             for (int n = 0; n < nSamples; n++)
             {
-                dataWriter->getReference(groupIt).set(nSamplesAdded + n, rpIn[n]);
+                if (dataWriter->getReference(groupIt).getAsReal(n - 1) - rpIn[n] < artifactThreshold)
+                {
+                    dataWriter->getReference(groupIt).set(nSamplesAdded + n, rpIn[n]);
+                }
+                else // Large change. Most likely an artifact. Discard buffer and restart data collection.
+                {
+                    discardCurBuffer();
+                    return;
+                }
             }
         }       
     }
@@ -119,6 +125,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
         // Reset samples added
         nSamplesAdded = 0;
         //updateDataBufferSize();
+        numTrials++;
     }
 }
 
@@ -135,7 +142,7 @@ void CoherenceNode::run()
             dataReader.pullUpdate();
             Array<int> activeInputs = getActiveInputs();
             int nActiveInputs = activeInputs.size();
-            
+            auto tstart = std::chrono::high_resolution_clock::now();
             for (int activeChan = 0; activeChan < nActiveInputs; ++activeChan)
             {
                 int chan = activeInputs[activeChan];
@@ -159,7 +166,7 @@ void CoherenceNode::run()
                 }
             }
             
-
+            
             //// Get and send updated coherence  ////
             if (!coherenceWriter.isValid())
             {
@@ -172,6 +179,13 @@ void CoherenceNode::run()
                 for (int itY = 0; itY < nGroup2Chans; itY++, comb++)
                 {
                     TFR->getMeanCoherence(itX, itY + nGroup1Chans, coherenceWriter->at(comb).data(), comb);
+                    for (int i = 0; i < coherenceWriter->at(comb).size(); i++)
+                    {
+                        const char * buffer = (String(coherenceWriter->at(comb)[i]) + ",").toRawUTF8();
+                        cohFile << buffer;
+                        
+                    }  
+                    cohFile << "\n";
                 }
             }
             
@@ -179,6 +193,10 @@ void CoherenceNode::run()
             // Update coherence and reset data buffer
             
             coherenceWriter.pushUpdate();
+            auto tend = std::chrono::high_resolution_clock::now();
+            std::cout << "combs took "
+                << std::chrono::duration_cast<std::chrono::milliseconds>(tend - tstart).count()
+                << " milliseconds" << std::endl;
         }
     }
 }
@@ -223,15 +241,16 @@ void CoherenceNode::updateSettings()
     // (Start - end freq) / stepsize
     //freqStep = 1.0/float(winLen*interpRatio);
     freqStep = 1; // for debugging
-    nFreqs = int((freqEnd - freqStart) / freqStep);
+    nFreqs = int((freqEnd - freqStart) / freqStep) + 1;
     //foi = 0.5:1 / (win_len*interp_ratio) : 30
 
-    // Default to this. Probably will move to canvas tab.
+    artifactThreshold = 3000; //250
+
     int numInputs = getNumInputs();
     // Default selected groups
     if (numInputs > 0)
     {
-        if (group1Channels.size() == 0) // if groups are empty currently
+        if (group1Channels.size() == 0) // only if groups are empty currently
         {
             for (int i = 0; i < numInputs; i++)
             {
@@ -274,7 +293,7 @@ void CoherenceNode::setParameter(int parameterIndex, float newValue)
         segLen = static_cast<int>(newValue);
         break;
     case WINDOW_LENGTH:
-        winLen = static_cast<int>(newValue);
+        winLen = static_cast<float>(newValue);
         break;
     case START_FREQ:
         freqStart = static_cast<int>(newValue);
@@ -284,6 +303,9 @@ void CoherenceNode::setParameter(int parameterIndex, float newValue)
         break;
     case STEP_LENGTH:
         stepLen = static_cast<float>(newValue);
+        break;
+    case ARTIFACT_THRESHOLD:
+        artifactThreshold = static_cast<float>(newValue);
         break;
     }
 }
@@ -353,6 +375,7 @@ void CoherenceNode::resetTFR()
         nSamplesAdded = 0;
         updateDataBufferSize(segLen*Fs);
         updateMeanCoherenceSize();
+        numArtifacts = 0;
 
         // Trim time close to edge
         int nSamplesWin = winLen * Fs;
@@ -375,7 +398,13 @@ void CoherenceNode::resetTFR()
     {
         ready = false;
     }
+}
 
+void CoherenceNode::discardCurBuffer()
+{
+    numArtifacts += nSamplesAdded / (segLen * Fs);
+    nSamplesAdded = 2 * Fs * -1; // Wait a bit after artifact before we start taking in new data (.5sec to be exact)
+    std::cout << "Num trials: " << numTrials << " ... and Num artifacts: " << numArtifacts << std::endl;
 }
 
 
@@ -392,7 +421,17 @@ bool CoherenceNode::enable()
 {
     if (isEnabled)
     {
+        auto now = std::chrono::system_clock::now();
+        std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+
+        File file = CoreServices::RecordNode::getRecordingPath();
+        String recordingDir(file.getFullPathName());
+        // change path to recordingDir
+        const char * path = ("C:\\Users\\Ephys\\Desktop\\coh-params\\" + String(segLen) + "_" + String(winLen) + "_" + String(now_time) + ".txt").toRawUTF8();
+        cohFile.open(path);
         // Start coherence calculation thread
+        numTrials = 0;
+        numArtifacts = 0;
         startThread(COH_PRIORITY);
         //editor->enable();
     }
@@ -405,6 +444,11 @@ bool CoherenceNode::disable()
     editor->disable();
 
     signalThreadShouldExit();
+
+    if (cohFile.is_open())
+    {
+        cohFile.close();
+    }
 
     return true;
 }

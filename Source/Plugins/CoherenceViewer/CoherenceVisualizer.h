@@ -81,6 +81,10 @@ private:
     ScopedPointer<ToggleButton> expButton;
     ScopedPointer<Label> alpha;
     ScopedPointer<Label> alphaE;
+    ScopedPointer<Label> artifactDesc;
+    ScopedPointer<Label> artifactEq;
+    ScopedPointer<Label> artifactE;
+    ScopedPointer<Label> artifactCount;
     ScopedPointer<TextButton> resetTFR;
     ScopedPointer<TextButton> clearGroups;
     ScopedPointer<TextButton> defaultGroups;

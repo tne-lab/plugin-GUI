@@ -156,10 +156,48 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     alphaE->setColour(Label::textColourId, Colours::white);
     canvas->addAndMakeVisible(alphaE);
 
+    // ------- Artifact Threshold ------- //
+    static const String artifactTip = "Checks the current power value minus the last power value. If the change is too large it is considered an artifact and the current buffer will be reset.";
+    static const String artifactNumTip = "Current number of buffers finished vs how many have been discarded because of artifacts.";
+
+    xPos -= 65;
+    yPos += 40;
+    artifactDesc = new Label("artifactDesc", "Artifact Threshold:");
+    artifactDesc->setBounds(bounds = { xPos, yPos, 120, TEXT_HT });
+    artifactDesc->setColour(Label::backgroundColourId, Colours::grey);
+    artifactDesc->setTooltip(artifactTip);
+    canvas->addAndMakeVisible(artifactDesc);
+
+    yPos += 20;
+    artifactEq = new Label("artifactEq", "x[k] - x[k-1] >=");
+    artifactEq->setBounds(bounds = { xPos, yPos, 110, TEXT_HT });
+    artifactEq->setColour(Label::backgroundColourId, Colours::grey);
+    artifactEq->setTooltip(artifactTip);
+    canvas->addAndMakeVisible(artifactEq);
+
+    xPos += 115;
+    artifactE = new Label("artifactE", "3000");
+    artifactE->setEditable(true);
+    artifactE->addListener(this);
+    artifactE->setBounds(bounds = { xPos, yPos, 50, TEXT_HT });
+    artifactE->setColour(Label::backgroundColourId, Colours::grey);
+    artifactE->setColour(Label::textColourId, Colours::white);
+    artifactE->setTooltip(artifactTip);
+    canvas->addAndMakeVisible(artifactE);
+
+    yPos += 20;
+    xPos -= 135;
+    artifactCount = new Label("artifactDesc", "UPDATE IF ARTIFACTS");
+    artifactCount->setBounds(bounds = { xPos, yPos, 200, TEXT_HT });
+    artifactCount->setColour(Label::backgroundColourId, Colours::red);
+    artifactE->setColour(Label::textColourId, Colours::white);
+    artifactCount->setTooltip(artifactNumTip);
+    //canvas->addAndMakeVisible(artifactDesc);
+
 
     // ------- Plot ------- //
     cohPlot = new MatlabLikePlot();
-    cohPlot->setBounds(bounds = { 230, 90, 600, 500 });
+    cohPlot->setBounds(bounds = { 300, 90, 600, 500 });
     //cohPlot->setAuxiliaryString("Hz x Coh"); //Confusing with the base string on the graph.
     cohPlot->setTitle("Coherence at Selected Combination");
     cohPlot->setRange(0, 40, 0.0, 1.01, true);  
@@ -282,6 +320,19 @@ void CoherenceVisualizer::updateGroupState()
 
 void CoherenceVisualizer::refresh() 
 {
+    if (processor->numArtifacts > 0)
+    {
+        artifactCount->setText(String("Buffers Handled: " + String(processor->numTrials) + " & Buffers Discarded: " + String(ceil(processor->numArtifacts))), dontSendNotification);
+        if (!viewport->isParentOf(artifactCount))
+        {
+            addAndMakeVisible(artifactCount);
+        }
+    }
+    else
+    {
+        removeChildComponent(getIndexOfChildComponent(artifactCount));
+    }
+
     freqStep = processor->freqStep;
     Colour col = (processor->ready) ? Colours::green : Colours::red;
     resetTFR->setColour(TextButton::buttonColourId, col);
@@ -317,17 +368,26 @@ void CoherenceVisualizer::refresh()
 void CoherenceVisualizer::labelTextChanged(Label* labelThatHasChanged)
 {
     resetTFR->setColour(TextButton::buttonColourId, Colours::red);
-    processor->updateReady(false);
+    
 
     if (labelThatHasChanged == alphaE)
     {
         float newVal;
-        if (updateFloatLabel(labelThatHasChanged, 0, INT_MAX, 8, &newVal))
+        if (updateFloatLabel(labelThatHasChanged, 0, FLT_MAX, .3, &newVal))
         {
             if (expButton->getState())
             {
                 processor->updateAlpha(newVal);
+                processor->updateReady(false);
             }
+        }
+    }
+    if (labelThatHasChanged == artifactE)
+    {
+        float newVal;
+        if (updateFloatLabel(labelThatHasChanged, 0, FLT_MAX, 3000, &newVal))
+        {
+            processor->setParameter(processor->ARTIFACT_THRESHOLD, newVal);
         }
     }
 }
@@ -345,16 +405,14 @@ void CoherenceVisualizer::buttonClicked(Button* buttonClicked)
     if (buttonClicked == resetTFR)
     {
         processor->resetTFR();
-
-        Colour col = (processor->ready) ? Colours::green : Colours::red;
-        resetTFR->setColour(TextButton::buttonColourId, col);
     }
+    // Button was clicked that wasn't reseting the TFR, something important has changed. Tell node that we need to reset.
     else
     {
-        resetTFR->setColour(TextButton::buttonColourId, Colours::red);
         processor->updateReady(false);
     }
 
+ 
     if (buttonClicked == clearGroups)
     {
         group1Channels.clear();
@@ -453,6 +511,9 @@ void CoherenceVisualizer::buttonClicked(Button* buttonClicked)
         processor->updateGroup(group1Channels, group2Channels);
         updateCombList();
     }
+
+    Colour col = (processor->ready) ? Colours::green : Colours::red;
+    resetTFR->setColour(TextButton::buttonColourId, col);
 }
 
 void CoherenceVisualizer::channelChanged(int chan, bool newState)

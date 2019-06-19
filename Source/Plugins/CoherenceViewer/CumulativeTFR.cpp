@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cmath>
 
 
-CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, int winLen, float stepLen, float freqStep,
+CumulativeTFR::CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs, float winLen, float stepLen, float freqStep,
     int freqStart, double fftSec, double alpha)
     : nFreqs        (nf)
     , Fs            (Fs)

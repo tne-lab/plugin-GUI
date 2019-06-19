@@ -97,7 +97,7 @@ class CumulativeTFR
 
 public:
     CumulativeTFR(int ng1, int ng2, int nf, int nt, int Fs,
-        int winLen = 2, float stepLen = 0.1, float freqStep = 0.25,
+        float winLen = 2, float stepLen = 0.1, float freqStep = 0.25,
         int freqStart = 1, double fftSec = 10.0, double alpha = 0);
 
     // Handle a new buffer of data. Preform FFT and create pxxs, pyys.
@@ -115,7 +115,7 @@ private:
     const int nTimes;
     const int nfft;
     int segmentLen;
-    int windowLen;
+    float windowLen;
     float stepLen;
 
     float freqStep;

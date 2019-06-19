@@ -44,6 +44,9 @@ in units of z-score.
 #include <time.h>
 #include <vector>
 #include <chrono>
+#include <ctime> 
+#include <iostream>
+#include<fstream>
 
 class CoherenceNode : public GenericProcessor, public Thread
 {
@@ -102,7 +105,7 @@ private:
     // Segment Length
     int segLen;
     // Window Length
-    int winLen;  
+    float winLen;  
     // Step Length
     float stepLen; // Iterval between times of interest
     // Interp Ratio ??
@@ -155,13 +158,22 @@ private:
     void resetTFR();
     void updateReady(bool isReady);
 
+    // Artifact checking
+    void discardCurBuffer();
+    float artifactThreshold;
+    int numTrials;
+    float numArtifacts;
+
+    std::ofstream cohFile;
+
     enum Parameter
     {
         SEGMENT_LENGTH,
         WINDOW_LENGTH,
         START_FREQ,
         END_FREQ,
-        STEP_LENGTH
+        STEP_LENGTH,
+        ARTIFACT_THRESHOLD
     };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CoherenceNode);
