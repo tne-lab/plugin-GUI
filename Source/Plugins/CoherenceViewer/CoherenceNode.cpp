@@ -32,7 +32,7 @@ CoherenceNode::CoherenceNode()
     , freqStart         (1)
     , freqEnd           (40)
     , stepLen           (0.1)
-    , winLen            (1)
+    , winLen            (2)
     , interpRatio       (2)
     , nGroup1Chans      (0)
     , nGroup2Chans      (0)
@@ -59,9 +59,11 @@ AudioProcessorEditor* CoherenceNode::createEditor()
 
 void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
 {  
-    AtomicScopedWritePtr<Array<FFTWArrayType>> dataWriter(dataBuffer);
-   
+    // Upkeep coherence file
+    checkCohFile();
+
     ///// Add incoming data to data buffer. Let thread get the ok to start at 8seconds of data ////
+    AtomicScopedWritePtr<Array<FFTWArrayType>> dataWriter(dataBuffer);
     // Check writer
     if (!dataWriter.isValid())
     {
@@ -179,15 +181,20 @@ void CoherenceNode::run()
                 for (int itY = 0; itY < nGroup2Chans; itY++, comb++)
                 {
                     TFR->getMeanCoherence(itX, itY + nGroup1Chans, coherenceWriter->at(comb).data(), comb);
-                    for (int i = 0; i < coherenceWriter->at(comb).size(); i++)
+                    if (CoreServices::getRecordingStatus())
                     {
-                        const char * buffer = (String(coherenceWriter->at(comb)[i]) + ",").toRawUTF8();
-                        cohFile << buffer;
-                        
-                    }  
-                    cohFile << "\n";
+                           for (int i = 0; i < coherenceWriter->at(comb).size(); i++)
+                        {
+                            const char * buffer = (String(coherenceWriter->at(comb)[i]) + ",").toRawUTF8();
+                            cohFile << buffer;
+
+                        }
+                        cohFile << "\n";
+                    }
+
                 }
-            }
+             }
+            cohFile << "\n";
             
 
             // Update coherence and reset data buffer
@@ -403,8 +410,7 @@ void CoherenceNode::resetTFR()
 void CoherenceNode::discardCurBuffer()
 {
     numArtifacts += nSamplesAdded / (segLen * Fs);
-    nSamplesAdded = 2 * Fs * -1; // Wait a bit after artifact before we start taking in new data (.5sec to be exact)
-    std::cout << "Num trials: " << numTrials << " ... and Num artifacts: " << numArtifacts << std::endl;
+    nSamplesAdded = 1 * Fs * -1; // Wait a bit after artifact before we start taking in new data (1sec to be exact)
 }
 
 
@@ -420,15 +426,7 @@ bool CoherenceNode::isReady()
 bool CoherenceNode::enable()
 {
     if (isEnabled)
-    {
-        auto now = std::chrono::system_clock::now();
-        std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-
-        File file = CoreServices::RecordNode::getRecordingPath();
-        String recordingDir(file.getFullPathName());
-        // change path to recordingDir
-        const char * path = ("C:\\Users\\Ephys\\Desktop\\coh-params\\" + String(segLen) + "_" + String(winLen) + "_" + String(now_time) + ".txt").toRawUTF8();
-        cohFile.open(path);
+    {       
         // Start coherence calculation thread
         numTrials = 0;
         numArtifacts = 0;
@@ -445,12 +443,39 @@ bool CoherenceNode::disable()
 
     signalThreadShouldExit();
 
-    if (cohFile.is_open())
+    return true;
+}
+
+void CoherenceNode::checkCohFile()
+{
+    if (CoreServices::getRecordingStatus())
+    {
+        if (!cohFile.is_open())
+        {
+            auto now = std::chrono::system_clock::now();
+            std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+
+            File file = CoreServices::RecordNode::getRecordingPath();
+            String recordingDir(file.getFullPathName());
+            // change path to recordingDir
+            //const char * path = ("C:\\Users\\Ephys\\Desktop\\coh-params\\" + String(segLen) + "_" + String(winLen) + "_" + String(now_time) + ".txt").toRawUTF8();
+            int expNum = CoreServices::RecordNode::getExperimentNumber();
+            if (expNum > 1)
+            {
+                path = (recordingDir + "\\SEG" + String(segLen) + "_WIN" + String(winLen) + "_" + String(expNum) + ".txt").toRawUTF8();
+            }
+            else
+            {
+                path = (recordingDir + "\\SEG" + String(segLen) + "_WIN" + String(winLen) + ".txt").toRawUTF8();
+            }
+
+            cohFile.open(path);
+        }
+    }
+    else if (cohFile.is_open())
     {
         cohFile.close();
     }
-
-    return true;
 }
 
 

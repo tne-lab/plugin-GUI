@@ -149,6 +149,7 @@ private:
 
     // from 0 to 10
     static const int COH_PRIORITY = 5;
+    const char * path; 
 
     // Get iterator for this channel in it's respective group
     int getGroupIt(int group, int chan);
@@ -165,6 +166,7 @@ private:
     float numArtifacts;
 
     std::ofstream cohFile;
+    void checkCohFile();
 
     enum Parameter
     {
