@@ -169,7 +169,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     canvas->addAndMakeVisible(artifactDesc);
 
     yPos += 20;
-    artifactEq = new Label("artifactEq", "x[k] - x[k-1] >=");
+    artifactEq = new Label("artifactEq", "| x[k] - x[k-1] | >=");
     artifactEq->setBounds(bounds = { xPos, yPos, 110, TEXT_HT });
     artifactEq->setColour(Label::backgroundColourId, Colours::grey);
     artifactEq->setTooltip(artifactTip);

@@ -105,7 +105,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
             // Add to buffer the new samples.
             for (int n = 0; n < nSamples; n++)
             {
-                if (dataWriter->getReference(groupIt).getAsReal(n - 1) - rpIn[n] < artifactThreshold)
+                if (std::abs(dataWriter->getReference(groupIt).getAsReal(n - 1) - rpIn[n]) < artifactThreshold)
                 {
                     dataWriter->getReference(groupIt).set(nSamplesAdded + n, rpIn[n]);
                 }
