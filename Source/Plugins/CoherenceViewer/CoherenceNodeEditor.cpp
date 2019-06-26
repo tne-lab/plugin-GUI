@@ -57,26 +57,26 @@ CoherenceEditor::CoherenceEditor(CoherenceNode* p)
     addAndMakeVisible(stepEditable);
 
     // Frequencies of interest
-    y = 0;
-    x += 105;
-    foiLabel = createLabel("foiLabel", "Frequencies of Interest", { x + 15, y + 25, w + 80, h + 27 });
-    addAndMakeVisible(foiLabel);
+    //y = 0;
+    //x += 105;
+    //foiLabel = createLabel("foiLabel", "Frequencies of Interest", { x + 15, y + 25, w + 80, h + 27 });
+    //addAndMakeVisible(foiLabel);
 
-    // Start freq
-    y += 35;
-    fstartLabel = createLabel("fstartLabel", "Freq Start(Hz):", { x + 5, y + 25, w + 70, h + 27 });
-    addAndMakeVisible(fstartLabel);
+    //// Start freq
+    //y += 35;
+    //fstartLabel = createLabel("fstartLabel", "Freq Start(Hz):", { x + 5, y + 25, w + 70, h + 27 });
+    //addAndMakeVisible(fstartLabel);
 
-    fstartEditable = createEditable("fstartEditable", "1", "Start of range of frequencies", { x + 75, y + 25, w + 35, h + 27 });
-    addAndMakeVisible(fstartEditable);
+    //fstartEditable = createEditable("fstartEditable", "1", "Start of range of frequencies", { x + 75, y + 25, w + 35, h + 27 });
+    //addAndMakeVisible(fstartEditable);
 
-    // End Freq
-    y += 35;
-    fendLabel = createLabel("fendLabel", "Freq End(Hz):", { x + 5, y + 25, w + 70, h + 27 });
-    addAndMakeVisible(fendLabel);
+    //// End Freq
+    //y += 35;
+    //fendLabel = createLabel("fendLabel", "Freq End(Hz):", { x + 5, y + 25, w + 70, h + 27 });
+    //addAndMakeVisible(fendLabel);
 
-    fendEditable = createEditable("fendEditable", "40", "End of range of frequencies", { x + 75, y + 25, w + 35, h + 27 });
-    addAndMakeVisible(fendEditable);
+    //fendEditable = createEditable("fendEditable", "40", "End of range of frequencies", { x + 75, y + 25, w + 35, h + 27 });
+    //addAndMakeVisible(fendEditable);
 
     setEnabledState(false);
 }
@@ -135,7 +135,7 @@ void CoherenceEditor::labelTextChanged(Label* labelThatHasChanged)
             std::cout << "new winLen" << processor->winLen << std::endl;
         }
     }
-    if (labelThatHasChanged == fstartEditable)
+    /*if (labelThatHasChanged == fstartEditable)
     {
         int newVal;
         if (updateIntLabel(labelThatHasChanged, 0, INT_MAX, 8, &newVal))
@@ -150,7 +150,7 @@ void CoherenceEditor::labelTextChanged(Label* labelThatHasChanged)
         {
             processor->setParameter(CoherenceNode::END_FREQ, static_cast<int>(newVal));
         }
-    }
+    }*/
     if (labelThatHasChanged == stepEditable)
     {
         float newVal;

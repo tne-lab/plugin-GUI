@@ -29,6 +29,24 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <VisualizerWindowHeaders.h>
 #include "../../Processors/Visualization/MatlabLikePlot.h"
 
+class VerticalGroupSet : public Component
+{
+public:
+    VerticalGroupSet(Colour backgroundColor = Colours::silver);
+    VerticalGroupSet(const String& componentName, Colour backgroundColor = Colours::silver);
+    ~VerticalGroupSet();
+
+    void addGroup(std::initializer_list<Component*> components);
+
+private:
+    Colour bgColor;
+    int leftBound;
+    int rightBound;
+    OwnedArray<DrawableRectangle> groups;
+    static const int PADDING = 5;
+    static const int CORNER_SIZE = 8;
+};
+
 class CoherenceVisualizer : public Visualizer
     , public ComboBox::Listener
     , public Button::Listener
@@ -51,6 +69,7 @@ public:
     void labelTextChanged(Label* labelThatHasChanged) override;
     void buttonEvent(Button* buttonEvent);
     void buttonClicked(Button* buttonClick) override;
+    void paint(Graphics& g) override;
 
     // Add remove active channels from group options
     void channelChanged(int chan, bool newState);
@@ -69,28 +88,44 @@ private:
     ScopedPointer<Viewport>  viewport;
     ScopedPointer<Component> canvas;
 
-    ScopedPointer<MatlabLikePlot> referencePlot;
-    ScopedPointer<MatlabLikePlot> currentPlot;
+    //ScopedPointer<MatlabLikePlot> referencePlot;
+    //ScopedPointer<MatlabLikePlot> currentPlot;
 
     ScopedPointer<Label> optionsTitle;
+
+    ScopedPointer<VerticalGroupSet> channelGroupSet;
     ScopedPointer<Label> group1Title;
     ScopedPointer<Label> group2Title;
+    Array<ElectrodeButton*> group1Buttons;
+    Array<ElectrodeButton*> group2Buttons;
+
+    ScopedPointer<VerticalGroupSet> combinationGroupSet;
     ScopedPointer<Label> combinationLabel;
     ScopedPointer<ComboBox> combinationBox;
+    
+    ScopedPointer<VerticalGroupSet> columnTwoSet;
+
     ScopedPointer<ToggleButton> linearButton;
     ScopedPointer<ToggleButton> expButton;
     ScopedPointer<Label> alpha;
     ScopedPointer<Label> alphaE;
+    
     ScopedPointer<Label> artifactDesc;
     ScopedPointer<Label> artifactEq;
     ScopedPointer<Label> artifactE;
     ScopedPointer<Label> artifactCount;
+    
     ScopedPointer<TextButton> resetTFR;
     ScopedPointer<TextButton> clearGroups;
     ScopedPointer<TextButton> defaultGroups;
 
-    Array<ElectrodeButton*> group1Buttons;
-    Array<ElectrodeButton*> group2Buttons;
+    ScopedPointer<Label> foiLabel;
+    ScopedPointer<Label> fstartLabel;
+    ScopedPointer<Label> fstartEditable;
+    ScopedPointer<Label> fendLabel;
+    ScopedPointer<Label> fendEditable;
+
+
 
     Array<int> group1Channels;
     Array<int> group2Channels;
@@ -99,10 +134,14 @@ private:
     int nCombs;
     int curComb;
 
-    MatlabLikePlot* cohPlot;
+    int freqStart;
+    int freqEnd;
+
+    ScopedPointer<MatlabLikePlot> cohPlot;
     std::vector<double> coherence;
     std::vector<std::vector<float>> coh;
 
+    bool updateIntLabel(Label* label, int min, int max, int defaultValue, int* out);
     bool updateFloatLabel(Label* label, float min, float max,
         float defaultValue, float* out);
 

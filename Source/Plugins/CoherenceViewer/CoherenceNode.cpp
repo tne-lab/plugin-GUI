@@ -384,6 +384,9 @@ void CoherenceNode::resetTFR()
         updateMeanCoherenceSize();
         numArtifacts = 0;
 
+        freqStep = 1; // for debugging
+        nFreqs = int((freqEnd - freqStart) / freqStep) + 1;
+
         // Trim time close to edge
         int nSamplesWin = winLen * Fs;
         nTimes = ((segLen * Fs) - (nSamplesWin)) / Fs * (1 / stepLen) + 1; // Trim half of window on both sides, so 1 window length is trimmed total

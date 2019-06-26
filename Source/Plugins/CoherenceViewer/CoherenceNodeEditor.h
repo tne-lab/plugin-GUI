@@ -58,7 +58,7 @@ private:
 
     ScopedPointer<Label> stepLabel;
     ScopedPointer<Label> stepEditable;
-
+    /*
     ScopedPointer<Label> foiLabel;
 
     ScopedPointer<Label> fstartLabel;
@@ -66,7 +66,7 @@ private:
 
     ScopedPointer<Label> fendLabel;
     ScopedPointer<Label> fendEditable;
-
+    */
     Label* CoherenceEditor::createLabel(const String& name, const String& text,
         juce::Rectangle<int> bounds);
     Label* CoherenceEditor::createEditable(const String& name, const String& initialValue,

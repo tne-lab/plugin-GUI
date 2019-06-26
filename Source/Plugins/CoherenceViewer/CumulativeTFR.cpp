@@ -180,14 +180,13 @@ void CumulativeTFR::generateWavelet()
     FFTWArrayType fftWaveletBuffer(nfft);
     for (int freq = 0; freq < nFreqs; freq++)
     {
-        freqNormalized += freqStep;
-        
         for (int position = 0; position < nfft; position++)
         {
             // Make sin and cos wave.
             sinWave[position] = std::sin(position * freqNormalized * (2*double_Pi) / Fs);
             cosWave[position] = std::cos(position * freqNormalized * (2*double_Pi) / Fs);
         }
+        freqNormalized += freqStep;
 
 		//// Wavelet ////
 		// Put into fft input array
