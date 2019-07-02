@@ -87,6 +87,7 @@ private:
 
     ScopedPointer<Viewport>  viewport;
     ScopedPointer<Component> canvas;
+    juce::Rectangle<int> canvasBounds;
 
     //ScopedPointer<MatlabLikePlot> referencePlot;
     //ScopedPointer<MatlabLikePlot> currentPlot;

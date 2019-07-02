@@ -29,20 +29,20 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     , processor (n)
     , freqStart (processor->freqStart)
     , freqEnd   (processor->freqEnd)
+    , canvasBounds  (0, 0, 1, 1)
 {
     refreshRate = 2;
-    juce::Rectangle<int> canvasBounds(0, 0, 1, 1);
+    ;
     juce::Rectangle<int> bounds;
-
     curComb = 0;
 
     const int TEXT_HT = 18;
 
     // ------- Options Title ------- //
-    int xPos = 15;
+    int col1 = 15;
     int yPos = 30;
     optionsTitle = new Label("OptionsTitle", "Coherence Viewer Additional Settings");
-    optionsTitle->setBounds(bounds = { xPos - 5, yPos, 400, 50 });
+    optionsTitle->setBounds(bounds = { col1 - 5, yPos, 400, 50 });
     optionsTitle->setFont(Font(20, Font::bold));
     canvas->addAndMakeVisible(optionsTitle);
     canvasBounds = canvasBounds.getUnion(bounds);
@@ -51,13 +51,13 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     canvas->addAndMakeVisible(channelGroupSet, 0);
 
     // ------- Combination Label ------- // 
-    xPos += 500;
+    
     combinationGroupSet = new VerticalGroupSet("Combination Set");
     canvas->addAndMakeVisible(combinationGroupSet, 0);
 
 
     combinationLabel = new Label("CombinationLabel", "Comb To Graph");
-    combinationLabel->setBounds(bounds = { xPos, yPos, 90, TEXT_HT });
+    combinationLabel->setBounds(bounds = { col1 + 500, yPos, 90, TEXT_HT });
     //combinationLabel->setColour(Label::backgroundColourId, Colours::grey);
     combinationLabel->setFont(Font(14, Font::bold));
     canvas->addAndMakeVisible(combinationLabel);
@@ -68,7 +68,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     // ------- Combination Choice ------- //
     combinationBox = new ComboBox("Combination Selection Box");
     combinationBox->setTooltip("Combination to graph");
-    combinationBox->setBounds(bounds = { xPos, yPos, 90, TEXT_HT });
+    combinationBox->setBounds(bounds = { col1 + 500, yPos, 90, TEXT_HT });
     combinationBox->addListener(this);
     canvas->addAndMakeVisible(combinationBox);
     canvasBounds = canvasBounds.getUnion(bounds);
@@ -77,16 +77,16 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     combinationGroupSet->addGroup({ combinationLabel, combinationBox });
 
     yPos = 90;
-    xPos = 15;
+    //xPos = 15;
     // ------- Grouping Titles ------- //
     group1Title = new Label("Group1Title", "G1 Chans");
-    group1Title->setBounds(bounds = { xPos, yPos, 50, 50 });
+    group1Title->setBounds(bounds = { col1, yPos, 50, 50 });
     group1Title->setFont(Font(20, Font::bold));
     canvas->addAndMakeVisible(group1Title);
     canvasBounds = canvasBounds.getUnion(bounds);
 
     group2Title = new Label("Group2Title", "G2 Chans");
-    group2Title->setBounds(bounds = { xPos + 50, yPos, 50, 50 });
+    group2Title->setBounds(bounds = { col1 + 50, yPos, 50, 50 });
     group2Title->setFont(Font(20, Font::bold));
     canvas->addAndMakeVisible(group2Title);
     canvasBounds = canvasBounds.getUnion(bounds);
@@ -113,13 +113,13 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
 
     // Column 2
     yPos = 90;
-    xPos = 140;
+    int col2 = 140;
 
     columnTwoSet = new VerticalGroupSet("Column 2");
     canvas->addAndMakeVisible(columnTwoSet, 0);
     // ------- Reset Button ------- //
     resetTFR = new TextButton("Reset");
-    resetTFR->setBounds(bounds = { xPos, yPos, 90, TEXT_HT + 15 });
+    resetTFR->setBounds(bounds = { col2, yPos, 90, TEXT_HT + 15 });
     resetTFR->addListener(this);
     resetTFR->setTooltip(resetTip);
     Colour col = (processor->ready) ? Colours::green : Colours::red;
@@ -130,7 +130,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     // ------- Clear Group Button ------- //
     yPos += 50;
     clearGroups = new TextButton("Clear Groups");
-    clearGroups->setBounds(bounds = { xPos, yPos, 90, TEXT_HT });
+    clearGroups->setBounds(bounds = { col2, yPos, 90, TEXT_HT });
     clearGroups->addListener(this);
     canvas->addAndMakeVisible(clearGroups);
     canvasBounds = canvasBounds.getUnion(bounds);
@@ -138,7 +138,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     // ------- Default Group Button ------- //
     yPos += 40;
     defaultGroups = new TextButton("Default Groups");
-    defaultGroups->setBounds(bounds = { xPos, yPos, 90, TEXT_HT });
+    defaultGroups->setBounds(bounds = { col2, yPos, 90, TEXT_HT });
     defaultGroups->addListener(this);
     canvas->addAndMakeVisible(defaultGroups);
     canvasBounds = canvasBounds.getUnion(bounds);
@@ -148,7 +148,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     // ------- Exponential or Linear Button ------- //
     yPos += 40;
     linearButton = new ToggleButton("Linear");
-    linearButton->setBounds(bounds = { xPos, yPos, 90, TEXT_HT });
+    linearButton->setBounds(bounds = { col2, yPos, 90, TEXT_HT });
     linearButton->setToggleState(true, dontSendNotification);
     linearButton->addListener(this);
     linearButton->setTooltip(linearTip);
@@ -157,7 +157,7 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
 
     yPos += 20;
     expButton = new ToggleButton("Exponential");
-    expButton->setBounds(bounds = { xPos, yPos, 90, TEXT_HT });
+    expButton->setBounds(bounds = { col2, yPos, 90, TEXT_HT });
     expButton->setToggleState(false, dontSendNotification);
     expButton->addListener(this);
     expButton->setTooltip(expTip);
@@ -166,19 +166,19 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     canvasBounds = canvasBounds.getUnion(bounds);
 
     // ------- Alpha ------- //
-    xPos += 15;
+    //xPos += 15;
     yPos += 20;
     alpha = new Label("alpha", "Alpha: ");
-    alpha->setBounds(bounds = { xPos, yPos, 45, TEXT_HT });
+    alpha->setBounds(bounds = { col2 + 15, yPos, 45, TEXT_HT });
     //alpha->setColour(Label::backgroundColourId, Colours::grey);
     canvas->addAndMakeVisible(alpha);
     canvasBounds = canvasBounds.getUnion(bounds);
 
-    xPos += 50;
+    //xPos += 50;
     alphaE = new Label("alphaE", "0.3");
     alphaE->setEditable(true);
     alphaE->addListener(this);
-    alphaE->setBounds(bounds = { xPos, yPos, 30, TEXT_HT });
+    alphaE->setBounds(bounds = { col2 + 65, yPos, 30, TEXT_HT });
     alphaE->setColour(Label::backgroundColourId, Colours::grey);
     alphaE->setColour(Label::textColourId, Colours::white);
     canvas->addAndMakeVisible(alphaE);
@@ -190,10 +190,10 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     static const String artifactTip = "Checks the current power value minus the last power value. If the change is too large it is considered an artifact and the current buffer will be reset.";
     static const String artifactNumTip = "Current number of buffers finished vs how many have been discarded because of artifacts.";
 
-    xPos -= 65;
+    //xPos -= 65;
     yPos += 40;
     artifactDesc = new Label("artifactDesc", "Artifact Threshold:");
-    artifactDesc->setBounds(bounds = { xPos, yPos, 120, TEXT_HT });
+    artifactDesc->setBounds(bounds = { col2, yPos, 120, TEXT_HT });
     //artifactDesc->setColour(Label::backgroundColourId, Colours::grey);
     artifactDesc->setTooltip(artifactTip);
     canvas->addAndMakeVisible(artifactDesc);
@@ -201,17 +201,17 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
 
     yPos += 20;
     artifactEq = new Label("artifactEq", "| x[k] - x[k-1] | >=");
-    artifactEq->setBounds(bounds = { xPos, yPos, 110, TEXT_HT });
+    artifactEq->setBounds(bounds = { col2, yPos, 110, TEXT_HT });
     //artifactEq->setColour(Label::backgroundColourId, Colours::grey);
     artifactEq->setTooltip(artifactTip);
     canvas->addAndMakeVisible(artifactEq);
     canvasBounds = canvasBounds.getUnion(bounds);
 
-    xPos += 115;
+    //xPos += 115;
     artifactE = new Label("artifactE", "3000");
     artifactE->setEditable(true);
     artifactE->addListener(this);
-    artifactE->setBounds(bounds = { xPos, yPos, 50, TEXT_HT });
+    artifactE->setBounds(bounds = { col2 + 115, yPos, 50, TEXT_HT });
     artifactE->setColour(Label::backgroundColourId, Colours::grey);
     artifactE->setColour(Label::textColourId, Colours::white);
     artifactE->setTooltip(artifactTip);
@@ -219,9 +219,9 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     canvasBounds = canvasBounds.getUnion(bounds);
 
     yPos += 20;
-    xPos -= 135;
+    //xPos -= 135;
     artifactCount = new Label("artifactDesc", "UPDATE IF ARTIFACTS");
-    artifactCount->setBounds(bounds = { xPos, yPos, 200, TEXT_HT });
+    artifactCount->setBounds(bounds = { col2 - 20, yPos, 200, TEXT_HT });
     artifactCount->setColour(Label::backgroundColourId, Colours::red);
     artifactE->setColour(Label::textColourId, Colours::white);
     artifactCount->setTooltip(artifactNumTip);
@@ -232,10 +232,10 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
 
     // ------- Frequencies of Interest ------- //
     yPos += 40;
-    xPos += 20;
+    //xPos += 20;
     // Frequencies of interest
     foiLabel = new Label("foiLabel", "Frequencies of Interest");
-    foiLabel->setBounds(bounds = { xPos, yPos, 150, TEXT_HT });
+    foiLabel->setBounds(bounds = { col2, yPos, 150, TEXT_HT });
     //foiLabel->setColour(Label::backgroundColourId, Colours::grey);
     canvas->addAndMakeVisible(foiLabel);
     canvasBounds = canvasBounds.getUnion(bounds);
@@ -244,48 +244,48 @@ CoherenceVisualizer::CoherenceVisualizer(CoherenceNode* n)
     // Start freq
     yPos += 20;
     fstartLabel = new Label("fstartLabel", "Freq Start(Hz):");
-    fstartLabel->setBounds(bounds = { xPos, yPos, freqLabelWidth, TEXT_HT });
+    fstartLabel->setBounds(bounds = { col2, yPos, freqLabelWidth, TEXT_HT });
     //fstartLabel->setColour(Label::backgroundColourId, Colours::grey);
     canvas->addAndMakeVisible(fstartLabel);
     canvasBounds = canvasBounds.getUnion(bounds);
 
-    xPos += freqLabelWidth + 10;
+    //xPos += freqLabelWidth + 10;
     fstartEditable = new Label("fstartEditable", "1");
     fstartEditable->setEditable(true);
     fstartEditable->addListener(this);
-    fstartEditable->setBounds(bounds = { xPos, yPos, 40, TEXT_HT });
+    fstartEditable->setBounds(bounds = { col2 + freqLabelWidth + 10, yPos, 40, TEXT_HT });
     fstartEditable->setColour(Label::backgroundColourId, Colours::grey);
     fstartEditable->setColour(Label::textColourId, Colours::white);
     canvas->addAndMakeVisible(fstartEditable);
     canvasBounds = canvasBounds.getUnion(bounds);
-    xPos -= freqLabelWidth + 10;
+    //xPos -= freqLabelWidth + 10;
 
     // End Freq
     yPos += 20;
     fendLabel = new Label("fendLabel", "Freq End(Hz):");
-    fendLabel->setBounds(bounds = { xPos, yPos, freqLabelWidth, TEXT_HT });
+    fendLabel->setBounds(bounds = { col2, yPos, freqLabelWidth, TEXT_HT });
     //fendLabel->setColour(Label::backgroundColourId, Colours::grey);
     canvas->addAndMakeVisible(fendLabel);
     canvasBounds = canvasBounds.getUnion(bounds);
 
-    xPos += freqLabelWidth + 10;
+    //xPos += freqLabelWidth + 10;
     fendEditable = new Label("fendEditable", "40");
     fendEditable->setEditable(true);
     fendEditable->addListener(this);
-    fendEditable->setBounds(bounds = { xPos, yPos, 40, TEXT_HT });
+    fendEditable->setBounds(bounds = { col2 + freqLabelWidth + 10, yPos, 40, TEXT_HT });
     fendEditable->setColour(Label::backgroundColourId, Colours::grey);
     fendEditable->setColour(Label::textColourId, Colours::white);
     canvas->addAndMakeVisible(fendEditable);
     canvasBounds = canvasBounds.getUnion(bounds);
-    xPos -= freqLabelWidth + 10;
+    //xPos -= freqLabelWidth + 10;
 
     columnTwoSet->addGroup({ foiLabel, fstartLabel, fstartEditable, fendLabel, fendEditable });
 
     // ------- Plot ------- //
     // col 3
-    xPos = 330;
+    int col3 = 330;
     cohPlot = new MatlabLikePlot();
-    cohPlot->setBounds(bounds = { xPos, 90, 600, 500 });
+    cohPlot->setBounds(bounds = { col3, 90, 600, 500 });
     //cohPlot->setAuxiliaryString("Hz x Coh"); //Confusing with the base string on the graph.
     cohPlot->setTitle("Coherence at Selected Combination");
     cohPlot->setRange(freqStart, freqEnd, 0.0, 100, true);  
@@ -380,6 +380,10 @@ void CoherenceVisualizer::updateCombList()
             combinationBox->addItem(String(group1Channels[i] + 1) + " x " + String(group2Channels[j] + 1), comb);
         }
     }
+    if (group1Channels.size() > 0 && group2Channels.size() > 0)
+    {
+        combinationBox->setSelectedId(1);
+    }  
 }
 
 void CoherenceVisualizer::updateGroupState()
@@ -678,7 +682,6 @@ void CoherenceVisualizer::createElectrodeButton(int chan)
     int xPos = 15;
     juce::Rectangle<int> bounds;
 
-    juce::Rectangle<int> canvasBounds = canvas->getBounds();
     // Group 1 buttons
     ElectrodeButton* button = new ElectrodeButton(chan + 1);
     button->setBounds(bounds = { xPos + 5, 140 + chan * 15, 20, 15 });
