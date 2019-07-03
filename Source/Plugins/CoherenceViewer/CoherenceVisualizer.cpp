@@ -324,8 +324,8 @@ void CoherenceVisualizer::refreshState() {}
 void CoherenceVisualizer::update() 
 {
     int numInputs = processor->getActiveInputs().size();
-    int groupSize = group1Buttons.size();
-    updateElectrodeButtons(numInputs, groupSize);
+    int numButtons = group1Buttons.size();
+    updateElectrodeButtons(numInputs, numButtons);
     
     float alpha = processor->alpha;
     if (alpha != 0.0)
@@ -337,7 +337,7 @@ void CoherenceVisualizer::update()
     }
 }
 
-void CoherenceVisualizer::updateElectrodeButtons(int numInputs, int groupSize)
+void CoherenceVisualizer::updateElectrodeButtons(int numInputs, int numButtons)
 {
     juce::Rectangle<int> bounds;
 
@@ -346,23 +346,23 @@ void CoherenceVisualizer::updateElectrodeButtons(int numInputs, int groupSize)
     int xPos = 5;
     group1Channels = processor->group1Channels;
     group2Channels = processor->group2Channels;
-    if (numInputs > groupSize)
+    if (numInputs > numButtons)
     {
-        for (int i = groupSize; i < numInputs; i++)
+        for (int i = numButtons; i < numInputs; i++)
         {
             createElectrodeButton(i);
         }
     }
     else
     {
-        for (int i = numInputs; i < groupSize; i++)
+        for (int i = numInputs; i < numButtons; i++)
         {
             group1Buttons[i]->~ElectrodeButton();
             group2Buttons[i]->~ElectrodeButton();
         }
 
-        group1Buttons.removeLast(groupSize - numInputs);
-        group2Buttons.removeLast(groupSize - numInputs);
+        group1Buttons.removeLast(numButtons - numInputs);
+        group2Buttons.removeLast(numButtons - numInputs);
     }
 
     updateGroupState();
@@ -415,12 +415,14 @@ void CoherenceVisualizer::updateGroupState()
 
 void CoherenceVisualizer::paint(Graphics& g)
 {
+    // To make background not black.
     ColourGradient editorBg = processor->getEditor()->getBackgroundGradient();
     g.fillAll(editorBg.getColourAtPosition(0.5)); // roughly matches editor background (without gradient)
 }
 
 void CoherenceVisualizer::refresh() 
 {
+    // If we have any artifacts let the user know
     if (processor->numArtifacts > 0)
     {
         artifactCount->setText(String("Buffers Handled: " + String(processor->numTrials) + " & Buffers Discarded: " + String(ceil(processor->numArtifacts))), dontSendNotification);
@@ -434,6 +436,7 @@ void CoherenceVisualizer::refresh()
         removeChildComponent(getIndexOfChildComponent(artifactCount));
     }
 
+    // Update plot if frequency has changed.
     if (freqStart != processor->freqStart || freqEnd != processor->freqEnd)
     {
         freqStart = processor->freqStart;
@@ -445,6 +448,7 @@ void CoherenceVisualizer::refresh()
     Colour col = (processor->ready) ? Colours::green : Colours::red;
     resetTFR->setColour(TextButton::buttonColourId, col);
 
+    // Get data from processor thread, then plot
     if (processor->meanCoherence.hasUpdate())
     {
         AtomicScopedReadPtr<std::vector<std::vector<double>>> coherenceReader(processor->meanCoherence);
@@ -647,13 +651,14 @@ void CoherenceVisualizer::channelChanged(int chan, bool newState)
    // Only do if not during data acquistion!
     if (newState)
     {
+        // New channel, add button
         createElectrodeButton(chan);
     }
     else
     {
         for (int i = 0; i < group1Buttons.size(); i++)
         {
-            // Channel clicked off
+            // Channel unactivated
             if (group1Buttons[i]->getChannelNum() == buttonChan)
             {
                 group1Buttons[i]->~ElectrodeButton();
@@ -663,11 +668,17 @@ void CoherenceVisualizer::channelChanged(int chan, bool newState)
             }
             if (group1Channels.contains(chan))
             {
+                // Groups changed, update TFR
+                processor->updateReady(false);
+                // Remove from group
                 group1Channels.removeFirstMatchingValue(chan);
                 processor->updateGroup(group1Channels, group2Channels);
             }
             if (group2Channels.contains(chan))
             {
+                // Groups changed, update TFR
+                processor->updateReady(false);
+                // Remove from group
                 group2Channels.removeFirstMatchingValue(chan);
                 processor->updateGroup(group1Channels, group2Channels);
             }

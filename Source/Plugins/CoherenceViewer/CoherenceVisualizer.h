@@ -71,15 +71,16 @@ public:
     void buttonClicked(Button* buttonClick) override;
     void paint(Graphics& g) override;
 
-    // Add remove active channels from group options
+    // Add/remove active channels (when changed in editor/new source) from group options
     void channelChanged(int chan, bool newState);
     
 private:
+    // Update list of combinations to choose to graph.
     void updateCombList();
     // Update state of buttons based on grouping changing from non clicking ways
     void updateGroupState();
-    // Update buttons based on inputs
-    void updateElectrodeButtons(int numInputs, int groupSize);
+    // Update buttons based on inputs (checks if you have too many or too few buttons for the number of inputs).
+    void updateElectrodeButtons(int numInputs, int numButtons);
     // creates a button for both group 1 and 2
     void createElectrodeButton(int index);
 
