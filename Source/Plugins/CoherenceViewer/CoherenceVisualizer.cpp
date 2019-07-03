@@ -372,7 +372,8 @@ void CoherenceVisualizer::updateElectrodeButtons(int numInputs, int numButtons)
 void CoherenceVisualizer::updateCombList()
 {
     combinationBox->clear(dontSendNotification);
-    for (int i = 0, comb = 1; i < group1Channels.size(); i++)
+    combinationBox->addItem("Average across all combinations", 1);
+    for (int i = 0, comb = 2; i < group1Channels.size(); i++)
     {
         for (int j = 0; j < group2Channels.size(); j++, ++comb)
         {
@@ -469,7 +470,29 @@ void CoherenceVisualizer::refresh()
 
     if (coh.size() > 0)
     {
-        XYline cohLine(freqStart, freqStep, coh[curComb], 1, Colours::yellow);
+        XYline cohLine(0, 1, 1, Colours::yellow);
+        if (curComb > 0)
+        {
+            cohLine = XYline(freqStart, freqStep, coh[curComb], 1, Colours::yellow);
+        }
+        else
+        {
+            // Average across all combinations
+            std::vector<float> averageCoh(coh[0].size()) ;
+            for (int comb = 0; comb < processor->nGroup1Chans * processor->nGroup2Chans; comb++)
+            {
+                for (int i = 0; i < averageCoh.size(); i++)
+                {
+                    averageCoh[i] = coh[comb][i] + averageCoh[i];
+                }
+            }
+            for (int i = 0; i < averageCoh.size(); i++)
+            {
+                averageCoh[i] /= coh.size();
+            }
+            cohLine = XYline(freqStart, freqStep, averageCoh, 1, Colours::yellow);
+        }
+        
 
         cohPlot->clearplot();
         cohPlot->plotxy(cohLine);
@@ -525,7 +548,7 @@ void CoherenceVisualizer::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
 {
     if (comboBoxThatHasChanged == combinationBox)
     {
-        curComb = static_cast<int>(combinationBox->getSelectedId() - 1);
+        curComb = static_cast<int>(combinationBox->getSelectedId() - 2);
     }
 }
 

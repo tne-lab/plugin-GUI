@@ -57,7 +57,7 @@ class CumulativeTFR
 
         void addValue(std::complex<double> x)
         {
-            sum = x + (1 - alpha) * sum;
+            sum = x + (1 - alpha) * sum; // Maybe worried about intitial value skewing results..? Could be why its so high always.
             count = 1 + (1 - alpha) * count;
         }
 

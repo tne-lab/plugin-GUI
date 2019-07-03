@@ -87,16 +87,26 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
             {
                 continue;
             }
-            else if(nSamplesAdded < 0)
-            {
-                nSamplesAdded += nSamples;
-                break;
-            }
 
             // Get read pointer of incoming data to move to the stored data buffer
             const float* rpIn = continuousBuffer.getReadPointer(chan);
 
-            // Handle overflow 
+            if (nSamplesAdded < 0)
+            {
+                for (int n = 0; n < nSamples; n++)
+                {
+                    if (std::abs(dataWriter->getReference(groupIt).getAsReal(n - 1) - rpIn[n]) > artifactThreshold)
+                    {     
+                        // Artifact after a previous artifact, reset again. Then wait to let signals settle.
+                        discardCurBuffer();
+                        break;
+                    }
+                }
+                nSamplesAdded += nSamples;
+                break;             
+            }
+
+            // Handle overflow
             if (nSamplesAdded + nSamples >= segLen * Fs)
             {
                 nSamples = segLen * Fs - nSamplesAdded;
