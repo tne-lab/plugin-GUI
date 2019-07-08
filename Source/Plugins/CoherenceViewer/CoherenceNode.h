@@ -143,6 +143,8 @@ private:
 
     int nSamplesAdded; // holds how many samples were added for each channel
     AudioBuffer<float> channelData; // Holds the segment buffer for each channel.
+    int nSamplesWait; // How many seconds to wait after an artifact is seen.
+    int nSamplesWaited; // Holds how many samples we've waited after an artifact. (wait 1 second before getting data again)
 
     // Total Combinations
     int nGroupCombs;
@@ -160,7 +162,7 @@ private:
     void updateReady(bool isReady);
 
     // Artifact checking
-    void discardCurBuffer();
+    void discardCurBuffer(int nSamples);
     float artifactThreshold;
     int numTrials;
     float numArtifacts;

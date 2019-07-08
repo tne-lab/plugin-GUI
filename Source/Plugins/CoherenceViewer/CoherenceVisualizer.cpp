@@ -502,7 +502,19 @@ void CoherenceVisualizer::refresh()
 
 void CoherenceVisualizer::labelTextChanged(Label* labelThatHasChanged)
 {
-    processor->updateReady(false);
+    if (labelThatHasChanged == artifactE)
+    {
+        float newVal;
+        if (updateFloatLabel(labelThatHasChanged, 0, FLT_MAX, 3000, &newVal))
+        {
+            processor->setParameter(processor->ARTIFACT_THRESHOLD, newVal);
+        }
+    }
+    else
+    {
+        processor->updateReady(false);
+    }
+    
     
 
     if (labelThatHasChanged == alphaE)
@@ -515,14 +527,6 @@ void CoherenceVisualizer::labelTextChanged(Label* labelThatHasChanged)
                 processor->updateAlpha(newVal);
                 processor->updateReady(false);
             }
-        }
-    }
-    if (labelThatHasChanged == artifactE)
-    {
-        float newVal;
-        if (updateFloatLabel(labelThatHasChanged, 0, FLT_MAX, 3000, &newVal))
-        {
-            processor->setParameter(processor->ARTIFACT_THRESHOLD, newVal);
         }
     }
 

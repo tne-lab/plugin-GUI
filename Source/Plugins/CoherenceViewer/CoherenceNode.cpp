@@ -38,9 +38,11 @@ CoherenceNode::CoherenceNode()
     , nGroup2Chans      (0)
     , Fs                (0)
     , alpha             (0)
+    , numArtifacts      (0)
     , ready             (false)
     , group1Channels    ({})
     , group2Channels    ({})
+    , nSamplesWait      (0)
 {
     setProcessorType(PROCESSOR_TYPE_SINK);
 }
@@ -91,18 +93,18 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
             // Get read pointer of incoming data to move to the stored data buffer
             const float* rpIn = continuousBuffer.getReadPointer(chan);
 
-            if (nSamplesAdded < 0)
+            if (nSamplesWaited < nSamplesWait)
             {
                 for (int n = 0; n < nSamples; n++)
                 {
                     if (std::abs(dataWriter->getReference(groupIt).getAsReal(n - 1) - rpIn[n]) > artifactThreshold)
                     {     
                         // Artifact after a previous artifact, reset again. Then wait to let signals settle.
-                        discardCurBuffer();
+                        discardCurBuffer(nSamplesWaited + n);
                         break;
                     }
                 }
-                nSamplesAdded += nSamples;
+                nSamplesWaited += nSamples;
                 break;             
             }
 
@@ -121,7 +123,7 @@ void CoherenceNode::process(AudioSampleBuffer& continuousBuffer)
                 }
                 else // Large change. Most likely an artifact. Discard buffer and restart data collection.
                 {
-                    discardCurBuffer();
+                    discardCurBuffer(nSamplesAdded + n);
                     return;
                 }
             }
@@ -420,10 +422,12 @@ void CoherenceNode::resetTFR()
     }
 }
 
-void CoherenceNode::discardCurBuffer()
+void CoherenceNode::discardCurBuffer(int nSamples)
 {
-    numArtifacts += nSamplesAdded / (segLen * Fs);
-    nSamplesAdded = 1 * Fs * -1; // Wait a bit after artifact before we start taking in new data (1sec to be exact)
+    numArtifacts += float(nSamples) / (segLen * Fs);
+    nSamplesWait = 1 * Fs * -1; // Wait a bit after artifact before we start taking in new data (1sec to be exact)
+    nSamplesAdded = 0;
+    nSamplesWaited = 0;
 }
 
 
