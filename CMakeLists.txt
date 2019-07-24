@@ -82,6 +82,17 @@ add_executable(open-ephys
 target_include_directories(open-ephys PRIVATE ${JUCE_DIRECTORY} ${JUCE_DIRECTORY}/modules)
 target_compile_features(open-ephys PUBLIC cxx_auto_type cxx_generalized_initializers)
 
+# FOR ASIO
+if (NOT ASIOSDK_PATH)
+	set(ASIOSDK_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../asiosdk)
+endif()
+
+if (IS_DIRECTORY ${ASIOSDK_PATH})
+	message(STATUS "Building with ASIO")
+	target_include_directories(open-ephys PRIVATE ${ASIOSDK_PATH}/common)
+	set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS JUCE_ASIO=1)
+endif()
+
 #output folders and specific options
 if (MSVC OR LINUX)
 set(BIN_PLUGIN_DIR $<TARGET_FILE_DIR:open-ephys>/plugins)

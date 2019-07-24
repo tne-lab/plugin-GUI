@@ -1,5 +1,9 @@
 # Open Ephys GUI
 
+**This version of the GUI can use Steinberg's ASIO protocol for direct sound card access and lower latency processing on Windows. To do so, before building with CMake, download the ASIO SDK from [https://www.steinberg.net/asiosdk](https://www.steinberg.net/asiosdk), unzip it alongside the GUI source tree, and rename the directory to "asiosdk" (this should contain "asio", "common", "driver", etc.). You can also set a different path to the ASIO SDK by defining ASIOSDK_PATH when calling CMake.**
+
+**In order to use ASIO, you must also install the ASIO4ALL driver, available [here](http://www.asio4all.org/).**
+
 ![GUI screenshot](https://static1.squarespace.com/static/53039db8e4b0649958e13c7b/t/53bc11f0e4b0e16f33110ad8/1404834318628/?format=1000w)
 
 The Open Ephys GUI is designed to provide a fast and flexible interface for acquiring and visualizing data from extracellular electrodes. Compatible data acquisition hardware includes:
