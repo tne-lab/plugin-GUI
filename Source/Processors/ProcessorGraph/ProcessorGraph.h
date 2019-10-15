@@ -97,6 +97,8 @@ public:
 
 	float getGlobalSampleRate(bool softwareOnly) const;
 
+	uint32 getGlobalTimestampSourceFullId() const;
+
 	void setTimestampWindow(TimestampSourceSelectionWindow* window);
 
 private:
@@ -112,7 +114,8 @@ private:
 
     void clearConnections();
 
-    void connectProcessors(GenericProcessor* source, GenericProcessor* dest);
+    void connectProcessors(GenericProcessor* source, GenericProcessor* dest,
+        bool connectContinuous, bool connectEvents);
     void connectProcessorToAudioAndRecordNodes(GenericProcessor* source);
 
 	int64 m_startSoftTimestamp{ 0 };

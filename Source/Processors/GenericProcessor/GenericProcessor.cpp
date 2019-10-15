@@ -364,11 +364,15 @@ void GenericProcessor::update()
 
 		for (int i = 0; i < dataChannelArray.size(); i++)
 		{
-			if (i < m_recordStatus.size())
-				dataChannelArray[i]->setRecordState(m_recordStatus[i]);
-			else
-				if (isSource())
-					dataChannelArray[i]->setRecordState(true);
+            if (i < m_recordStatus.size())
+            {
+                dataChannelArray[i]->setRecordState(m_recordStatus[i]);
+                dataChannelArray[i]->setMonitored(m_monitorStatus[i]);
+            }
+            else if (isSource())
+            {
+                dataChannelArray[i]->setRecordState(true);
+            }
 		}
 	}
 
@@ -1082,7 +1086,7 @@ void GenericProcessor::loadChannelParametersFromXml(XmlElement* channelInfo, Inf
 		{
 			if (subNode->hasTagName("SELECTIONSTATE"))
 			{
-				getEditor()->setChannelSelectionState(channelNum - 1,
+				getEditor()->setChannelSelectionState(channelNum,
 					subNode->getBoolAttribute("param"),
 					subNode->getBoolAttribute("record"),
 					subNode->getBoolAttribute("audio"));
@@ -1271,6 +1275,16 @@ GenericProcessor::DefaultEventInfo::DefaultEventInfo()
 uint32 GenericProcessor::getProcessorFullId(uint16 sid, uint16 subid)
 {
 	return (uint32(sid) << 16) + subid;
+}
+
+uint16 GenericProcessor::getNodeIdFromFullId(uint32 fid)
+{
+	return (fid & 0xFFFF0000 ) >> 16;
+}
+
+uint16 GenericProcessor::getSubProcessorFromFullId(uint32 fid)
+{
+	return (fid & 0x0000FFFF);
 }
 
 int64 GenericProcessor::getLastProcessedsoftwareTime() const

@@ -71,6 +71,7 @@ public:
     bool isFileSupported          (const String& filename) const;
     bool isFileExtensionSupported (const String& ext) const;
     void createEventChannels();
+	StringArray getSupportedExtensions() const;
 
 private:
     Array<const EventChannel*> moduleEventChannels;
@@ -124,6 +125,13 @@ private:
         This method will read into the buffer that passed in by the param 
      */
     void readAndFillBufferCache(HeapBlock<int16> &cacheBuffer);
+
+	//Methods for built-in file sources
+	int getNumBuiltInFileSources() const;
+
+	String getBuiltInFileSourceExtensions(int index) const;
+
+	FileSource* createBuiltInFileSource(int index) const;
 
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FileReader);

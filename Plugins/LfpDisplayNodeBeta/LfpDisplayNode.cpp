@@ -96,14 +96,7 @@ void LfpDisplayNode::updateSettings()
 
 uint32 LfpDisplayNode::getChannelSourceID(const EventChannel* event) const
 {
-	int metaDataIndex = event->findMetaData(MetaDataDescriptor::UINT16, 3, "source.channel.identifier.full");
-	if (metaDataIndex < 0)
-	{
-		return getProcessorFullId(event->getSourceNodeID(), event->getSubProcessorIdx());
-	}
-	uint16 values[3];
-	event->getMetaDataValue(metaDataIndex)->getValue(static_cast<uint16*>(values));
-	return getProcessorFullId(values[1], values[2]);
+		return getProcessorFullId(event->getTimestampOriginProcessor(), event->getTimestampOriginSubProcessor());
 }
 
 bool LfpDisplayNode::resizeBuffer()

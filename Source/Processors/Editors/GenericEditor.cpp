@@ -512,21 +512,24 @@ void GenericEditor::update()
 
     //std::cout << "Editor for ";
 
-    GenericProcessor* p = (GenericProcessor*) getProcessor();
+    GenericProcessor* p = (GenericProcessor*)getProcessor();
 
     // std::cout << p->getName() << " updating settings." << std::endl;
 
-    int numChannels;
+    updateSettings();
 
-	updateSettings();
+    int numChannels;
+    if (!p->isSink())
+    {
+        numChannels = p->getNumOutputs();
+    }
+    else
+    {
+        numChannels = p->getNumInputs();
+    }
 
     if (channelSelector != 0)
     {
-        if (!p->isSink())
-            numChannels = p->getNumOutputs();
-        else
-            numChannels = p->getNumInputs();
-
         channelSelector->setNumChannels(numChannels);
 
         for (int i = 0; i < numChannels; i++)
@@ -547,7 +550,7 @@ void GenericEditor::update()
             drawerButton->setVisible(true);
     }
 
-    
+
 
     updateVisualizer(); // does nothing unless this method
     // has been implemented
@@ -646,9 +649,9 @@ void GenericEditor::setChannelSelectionState(int chan, bool p, bool r, bool a)
 {
     if (!isSplitOrMerge)
     {
-        channelSelector->setParamStatus(chan+1, p);
-        channelSelector->setRecordStatus(chan+1, r);
-        channelSelector->setAudioStatus(chan+1, a);
+        channelSelector->setParamStatus(chan, p);
+        channelSelector->setRecordStatus(chan, r);
+        channelSelector->setAudioStatus(chan, a);
     }
 }
 
@@ -1435,4 +1438,3 @@ void ThresholdSlider::setValues(Array<double> v)
 {
 	valueArray = v;
 }
-

@@ -27,6 +27,7 @@
 #include "../../AccessClass.h"
 #include "../../Audio/AudioComponent.h"
 #include "../PluginManager/PluginManager.h"
+#include "BinaryFileSource/BinaryFileSource.h"
 
 
 FileReader::FileReader()
@@ -49,6 +50,7 @@ FileReader::FileReader()
 
     setEnabledState (false);
 
+	//Load pluIn file Sources
     const int numFileSources = AccessClass::getPluginManager()->getNumFileSources();
     for (int i = 0; i < numFileSources; ++i)
     {
@@ -63,6 +65,21 @@ FileReader::FileReader()
             supportedExtensions.set (extensions[j].toLowerCase(), i + 1);
         }
     }
+
+	//Load Built-in file Sources
+	const int numBuiltInFileSources = getNumBuiltInFileSources();
+	for (int i = 0; i < numBuiltInFileSources; ++i)
+	{
+		StringArray extensions;
+		extensions.addTokens(getBuiltInFileSourceExtensions(i), ";", "\"");
+
+		const int numExtensions = extensions.size();
+		for (int j = 0; j < numExtensions; ++j)
+		{
+			supportedExtensions.set(extensions[j].toLowerCase(), i + numFileSources + 1);
+		}
+
+	}
 }
 
 
@@ -198,9 +215,24 @@ bool FileReader::setFile (String fullpath)
 
     if (isExtensionSupported)
     {
-        const int index = supportedExtensions[ext] - 1;
-        Plugin::FileSourceInfo sourceInfo = AccessClass::getPluginManager()->getFileSourceInfo (index);
-        input = sourceInfo.creator();
+        const int index = supportedExtensions[ext] -1 ;
+		const int numPluginFileSources = AccessClass::getPluginManager()->getNumFileSources();
+
+		if (index < numPluginFileSources)
+		{
+			Plugin::FileSourceInfo sourceInfo = AccessClass::getPluginManager()->getFileSourceInfo(index);
+			input = sourceInfo.creator();
+		}
+		else
+		{
+			input = createBuiltInFileSource(index - numPluginFileSources);
+		}
+		if (!input)
+		{
+			std::cerr << "Error creating file source for extension " << ext << std::endl;
+			return false;
+		}
+
     }
     else
     {
@@ -418,4 +450,44 @@ void FileReader::readAndFillBufferCache(HeapBlock<int16> &cacheBuffer)
         
         samplesRead += samplesToRead;
     }
+}
+
+StringArray FileReader::getSupportedExtensions() const
+{
+	StringArray extensions;
+	HashMap<String, int>::Iterator i(supportedExtensions);
+	while (i.next())
+	{
+		extensions.add(i.getKey());
+	}
+	return extensions;
+}
+
+//Built-In
+
+int FileReader::getNumBuiltInFileSources() const
+{
+	return 1;
+}
+
+String FileReader::getBuiltInFileSourceExtensions(int index) const
+{
+	switch (index)
+	{
+	case 0: //Binary
+		return "oebin";
+	default:
+		return "";
+	}
+}
+
+FileSource* FileReader::createBuiltInFileSource(int index) const
+{
+	switch (index)
+	{
+	case 0:
+		return new BinarySource::BinaryFileSource();
+	default:
+		return nullptr;
+	}
 }
