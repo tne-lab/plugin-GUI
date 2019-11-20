@@ -1,5 +1,7 @@
 # Open Ephys GUI
 
+__This version of the GUI includes many of the plugins used extensively by TNEL projects. However, the GUI has been updated. This version is useable, but no longer updated. See the new [cmake build](https://github.com/tne-lab/plugin-GUI/tree/development) of the GUI where plugins are built separately. The extra plugins that are included in this branch can be found here. [Phase Calculator](https://github.com/tne-lab/phase-calculator/tree) and [Crossing Detector](https://github.com/tne-lab/crossing-detector/tree). See the cmake-gui branches of these repositories to add these plugins to the new GUI cmake build.__
+
 ![GUI screenshot](https://static1.squarespace.com/static/53039db8e4b0649958e13c7b/t/53bc11f0e4b0e16f33110ad8/1404834318628/?format=1000w)
 
 The Open Ephys GUI is designed to provide a fast and flexible interface for acquiring and visualizing data from extracellular electrodes. Compatible data acquisition hardware includes:
