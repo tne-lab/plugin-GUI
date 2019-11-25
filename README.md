@@ -1,5 +1,13 @@
 # Open Ephys GUI
 
+Welcome to the TNEL's repository for the [Open Ephys Plugin GUI](https://github.com/open-ephys/plugin-GUI) project. We use this repo extensively in our lab and provide a few plugins that can be used with it for closed loop applications. This repo specifically uses ASIO audio drivers to greatly improve round trip latency when compared to builtin Windows audio drivers. This latency improvement enables our closed loop applications. As of the newest cmake version of the plugin-GUI, our plugins now have their own separate repositories. See [Phase Calculator](https://github.com/tne-lab/phase-calculator/tree/cmake-gui) and [Crossing Detector](https://github.com/tne-lab/crossing-detector/tree/cmake-gui) for phase based closed loop approaches to trigger stimulation within 5 degrees of a chosen target phase. See [ref](https://www.ncbi.nlm.nih.gov/pubmed/30441407). Our work in progress PythonPlugin module will be available soon to preform closed loop stimulation based on real time magnitude. We also have built a real time [Coherence Viewer](https://github.com/tne-lab/coherence-viewer) which is currently being adapted to preform broader real time TFR analyses.
+
+To easily build our labs setup with the newest cmake version I recommend using our [oep-install](https://github.com/tne-lab/oep-installation) repository which provides scripts to easily install this version of the plugin-GUI with our plugins included.
+
+If you are looking for an even easier to use version of the TNEL closed loop setup with our plugins, see [tnel-development](https://github.com/tne-lab/plugin-GUI/tree/tnel-development) branch which provides prebuilt binaries. This is an old version of the GUI and will no longer be updated, but is stable and ready to use. 
+
+We are more than happy to assist you setting up our protocol! Feel free to send me (<markschatza@gmail.com>) an email with any questions.
+
 **This version of the GUI can use Steinberg's ASIO protocol for direct sound card access and lower latency processing on Windows. To do so, before building with CMake, download the ASIO SDK from [https://www.steinberg.net/asiosdk](https://www.steinberg.net/asiosdk), unzip it alongside the GUI source tree, and rename the directory to "asiosdk" (this should contain "asio", "common", "driver", etc.). You can also set a different path to the ASIO SDK by defining ASIOSDK_PATH when calling CMake.**
 
 **In order to use ASIO, you must also install the ASIO4ALL driver, available [here](http://www.asio4all.org/).**
