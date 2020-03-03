@@ -37,11 +37,9 @@ LfpDisplayCanvas::LfpDisplayCanvas(LfpDisplayNode* processor_) :
 {
 
 	nChans = processor->getNumSubprocessorChannels();
-    std::cout << "Setting num inputs on LfpDisplayCanvas to " << nChans << std::endl;
 
     displayBuffer = processor->getDisplayBufferAddress();
     displayBufferSize = displayBuffer->getNumSamples();
-    std::cout << "Setting displayBufferSize on LfpDisplayCanvas to " << displayBufferSize << std::endl;
 
     screenBuffer = new AudioSampleBuffer(MAX_N_CHAN, MAX_N_SAMP);
     screenBuffer->clear();
@@ -184,7 +182,6 @@ void LfpDisplayCanvas::resizeToChannels(bool respectViewportPosition)
 
 void LfpDisplayCanvas::beginAnimation()
 {
-	std::cout << "Beginning animation." << std::endl;
 
 	if (true)
 	{
@@ -204,7 +201,6 @@ void LfpDisplayCanvas::endAnimation()
 {
 	if (true)
 	{
-		std::cout << "Ending animation." << std::endl;
 
 		stopCallbacks();
 	}
@@ -212,9 +208,10 @@ void LfpDisplayCanvas::endAnimation()
 
 void LfpDisplayCanvas::update()
 {
-    nChans = jmax(processor->getNumSubprocessorChannels(), 0);
 
-    std::cout << "Num chans: " << nChans << std::endl;
+    displayBufferSize = displayBuffer->getNumSamples();
+
+	nChans = jmax(processor->getNumSubprocessorChannels(), 0);
 
     resizeSamplesPerPixelBuffer(nChans);
 
@@ -230,24 +227,23 @@ void LfpDisplayCanvas::update()
     // must manually ensure that overlapSelection propagates up to canvas
     channelOverlapFactor = options->selectedOverlapValue.getFloatValue();
 
-	std::cout << "Checking channels: " << nChans << std::endl;
-
+    int firstChannelInSubprocessor = 0;
     for (int i = 0, nInputs = processor->getNumInputs(); i < nInputs; i++)
     {
+
         if (processor->getDataSubprocId(i) == drawableSubprocessor)
         {
             sampleRate = processor->getDataChannel(i)->getSampleRate();
+            firstChannelInSubprocessor = i;
             break;
         }
+
     }
 
-	std::cout << "Checking channel alignment: " << nChans << std::endl;
     if (nChans != lfpDisplay->getNumChannels())
     {
-		std::cout << "Refreshing screen buffer" << std::endl;
         refreshScreenBuffer();
 
-		std::cout << "Changing channels on LFP display" << std::endl;
 		if (nChans > 0)
 			lfpDisplay->setNumChannels(nChans);
 
@@ -255,7 +251,7 @@ void LfpDisplayCanvas::update()
 		//std::cout << "Updating channel names" << std::endl;
 		for (int i = 0; i < nChans; i++)
         {
-           String chName = processor->getDataChannel(i)->getName();
+            String chName = processor->getDataChannel(firstChannelInSubprocessor + i)->getName();
             lfpDisplay->channelInfo[i]->setName(chName);
             lfpDisplay->setEnabledState(isChannelEnabled[i], i);
         }
@@ -272,7 +268,7 @@ void LfpDisplayCanvas::update()
     {
 		for (int i = 0; i < nChans; i++)
         {
-            String chName = processor->getDataChannel(i)->getName();
+            String chName = processor->getDataChannel(firstChannelInSubprocessor + i)->getName();
             lfpDisplay->channelInfo[i]->setName(chName);
             lfpDisplay->channels[i]->updateType();
             lfpDisplay->channelInfo[i]->updateType();
@@ -280,7 +276,6 @@ void LfpDisplayCanvas::update()
         
         if (nChans > 0)
         {
-            std::cout << "Rebuilding drawable channels" << std::endl;
             lfpDisplay->rebuildDrawableChannelsList();
         }
     }
@@ -630,7 +625,7 @@ void LfpDisplayCanvas::setDrawableSampleRate(float samplerate)
 void LfpDisplayCanvas::setDrawableSubprocessor(uint32 sp)
 {
 	drawableSubprocessor = sp;
-	std::cout << "Setting LFP canvas subprocessor to " << sp << std::endl;
+	displayBuffer = processor->getDisplayBufferAddress();
 	update();
 }
 
@@ -816,7 +811,7 @@ LfpDisplayOptions::LfpDisplayOptions(LfpDisplayCanvas* canvas_, LfpTimescale* ti
 	selectedVoltageRange[DataChannel::HEADSTAGE_CHANNEL] = 4;
 	rangeGain[DataChannel::HEADSTAGE_CHANNEL] = 1; //uV
 	rangeSteps[DataChannel::HEADSTAGE_CHANNEL] = 10;
-    rangeUnits.add("uV");
+    rangeUnits.add(CharPointer_UTF8("\xC2\xB5V"));
     typeNames.add("DATA");
 
     UtilityButton* tbut;
