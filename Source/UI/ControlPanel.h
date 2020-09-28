@@ -288,10 +288,12 @@ public:
     void disableCallbacks();
 
     /** Returns a pointer to the AudioEditor.*/
-    /*  AccessClass* getAudioEditor()
-      {
-          return (AccessClass*) audioEditor;
-      }*/
+    /*
+    AccessClass* getAudioEditor()
+    {
+        return (AccessClass*) audioEditor;
+    }
+    */
 
     /** Sets whether or not the FilenameComponent is visible.*/
     void openState(bool isOpen);
@@ -307,6 +309,8 @@ public:
 
     /** Set recording directory and update FilenameComponent */
     void setRecordingDirectory(String path);
+
+    File getRecordingDirectory();
 
     /** Return current acquisition state.*/
     bool getAcquisitionState();
@@ -365,11 +369,15 @@ public:
 
     void updateRecordEngineList();
 
+    std::vector<RecordEngineManager*> getAvailableRecordEngines();
+
 	String getSelectedRecordEngineId();
 
 	bool setSelectedRecordEngineId(String id);
 
     ScopedPointer<RecordButton> recordButton;
+    ScopedPointer<ComboBox> recordSelector;
+
 private:
     ScopedPointer<PlayButton> playButton;
 
@@ -379,8 +387,6 @@ private:
     ScopedPointer<FilenameComponent> filenameComponent;
     ScopedPointer<UtilityButton> newDirectoryButton;
     ScopedPointer<ControlPanelButton> cpb;
-
-    ScopedPointer<ComboBox> recordSelector;
 
     ScopedPointer<Label> prependText;
     ScopedPointer<Label> dateText;

@@ -108,6 +108,11 @@ namespace CoreServices
 		getControlPanel()->setRecordingDirectory(dir);
 	}
 
+	File getRecordingDirectory()
+	{
+		return getControlPanel()->getRecordingDirectory();
+	}
+
 	void createNewRecordingDir()
 	{
 		getControlPanel()->labelTextChanged(NULL);
@@ -123,6 +128,11 @@ namespace CoreServices
 		getControlPanel()->setAppendText(text);
 	}
 
+	std::vector<RecordEngineManager*> getAvailableRecordEngines()
+	{
+		return getControlPanel()->getAvailableRecordEngines();
+	}
+
 	String getSelectedRecordEngineId()
 	{
 		return getControlPanel()->getSelectedRecordEngineId();
@@ -133,28 +143,66 @@ namespace CoreServices
 		return getControlPanel()->setSelectedRecordEngineId(id);
 	}
 
+	int getSelectedRecordEngineIdx()
+	{
+		return getControlPanel()->recordSelector->getSelectedId();
+	}
+
 	namespace RecordNode
 	{
+
 		void createNewrecordingDir()
 		{
-			getProcessorGraph()->getRecordNode()->createNewDirectory();
+			for (auto* node : getProcessorGraph()->getRecordNodes())
+			{
+				node->createNewDirectory();
+			}
 		}
 
-		File getRecordingPath()
-		{
-			return getProcessorGraph()->getRecordNode()->getDataDirectory();
-		}
-
+		//TODO: This needs to be well-defined...just testing for now P.K.
 		int getRecordingNumber()
 		{
-			return getProcessorGraph()->getRecordNode()->getRecordingNumber();
+			int lastRecordingNum = -1;
+
+			for (auto* node : getProcessorGraph()->getRecordNodes())
+			{
+				lastRecordingNum = node->getRecordingNumber();
+			}
+
+			return lastRecordingNum;
+		}
+		
+		File getRecordingPath()
+		{
+			return File();
 		}
 
 		int getExperimentNumber()
 		{
-			return getProcessorGraph()->getRecordNode()->getExperimentNumber();
+			
+			int experimentNumber = -1;
+
+			for (auto* node : getProcessorGraph()->getRecordNodes())
+			{
+				experimentNumber = node->getExperimentNumber();
+			}
+
+			return experimentNumber;
 		}
 
+		bool getRecordThreadStatus()
+		{
+			
+			for (auto* node : getProcessorGraph()->getRecordNodes())
+			{
+				if (node->getRecordThreadStatus())
+					return true;
+			}
+
+			return false;
+		}
+
+		/*
 		void writeSpike(const SpikeEvent* spike, const SpikeChannel* chan)
 		{
 			getProcessorGraph()->getRecordNode()->writeSpike(spike, chan);
@@ -169,6 +217,7 @@ namespace CoreServices
 		{
 			return getProcessorGraph()->getRecordNode()->addSpikeElectrode(elec);
 		}
+		*/
 
 	};
 
@@ -180,14 +229,30 @@ namespace CoreServices
 	File getDefaultUserSaveDirectory()
 	{
 #if defined(__APPLE__)
-		File dir = File::getSpecialLocation(File::userDocumentsDirectory).getChildFile("open-ephys");
+    	const File dir = File::getSpecialLocation(File::userDocumentsDirectory).getChildFile("Open Ephys");
+#elif _WIN32
+    	const File dir = File::getSpecialLocation(File::userDocumentsDirectory).getChildFile("Open Ephys");
+#else
+    	const File dir = File::getSpecialLocation(File::userHomeDirectory).getChildFile("open-ephys");
+#endif
 		if (!dir.isDirectory()) {
 			dir.createDirectory();
 		}
 		return std::move(dir);
+	}
+
+	File getSavedStateDirectory() {
+#if defined(__APPLE__)
+    	File dir = File::getSpecialLocation(File::userApplicationDataDirectory).getChildFile("Application Support/open-ephys");
+#elif _WIN32
+    	File dir = File::getSpecialLocation(File::commonApplicationDataDirectory).getChildFile("Open Ephys");
 #else
-		return File::getCurrentWorkingDirectory();
+		File dir = File::getSpecialLocation(File::userApplicationDataDirectory).getChildFile(".open-ephys");;
 #endif
+		if (!dir.isDirectory()) {
+			dir.createDirectory();
+		}
+    	return std::move(dir);
 	}
 
 	String getGUIVersion()

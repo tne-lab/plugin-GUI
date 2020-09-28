@@ -65,8 +65,8 @@ void ProcessorGraph::createDefaultNodes()
         new AudioProcessorGraph::AudioGraphIOProcessor(AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode);
 
     // add record node -- sends output to disk
-    RecordNode* recn = new RecordNode();
-    recn->setNodeId(RECORD_NODE_ID);
+    //RecordNode* recn = new RecordNode();
+    //recn->setNodeId(RECORD_NODE_ID);
 
     // add audio node -- takes all inputs and selects those to be used for audio monitoring
     AudioNode* an = new AudioNode();
@@ -77,7 +77,7 @@ void ProcessorGraph::createDefaultNodes()
     msgCenter->setNodeId(MESSAGE_CENTER_ID);
 
     addNode(on, OUTPUT_NODE_ID);
-    addNode(recn, RECORD_NODE_ID);
+    //addNode(recn, RECORD_NODE_ID);
     addNode(an, AUDIO_NODE_ID);
     addNode(msgCenter, MESSAGE_CENTER_ID);
 
@@ -194,6 +194,22 @@ void ProcessorGraph::restoreParameters()
 
 }
 
+bool ProcessorGraph::hasRecordNode()
+{
+    
+    Array<GenericProcessor*> processors = getListOfProcessors();
+    
+    for (auto p : processors)
+    {
+        if (p->isRecordNode())
+        {
+            return true;
+        }
+    }
+    return false;
+    
+}
+
 Array<GenericProcessor*> ProcessorGraph::getListOfProcessors()
 {
 
@@ -250,18 +266,17 @@ void ProcessorGraph::clearConnections()
 
     }
 
-    addConnection(MESSAGE_CENTER_ID, midiChannelIndex,
-                  RECORD_NODE_ID, midiChannelIndex);
+    for (auto& recordNode : getRecordNodes())
+        addConnection(MESSAGE_CENTER_ID, midiChannelIndex,
+                  recordNode->getNodeId(), midiChannelIndex);
+
 }
 
 
 void ProcessorGraph::updateConnections(Array<SignalChainTabButton*, CriticalSection> tabs)
 {
-    clearConnections(); // clear processor graph
 
-    std::cout << "Updating connections:" << std::endl;
-    std::cout << std::endl;
-    std::cout << std::endl;
+    clearConnections(); // clear processor graph
 
     Array<GenericProcessor*> splitters;
 
@@ -312,6 +327,7 @@ void ProcessorGraph::updateConnections(Array<SignalChainTabButton*, CriticalSect
             if (source->isEnabledState())
             {
                 // add the connections to audio and record nodes if necessary
+                /*
                 if (!(source->isSink()     ||
                       source->isSplitter() ||
                       source->isMerger()   ||
@@ -325,6 +341,10 @@ void ProcessorGraph::updateConnections(Array<SignalChainTabButton*, CriticalSect
                 {
                     std::cout << "     NOT connecting to audio and record nodes." << std::endl;
                 }
+                */
+
+                //TODO: This is will be removed when probe based audio node added. 
+                connectProcessorToAudioNode(source);
 
                 // find the next dest that's not a merger or splitter
                 GenericProcessor* prev = source;
@@ -429,10 +449,13 @@ void ProcessorGraph::updateConnections(Array<SignalChainTabButton*, CriticalSect
     }
 	
 	getAudioNode()->updatePlaybackBuffer();
-	//Update RecordNode internal channel mappings
+
 	Array<EventChannel*> extraChannels;
 	getMessageCenter()->addSpecialProcessorChannels(extraChannels);
-	getRecordNode()->addSpecialProcessorChannels(extraChannels);
+
+    for (auto& recordNode : getRecordNodes())
+        recordNode->addSpecialProcessorChannels(extraChannels);
+
 } // end method
 
 void ProcessorGraph::connectProcessors(GenericProcessor* source, GenericProcessor* dest,
@@ -468,16 +491,26 @@ void ProcessorGraph::connectProcessors(GenericProcessor* source, GenericProcesso
                       midiChannelIndex);      // destNodeChannelIndex
     }
 
+    //3. If dest is a record node, register the processor
+    if (dest->isRecordNode())
+    {
+        ((RecordNode*)dest)->registerProcessor(source);
+    }
+
 }
 
-void ProcessorGraph::connectProcessorToAudioAndRecordNodes(GenericProcessor* source)
+void ProcessorGraph::connectProcessorToAudioNode(GenericProcessor* source)
 {
+
+    /*
+    std::cout << "#########SKIPPING CONNECT TO RECORD NODE" << std::endl;
 
     if (source == nullptr)
         return;
+    */
 
     getAudioNode()->registerProcessor(source);
-    getRecordNode()->registerProcessor(source);
+    //getRecordNode()->registerProcessor(source);
 
     for (int chan = 0; chan < source->getNumOutputs(); chan++)
     {
@@ -488,21 +521,26 @@ void ProcessorGraph::connectProcessorToAudioAndRecordNodes(GenericProcessor* sou
                       chan,                                  // sourceNodeChannelIndex
                       AUDIO_NODE_ID,                         // destNodeID
                       getAudioNode()->getNextChannel(true)); // destNodeChannelIndex
+   
 
+        /*
         getRecordNode()->addInputChannel(source, chan);
 
         addConnection(source->getNodeId(),                    // sourceNodeID
                       chan,                                   // sourceNodeChannelIndex
                       RECORD_NODE_ID,                         // destNodeID
                       getRecordNode()->getNextChannel(true)); // destNodeChannelIndex
-
+        */
+ 
     }
 
+    /*
     // connect event channel
     addConnection(source->getNodeId(),    // sourceNodeID
                   midiChannelIndex,       // sourceNodeChannelIndex
                   RECORD_NODE_ID,         // destNodeID
                   midiChannelIndex);      // destNodeChannelIndex
+    */
 
     // connect event channel
     addConnection(source->getNodeId(),    // sourceNodeID
@@ -511,7 +549,7 @@ void ProcessorGraph::connectProcessorToAudioAndRecordNodes(GenericProcessor* sou
                   midiChannelIndex);      // destNodeChannelIndex
 
 
-    getRecordNode()->addInputChannel(source, midiChannelIndex);
+    //getRecordNode()->addInputChannel(source, midiChannelIndex);
 
 }
 
@@ -618,8 +656,9 @@ bool ProcessorGraph::enableProcessors()
 
     bool allClear;
 
-    if (getNumNodes() < 5)
+    if (getNumNodes() < 4)
     {
+        std::cout << "Not enough processors in signal chain to acquire data" << std::endl;
         AccessClass::getUIComponent()->disableCallbacks();
         return false;
     }
@@ -662,7 +701,10 @@ bool ProcessorGraph::enableProcessors()
 
 	//Update special channels indexes, at the end
 	//To change, as many other things, when the probe system is implemented
-	getRecordNode()->updateRecordChannelIndexes();
+    for (auto& node : getRecordNodes())
+    {
+        node->updateRecordChannelIndexes();
+    }
 	getAudioNode()->updateRecordChannelIndexes();
 
     //	sendActionMessage("Acquisition started.");
@@ -709,16 +751,6 @@ bool ProcessorGraph::disableProcessors()
 void ProcessorGraph::setRecordState(bool isRecording)
 {
 
-    // actually start recording
-    if (isRecording)
-    {
-        getRecordNode()->setParameter(1,10.0f);
-    }
-    else
-    {
-        getRecordNode()->setParameter(0,10.0f);
-    }
-
     for (int i = 0; i < getNumNodes(); i++)
     {
         Node* node = getNode(i);
@@ -729,8 +761,6 @@ void ProcessorGraph::setRecordState(bool isRecording)
             p->setRecording(isRecording);
         }
     }
-
-
 
 }
 
@@ -743,11 +773,20 @@ AudioNode* ProcessorGraph::getAudioNode()
 
 }
 
-RecordNode* ProcessorGraph::getRecordNode()
+Array<RecordNode*> ProcessorGraph::getRecordNodes()
 {
 
-    Node* node = getNodeForId(RECORD_NODE_ID);
-    return (RecordNode*) node->getProcessor();
+    Array<RecordNode*> recordNodes;
+
+    Array<GenericProcessor*> processors = getListOfProcessors();
+
+    for (int i = 0; i < processors.size(); i++)
+    {
+        if (processors[i]->isRecordNode())
+            recordNodes.add((RecordNode*)processors[i]);
+    }
+
+    return recordNodes;
 
 }
 

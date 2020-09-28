@@ -24,6 +24,7 @@
 #include "AudioEditor.h"
 #include "../../Audio/AudioComponent.h"
 #include "../../AccessClass.h"
+#include "../../UI/EditorViewport.h"
 #include "../../UI/LookAndFeel/MaterialSliderLookAndFeel.h"
 
 
@@ -114,6 +115,7 @@ AudioEditor::AudioEditor (AudioNode* owner)
     volumeSlider->setColour (Slider::thumbColourId,      COLOUR_SLIDER_TRACK_FILL);
     volumeSlider->setLookAndFeel (materialSliderLookAndFeel);
     volumeSlider->addListener (this);
+    volumeSlider->setValue(50);
     addAndMakeVisible (volumeSlider);
 
     noiseGateSlider = new Slider ("Noise Gate Slider");
@@ -324,6 +326,9 @@ AudioConfigurationWindow::~AudioConfigurationWindow()
 
 void AudioConfigurationWindow::closeButtonPressed()
 {
+    File recoveryFile = CoreServices::getSavedStateDirectory().getChildFile("recoveryConfig.xml");
+    AccessClass::getEditorViewport()->saveState(recoveryFile);
+
     controlButton->setToggleState (false, dontSendNotification);
     setVisible (false);
 }

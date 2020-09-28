@@ -845,7 +845,9 @@ void EditorViewport::mouseDrag(const MouseEvent& e)
     if (editorArray.contains((GenericEditor*) e.originalComponent)
         && e.y < 15
         && canEdit
-        && editorArray.size() > 1)
+        && editorArray.size() > 1
+        && e.getDistanceFromDragStart() > 10
+        )
     {
 
         componentWantsToMove = true;
@@ -1305,9 +1307,11 @@ const String EditorViewport::saveState(File fileToUse, String* xmlText)
     AccessClass::getAudioComponent()->saveStateToXml(audioSettings);
     xml->addChildElement(audioSettings);
 
+    /*
 	XmlElement* recordSettings = new XmlElement("RECORDING");
 	recordSettings->setAttribute("isRecordThreadEnabled", AccessClass::getProcessorGraph()->getRecordNode()->getRecordThreadStatus());
 	xml->addChildElement(recordSettings);
+    */
 
 	XmlElement* timestampSettings = new XmlElement("GLOBAL_TIMESTAMP");
 	int tsID, tsSubID;
@@ -1508,7 +1512,7 @@ const String EditorViewport::loadState(File fileToLoad)
 
                     SourceDetails sd = SourceDetails(procDesc,
                                                      0,
-                                                     Point<int>(0,0));
+                                                     juce::Point<int>(0,0));
 
                     itemDropped(sd);
 
@@ -1575,10 +1579,12 @@ const String EditorViewport::loadState(File fileToLoad)
 		{
 			bool recordThreadStatus = element->getBoolAttribute("isRecordThreadEnabled");
 
+            /*
 			if (recordThreadStatus)
 				AccessClass::getProcessorGraph()->getRecordNode()->setParameter(3, 1.0f);
 			else
 				AccessClass::getProcessorGraph()->getRecordNode()->setParameter(3, 0.0f);
+            */
 		}
 		else if (element->hasTagName("GLOBAL_TIMESTAMP"))
 		{

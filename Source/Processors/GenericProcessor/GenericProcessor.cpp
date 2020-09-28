@@ -176,30 +176,30 @@ void GenericProcessor::setSourceNode(GenericProcessor* sn)
 		{
 			//	std::cout << " The source is not blank." << std::endl;
 
-			if (!sn->isSink())
-			{
+			//if (!sn->isSink())
+			//{
 				//		std::cout << " The source is not a sink." << std::endl;
-				if (sourceNode != sn)
-				{
-					//			std::cout << " The source is new and named " << sn->getName() << std::endl;
+            if (sourceNode != sn)
+            {
+                //			std::cout << " The source is new and named " << sn->getName() << std::endl;
 
-					if (this->isMerger())
-						setMergerSourceNode(sn);
-					else
-						sourceNode = sn;
+                if (this->isMerger())
+                    setMergerSourceNode(sn);
+                else
+                    sourceNode = sn;
 
-					sn->setDestNode(this);
-				}
-				else
-				{
-					//			std::cout << "  The source node is not new." << std::endl;
-				}
-			}
-			else
-			{
+                sn->setDestNode(this);
+            }
+            //else
+            //{
+                //			std::cout << "  The source node is not new." << std::endl;
+            //}
+			//}
+			//else
+			//{
 				//		std::cout << " The source is a sink." << std::endl;
-				sourceNode = 0;
-			}
+			//	sourceNode = 0;
+			//}
 
 		}
 		else
@@ -222,8 +222,8 @@ void GenericProcessor::setDestNode(GenericProcessor* dn)
 {
 	//	std::cout << "My name is " << getName() << ". Setting dest node." << std::endl;
 
-	if (!isSink())
-	{
+	//if (!isSink())
+	//{
 		//	std::cout << "  I am not a sink." << std::endl;
 
 		if (dn != 0)
@@ -262,13 +262,13 @@ void GenericProcessor::setDestNode(GenericProcessor* dn)
 
 			destNode = 0;
 		}
-	}
-	else
-	{
+	//}
+	//else
+	//{
 		//std::cout << "  I am a sink, I can't have a dest node." << std::endl;
 		//if (dn != 0)
 		//	dn->setSourceNode(this);
-	}
+	//}
 }
 
 
@@ -381,10 +381,10 @@ void GenericProcessor::update()
 	createSpikeChannels();
 	createConfigurationObjects();
 
-	if (this->isSink())
-	{
-		settings.numOutputs = 0;
-	}
+	//if (this->isSink())
+	//{
+	//	settings.numOutputs = 0;
+	//}
 
 	updateSettings(); // allow processors to change custom settings
 
@@ -758,6 +758,7 @@ int GenericProcessor::processEventBuffer()
 
 int GenericProcessor::checkForEvents(bool checkForSpikes)
 {
+
 	if (m_currentMidiBuffer->getNumEvents() > 0)
 	{
 		//Since adding events to the buffer inside this loop could be dangerous, create a temporal event buffer
@@ -1167,6 +1168,7 @@ bool GenericProcessor::isSink()          const  { return getProcessorType() == P
 bool GenericProcessor::isSplitter()      const  { return getProcessorType() == PROCESSOR_TYPE_SPLITTER; }
 bool GenericProcessor::isMerger()        const  { return getProcessorType() == PROCESSOR_TYPE_MERGER; }
 bool GenericProcessor::isUtility()       const  { return getProcessorType() == PROCESSOR_TYPE_UTILITY; }
+bool GenericProcessor::isRecordNode()    const  { return getProcessorType() == PROCESSOR_TYPE_RECORD_NODE; }
 
 int GenericProcessor::getNumParameters()    { return parameters.size(); }
 int GenericProcessor::getNumPrograms()      { return 0; }

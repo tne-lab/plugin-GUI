@@ -1,7 +1,7 @@
 #Open Ephys GUI main build file
 cmake_minimum_required(VERSION 3.5.0)
 
-set(GUI_VERSION 0.4.5)
+set(GUI_VERSION 0.5.0)
 
 string(REGEX MATCHALL "[0-9]+" VERSION_LIST ${GUI_VERSION})
 set(GUI_VERSION_HEX "0x")
@@ -12,7 +12,7 @@ foreach(_v ${VERSION_LIST})
 endforeach()
 string(REPLACE "." "," GUI_VERSION_COMMA ${GUI_VERSION})
 
-set(CMAKE_OSX_DEPLOYMENT_TARGET 10.9)
+set(CMAKE_OSX_DEPLOYMENT_TARGET "10.9" CACHE STRING "Minimum OS X deployment version")
 set(CMAKE_OSX_SYSROOT "")
 if ((NOT ${CMAKE_CURRENT_BINARY_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR}/Build ) AND (NOT OE_DONT_CHECK_BUILD_PATH))
 message(FATAL_ERROR "Please run cmake inside the Build folder to build the binaries in the predefined paths.\nSet the OE_DONT_CHECK_BUILD_PATH cmake variable to TRUE to disable this error")
@@ -116,7 +116,7 @@ endif()
 
 if(MSVC)
 	set_property(TARGET open-ephys APPEND PROPERTY COMPILE_DEFINITIONS "JUCE_API=__declspec(dllexport)")
-	target_compile_options(open-ephys PRIVATE /sdl- /nologo /MP)
+	target_compile_options(open-ephys PRIVATE /sdl- /nologo /MP /W0)
 	target_link_libraries(open-ephys setupapi.lib opengl32.lib glu32.lib)
 	set_property(TARGET open-ephys APPEND_STRING PROPERTY LINK_FLAGS_DEBUG " /NODEFAULTLIB:\"libcmt.lib\" /NODEFAULTLIB:\"msvcrt.lib\"")
 	set_property(TARGET open-ephys APPEND_STRING PROPERTY LINK_FLAGS " /SUBSYSTEM:WINDOWS")
@@ -137,11 +137,13 @@ elseif(LINUX)
 	else()
 		message(FATAL_ERROR "Invalid build type")
 	endif()
+	find_package(CURL REQUIRED)
 	target_include_directories(open-ephys PRIVATE
 		/usr/include
 		/usr/include/freetype2
+		${CURL_INCLUDE_DIR}
 	)
-	target_link_libraries(open-ephys GL X11 Xext Xinerama asound dl freetype pthread rt)
+	target_link_libraries(open-ephys GL X11 Xext Xinerama asound dl freetype pthread rt ${CURL_LIBRARIES})
 	set_property(TARGET open-ephys APPEND_STRING PROPERTY LINK_FLAGS
 		"-fvisibility=hidden -fPIC -rdynamic -Wl,-rpath,'$ORIGIN/shared'")
 	target_compile_options(open-ephys PRIVATE -fPIC -rdynamic -fvisibility=hidden)
@@ -193,6 +195,7 @@ elseif(APPLE)
 
 		set(MAC_RESOURCE_FILES
 			${RESOURCES_DIRECTORY}/Build-files/Icon.icns
+			${RESOURCES_DIRECTORY}/Build-files/dmg_background.png
 			${RESOURCES_DIRECTORY}/Build-files/RecentFilesMenuTemplate.nib
 			${RESOURCES_DIRECTORY}/Bitfiles/rhd2000.bit
 			${RESOURCES_DIRECTORY}/Bitfiles/rhd2000_usb3.bit

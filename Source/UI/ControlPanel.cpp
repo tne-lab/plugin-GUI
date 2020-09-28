@@ -426,11 +426,7 @@ ControlPanel::ControlPanel(ProcessorGraph* graph_, AudioComponent* audio_)
     addChildComponent(newDirectoryButton);
 
 
-#if defined(__APPLE__)
     const File dataDirectory = CoreServices::getDefaultUserSaveDirectory();
-#else
-    const File dataDirectory = File::getSpecialLocation(File::currentExecutableFile).getParentDirectory();
-#endif
 
     filenameComponent = new FilenameComponent("folder selector",
                                               dataDirectory.getFullPathName(),
@@ -489,7 +485,6 @@ void ControlPanel::setRecordState(bool t)
 
 bool ControlPanel::getRecordingState()
 {
-
 	return recordButton->getToggleState();
 
 }
@@ -499,8 +494,16 @@ void ControlPanel::setRecordingDirectory(String path)
     File newFile(path);
     filenameComponent->setCurrentFile(newFile, true, sendNotificationSync);
 
-    graph->getRecordNode()->newDirectoryNeeded = true;
+    for (auto* node : graph->getRecordNodes())
+    {
+        node->newDirectoryNeeded = true;
+    }
     masterClock->resetRecordTime();
+}
+
+File ControlPanel::getRecordingDirectory()
+{
+    return filenameComponent->getCurrentFile();
 }
 
 bool ControlPanel::getAcquisitionState()
@@ -516,37 +519,58 @@ void ControlPanel::setAcquisitionState(bool state)
 
 void ControlPanel::updateChildComponents()
 {
-
+    /*
     filenameComponent->addListener(AccessClass::getProcessorGraph()->getRecordNode());
     AccessClass::getProcessorGraph()->getRecordNode()->filenameComponentChanged(filenameComponent);
+    */
 	updateRecordEngineList();
 
 }
 
 void ControlPanel::updateRecordEngineList()
 {
+
+
 	int selectedEngine = recordSelector->getSelectedId();
 	recordSelector->clear(dontSendNotification);
 	recordEngines.clear();
 	int id = 1;
 
+    LOGD("Num built in engines: ", RecordEngineManager::getNumOfBuiltInEngines());
 	for (int i = 0; i < RecordEngineManager::getNumOfBuiltInEngines(); i++)
 	{
 		RecordEngineManager* rem = RecordEngineManager::createBuiltInEngineManager(i);
 		recordSelector->addItem(rem->getName(), id++);
+        LOGD("Adding engine: ", rem->getName());
 		recordEngines.add(rem);
 	}
+    LOGD("Num plugin engines: ", AccessClass::getPluginManager()->getNumRecordEngines());
 	for (int i = 0; i < AccessClass::getPluginManager()->getNumRecordEngines(); i++)
 	{
 		Plugin::RecordEngineInfo info;
 		info = AccessClass::getPluginManager()->getRecordEngineInfo(i);
 		recordSelector->addItem(info.name, id++);
+        LOGD("Adding engine: ", info.name);
 		recordEngines.add(info.creator());
 	}
+
 	if (selectedEngine < 1)
 		recordSelector->setSelectedId(1, sendNotification);
 	else
 		recordSelector->setSelectedId(selectedEngine, sendNotification);
+    
+}
+
+std::vector<RecordEngineManager*> ControlPanel::getAvailableRecordEngines()
+{
+    std::vector<RecordEngineManager*> engines;
+
+    for (auto engine : recordEngines)
+    {
+        engines.push_back(engine);
+    }
+
+    return engines;
 }
 
 String ControlPanel::getSelectedRecordEngineId()
@@ -690,7 +714,7 @@ void ControlPanel::resized()
     // ====================================================================
 
 
-    if (audioEditor)
+    if (audioEditor) //if (audioEditor)
     {
         const bool isThereElementOnLeft = diskMeter->getBounds().getY() <= h;
         const bool isSecondRowAvailable = diskMeter->getBounds().getY() >= 2 * h;
@@ -778,7 +802,10 @@ void ControlPanel::openState(bool os)
 
 void ControlPanel::labelTextChanged(Label* label)
 {
-    graph->getRecordNode()->newDirectoryNeeded = true;
+    for (auto* node : AccessClass::getProcessorGraph()->getRecordNodes())
+    {   
+        node->newDirectoryNeeded = true;
+    }
     newDirectoryButton->setEnabledState(false);
     masterClock->resetRecordTime();
 
@@ -820,7 +847,10 @@ void ControlPanel::buttonClicked(Button* button)
 {
     if (button == newDirectoryButton && newDirectoryButton->getEnabledState())
     {
-        graph->getRecordNode()->newDirectoryNeeded = true;
+        for (auto* node : AccessClass::getProcessorGraph()->getRecordNodes())
+        {   
+            node->newDirectoryNeeded = true;
+        }
         newDirectoryButton->setEnabledState(false);
         masterClock->resetRecordTime();
 
@@ -841,7 +871,7 @@ void ControlPanel::buttonClicked(Button* button)
 
                 audio->beginCallbacks();
                 masterClock->start();
-                audioEditor->disable();
+                //audioEditor->disable();
 
                 stopTimer();
                 startTimer(250); // refresh every 250 ms
@@ -877,6 +907,14 @@ void ControlPanel::buttonClicked(Button* button)
     {
         if (recordButton->getToggleState())
         {
+            
+            if (!graph->hasRecordNode())
+            {
+                CoreServices::sendStatusMessage("Please insert at least one Record Node to start recording!");
+                recordButton->setToggleState(false, dontSendNotification);
+                return;
+            }
+            
             if (playButton->getToggleState())
             {
                 startRecording();
@@ -891,7 +929,7 @@ void ControlPanel::buttonClicked(Button* button)
 					startRecording();
                     masterClock->start();
 					audio->beginCallbacks();
-                    audioEditor->disable();
+                    //audioEditor->disable();
 
                     stopTimer();
                     startTimer(250); // refresh every 250 ms
@@ -923,15 +961,17 @@ void ControlPanel::buttonClicked(Button* button)
 
 void ControlPanel::comboBoxChanged(ComboBox* combo)
 {
+
     if (lastEngineIndex >= 0)
     {
         if (recordEngines[lastEngineIndex]->isWindowOpen())
             recordEngines[lastEngineIndex]->toggleConfigWindow();
     }
-    RecordEngine* re;
-    AccessClass::getProcessorGraph()->getRecordNode()->clearRecordEngines();
+    ScopedPointer<RecordEngine> re;
+    //AccessClass::getProcessorGraph()->getRecordNode()->clearRecordEngines();
     if (combo->getSelectedId() > 0)
     {
+        std::cout << "Num engines: " << recordEngines.size() << std::endl;
         re = recordEngines[combo->getSelectedId()-1]->instantiateEngine();
     }
     else
@@ -942,9 +982,9 @@ void ControlPanel::comboBoxChanged(ComboBox* combo)
     }
     //re->setUIComponent(getUIComponent());
     re->registerManager(recordEngines[combo->getSelectedId()-1]);
-    AccessClass::getProcessorGraph()->getRecordNode()->registerRecordEngine(re);
+    //AccessClass::getProcessorGraph()->getRecordNode()->registerRecordEngine(re);
 
-    graph->getRecordNode()->newDirectoryNeeded = true;
+    //graph->getRecordNode()->newDirectoryNeeded = true;
     newDirectoryButton->setEnabledState(false);
     masterClock->resetRecordTime();
 
@@ -1015,7 +1055,7 @@ void ControlPanel::refreshMeters()
 
     masterClock->repaint();
 
-    diskMeter->updateDiskSpace(graph->getRecordNode()->getFreeSpace());
+    //diskMeter->updateDiskSpace(graph->getRecordNode()->getFreeSpace());
     diskMeter->repaint();
 
     if (initialize)
@@ -1094,10 +1134,11 @@ void ControlPanel::saveStateToXml(XmlElement* xml)
 	controlPanelState->setAttribute("recordPath", filenameComponent->getCurrentFile().getFullPathName());
     controlPanelState->setAttribute("prependText",prependText->getText());
     controlPanelState->setAttribute("appendText",appendText->getText());
-    controlPanelState->setAttribute("recordEngine",recordEngines[recordSelector->getSelectedId()-1]->getID());
+    //controlPanelState->setAttribute("recordEngine",recordEngines[recordSelector->getSelectedId()-1]->getID());
 
     audioEditor->saveStateToXml(xml);
 
+    /*
     XmlElement* recordEnginesState = xml->createNewChildElement("RECORDENGINES");
     for (int i=0; i < recordEngines.size(); i++)
     {
@@ -1106,6 +1147,7 @@ void ControlPanel::saveStateToXml(XmlElement* xml)
         reState->setAttribute("name",recordEngines[i]->getName());
         recordEngines[i]->saveParametersToXml(reState);
     }
+    */
 
 }
 

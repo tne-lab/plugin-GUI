@@ -73,8 +73,23 @@ static void errorMsg(const char *file, int line, const char *msg) {
 PluginManager::PluginManager()
 {
 #ifdef WIN32
+	//Shared directory at the same level as executable
 	File sharedPath = File::getSpecialLocation(File::currentApplicationFile).getParentDirectory().getChildFile("shared");
 	SetDllDirectory(sharedPath.getFullPathName().toUTF8());
+
+	//Shared directory managed by Plugin Installer at C:/ProgramData
+	File installSharedPath = File::getSpecialLocation(File::commonApplicationDataDirectory).getChildFile("Open Ephys/shared");
+	if (!installSharedPath.isDirectory()) {
+        installSharedPath.createDirectory();
+    }
+
+	AddDllDirectory(installSharedPath.getFullPathName().toWideCharPointer());
+	SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+#elif __linux__
+	File installSharedPath = File::getSpecialLocation(File::userApplicationDataDirectory).getChildFile(".open-ephys/shared");
+	if (!installSharedPath.isDirectory()) {
+        installSharedPath.createDirectory();
+    }
 #endif
 }
 
@@ -89,14 +104,20 @@ void PluginManager::loadAllPlugins()
     
 #ifdef __APPLE__
     paths.add(File::getSpecialLocation(File::currentApplicationFile).getChildFile("Contents/PlugIns"));
-    paths.add(File::getSpecialLocation(File::userApplicationDataDirectory).getChildFile("Application Support/open-ephys/PlugIns"));
+    paths.add(File::getSpecialLocation(File::userApplicationDataDirectory).getChildFile("Application Support/open-ephys/plugins"));
+#elif _WIN32
+	paths.add(File::getSpecialLocation(File::currentApplicationFile).getParentDirectory().getChildFile("plugins"));
+	paths.add(File::getSpecialLocation(File::commonApplicationDataDirectory).getChildFile("Open Ephys/plugins"));
 #else
 	paths.add(File::getSpecialLocation(File::currentApplicationFile).getParentDirectory().getChildFile("plugins"));
+	paths.add(File::getSpecialLocation(File::userApplicationDataDirectory).getChildFile(".open-ephys/plugins"));	
 #endif
 
     for (auto &pluginPath : paths) {
         if (!pluginPath.isDirectory()) {
-            std::cout << "Plugin path not found: " << pluginPath.getFullPathName() << std::endl;
+            std::cout << "Plugin path not found: " << pluginPath.getFullPathName() 
+					  << "\nCreating new plugins directory..." << std::endl;
+			pluginPath.createDirectory();
         } else {
             loadPlugins(pluginPath);
         }
@@ -250,7 +271,9 @@ int PluginManager::loadPlugin(const String& pluginLoc) {
 			info.name = pInfo.processor.name;
 			info.type = pInfo.processor.type;
 			info.libIndex = libArray.size()-1;
-			processorPlugins.add(info);
+			Plugin::ProcessorInfo pi = getProcessorInfo(String::fromUTF8(info.name));
+			if(pi.name == nullptr)
+				processorPlugins.add(info);
 			break;
 		}
 		case Plugin::PLUGIN_TYPE_RECORD_ENGINE:
@@ -259,7 +282,9 @@ int PluginManager::loadPlugin(const String& pluginLoc) {
 			info.creator = pInfo.recordEngine.creator;
 			info.name = pInfo.recordEngine.name;
 			info.libIndex = libArray.size() - 1;
-			recordEnginePlugins.add(info);
+			Plugin::RecordEngineInfo rei = getRecordEngineInfo(String::fromUTF8(info.name));
+			if(rei.name == nullptr)
+				recordEnginePlugins.add(info);
 			break;
 		}
 		case Plugin::PLUGIN_TYPE_DATA_THREAD:
@@ -268,7 +293,9 @@ int PluginManager::loadPlugin(const String& pluginLoc) {
 			info.creator = pInfo.dataThread.creator;
 			info.name = pInfo.dataThread.name;
 			info.libIndex = libArray.size() - 1;
-			dataThreadPlugins.add(info);
+			Plugin::DataThreadInfo dti = getDataThreadInfo(String::fromUTF8(info.name));
+			if(dti.name == nullptr)
+				dataThreadPlugins.add(info);
 			break;
 		}
 		case Plugin::PLUGIN_TYPE_FILE_SOURCE:
@@ -278,7 +305,9 @@ int PluginManager::loadPlugin(const String& pluginLoc) {
 			info.name = pInfo.fileSource.name;
 			info.extensions = pInfo.fileSource.extensions;
 			info.libIndex = libArray.size();
-			fileSourcePlugins.add(info);
+			Plugin::FileSourceInfo fsi = getFileSourceInfo(String::fromUTF8(info.name));
+			if(fsi.name == nullptr)
+				fileSourcePlugins.add(info);
 			break;
 		}
 		default:
@@ -442,7 +471,8 @@ bool PluginManager::findPlugin(String name, String libName, const Array<LoadedPl
 {
 	for (int i = 0; i < pluginArray.size(); i++)
 	{
-		if (String(pluginArray[i].name) == name)
+		String pName = String(pluginArray[i].name);
+		if (pName == name)
 		{
 			if ((libName.isEmpty()) || (libName == String(libArray[pluginArray[i].libIndex].name)))
 			{
