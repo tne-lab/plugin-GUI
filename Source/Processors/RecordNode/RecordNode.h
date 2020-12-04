@@ -14,7 +14,7 @@
 #include "RecordThread.h"
 #include "DataQueue.h"
 #include "Synchronizer.h"
-#include "Utils.h"
+#include "../../Utils/Utils.h"
 
 //#include "taskflow/taskflow.hpp"
 
@@ -46,8 +46,25 @@ class RecordNode : public GenericProcessor, public FilenameComponentListener
 
 public:
 
+    /** Constructor
+      - Creates: DataQueue, EventQueue, SpikeQueue, Synchronizer,
+        RecordThread, EventMonitor
+      - Sets the Record Engine
+      - Gets the Recording Directory from the control panel
+      - Sets a bunch of internal variables
+     */
 	RecordNode();
+    
+    /** Destructor
+            - Doesn't need to delete anything manually
+     */
 	~RecordNode();
+
+    /** If messageCenter event channel is not present in EventChannelArray, add it*/
+	void connectToMessageCenter();
+
+    /** Need to remove message center event channel after recording*/
+    void disconnectMessageCenter();
 
 	void updateRecordChannelIndexes();
 
@@ -125,6 +142,7 @@ public:
     bool isSyncReady;
 
     //TODO: Need to validate these new methods
+    /** Deprecated*/
 	void addInputChannel(const GenericProcessor* sourceNode, int chan);
 
     /** Must be called by a spike recording source on the "enable" method
@@ -166,6 +184,9 @@ public:
 	ScopedPointer<EventMonitor> eventMonitor;
 
 private:
+
+	bool isConnectedToMessageCenter;
+	Array<int64> msgCenterMessages;
 
 	bool useSynchronizer; 
 
@@ -211,6 +232,8 @@ private:
 
     /**RecordEngines loaded**/
     OwnedArray<RecordEngine> engineArray;
+
+
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RecordNode);
 

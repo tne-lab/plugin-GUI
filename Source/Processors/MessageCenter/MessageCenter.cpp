@@ -25,6 +25,8 @@
 #include "MessageCenterEditor.h"
 #include "../ProcessorGraph/ProcessorGraph.h"
 #include "../../AccessClass.h"
+#include "../../Utils/Utils.h"
+
 #define MAX_MSG_LENGTH 512
 //---------------------------------------------------------------------
 
@@ -36,6 +38,9 @@ GenericProcessor("Message Center"), newEventAvailable(false), isRecording(false)
                          0, // number of outputs
                          44100.0, // sampleRate
                          128);    // blockSize
+
+    eventChannel = nullptr;
+
 }
 
 MessageCenter::~MessageCenter()
@@ -43,15 +48,26 @@ MessageCenter::~MessageCenter()
 
 }
 
-void MessageCenter::addSpecialProcessorChannels(Array<EventChannel*>& channels) 
+void MessageCenter::addSpecialProcessorChannels() 
 {
-	clearSettings();
-	EventChannel* chan = new EventChannel(EventChannel::TEXT, 1, MAX_MSG_LENGTH, CoreServices::getGlobalSampleRate(), this, 0);
-	chan->setName("GUI Messages");
-	chan->setDescription("Messages from the GUI Message Center");
-	channels.add(chan);
-	eventChannelArray.add(new EventChannel(*chan));
-	updateChannelIndexes();
+
+    if (eventChannel == nullptr)
+    {
+        
+        clearSettings();
+
+        eventChannel = new EventChannel(EventChannel::TEXT, 
+                                            1, 
+                                            MAX_MSG_LENGTH, 
+                                            CoreServices::getGlobalSampleRate(), 
+                                            this, 0);
+
+        eventChannel->setName("GUI Messages");
+        eventChannel->setDescription("Messages from the GUI Message Center");
+        eventChannelArray.add(new EventChannel(*eventChannel));
+
+        updateChannelIndexes();
+    }
 }
 
 AudioProcessorEditor* MessageCenter::createEditor()
@@ -61,6 +77,11 @@ AudioProcessorEditor* MessageCenter::createEditor()
 
     return messageCenterEditor;
 
+}
+
+const EventChannel* MessageCenter::getMessageChannel()
+{
+    return getEventChannel(0);
 }
 
 void MessageCenter::setParameter(int parameterIndex, float newValue)
@@ -107,12 +128,14 @@ void MessageCenter::process(AudioSampleBuffer& buffer)
     {
         //int numBytes = 0;
 
-        String eventString = messageCenterEditor->getLabelString();
+        String eventString = messageCenterEditor->getOutgoingMessage();
 
 		eventString = eventString.dropLastCharacters(eventString.length() - MAX_MSG_LENGTH);
 
 		TextEventPtr event = TextEvent::createTextEvent(getEventChannel(0), CoreServices::getGlobalTimestamp(), eventString);
 		addEvent(getEventChannel(0), event, 0);
+
+        LOGD("Message Center added event.");
 
         newEventAvailable = false;
     }

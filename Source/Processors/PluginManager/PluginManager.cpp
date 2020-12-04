@@ -32,6 +32,8 @@
 #include "../../UI/ProcessorList.h"
 #include "../../UI/ControlPanel.h"
 
+#include "../../Utils/Utils.h"
+
 
 static inline void closeHandle(decltype(LoadedLibInfo::handle) handle) {
     if (handle) {
@@ -72,19 +74,29 @@ static void errorMsg(const char *file, int line, const char *msg) {
 
 PluginManager::PluginManager()
 {
-#ifdef WIN32
+#ifdef _WIN32
+
+	String appDir = File::getSpecialLocation(File::currentApplicationFile).getFullPathName();
+
 	//Shared directory at the same level as executable
 	File sharedPath = File::getSpecialLocation(File::currentApplicationFile).getParentDirectory().getChildFile("shared");
-	SetDllDirectory(sharedPath.getFullPathName().toUTF8());
-
 	//Shared directory managed by Plugin Installer at C:/ProgramData
 	File installSharedPath = File::getSpecialLocation(File::commonApplicationDataDirectory).getChildFile("Open Ephys/shared");
-	if (!installSharedPath.isDirectory()) {
-        installSharedPath.createDirectory();
+
+	if(appDir.contains("plugin-GUI\\Build\\"))
+	{
+		SetDllDirectory(sharedPath.getFullPathName().toUTF8());
+	}
+	else
+    {
+		if (!installSharedPath.isDirectory())
+        {
+			LOGD("Copying shared dependencies to ", installSharedPath.getFullPathName());
+            sharedPath.copyDirectoryTo(installSharedPath);
+        }
+        SetDllDirectory(installSharedPath.getFullPathName().toUTF8());
     }
 
-	AddDllDirectory(installSharedPath.getFullPathName().toWideCharPointer());
-	SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
 #elif __linux__
 	File installSharedPath = File::getSpecialLocation(File::userApplicationDataDirectory).getChildFile(".open-ephys/shared");
 	if (!installSharedPath.isDirectory()) {
@@ -107,16 +119,21 @@ void PluginManager::loadAllPlugins()
     paths.add(File::getSpecialLocation(File::userApplicationDataDirectory).getChildFile("Application Support/open-ephys/plugins"));
 #elif _WIN32
 	paths.add(File::getSpecialLocation(File::currentApplicationFile).getParentDirectory().getChildFile("plugins"));
-	paths.add(File::getSpecialLocation(File::commonApplicationDataDirectory).getChildFile("Open Ephys/plugins"));
+
+    String appDir = File::getSpecialLocation(File::currentApplicationFile).getFullPathName();
+    if(!appDir.contains("plugin-GUI\\Build\\"))
+	    paths.add(File::getSpecialLocation(File::commonApplicationDataDirectory).getChildFile("Open Ephys/plugins"));
 #else
 	paths.add(File::getSpecialLocation(File::currentApplicationFile).getParentDirectory().getChildFile("plugins"));
-	paths.add(File::getSpecialLocation(File::userApplicationDataDirectory).getChildFile(".open-ephys/plugins"));	
+
+    String appDir = File::getSpecialLocation(File::currentApplicationFile).getFullPathName();
+    if(!appDir.contains("plugin-GUI/Build/"))
+	    paths.add(File::getSpecialLocation(File::userApplicationDataDirectory).getChildFile(".open-ephys/plugins"));	
 #endif
 
     for (auto &pluginPath : paths) {
         if (!pluginPath.isDirectory()) {
-            std::cout << "Plugin path not found: " << pluginPath.getFullPathName() 
-					  << "\nCreating new plugins directory..." << std::endl;
+			LOGD("Plugin path not found: ", pluginPath.getFullPathName(), "\nCreating new plugins directory...");
 			pluginPath.createDirectory();
         } else {
             loadPlugins(pluginPath);
@@ -143,15 +160,15 @@ void PluginManager::loadPlugins(const File &pluginPath) {
 
 	for (int i = 0; i < foundDLLs.size(); i++)
 	{
-		std::cout << "Loading Plugin: " << foundDLLs[i].getFileNameWithoutExtension() << "... " << std::flush;
+		LOGD("Loading Plugin: ", foundDLLs[i].getFileNameWithoutExtension(), "... ");
 		int res = loadPlugin(foundDLLs[i].getFullPathName());
 		if (res < 0)
 		{
-			std::cout << " DLL Load FAILED" << std::endl;
+			LOGD(" DLL Load FAILED");
 		}
 		else
 		{
-			std::cout << "Loaded with " << res << " plugins" << std::endl;
+			LOGDD("Loaded with ", res, " plugins");
 		}
 	}
 }
@@ -516,24 +533,24 @@ void PluginManager::Manager::unloadPlugin(PluginManager::Plugin *processor) {
 }
 
 void PluginManager::Manager::insertListPlugin(PluginManager::Plugin *processor) {
-	std::cout << "Size of list before is: " << pluginList.size() << std::endl;
+	LOGD("Size of list before is: ", pluginList.size());
 	if(!processor) {
 		ERROR_MSG("PluginManager::insertListPlugin: Invalid processor.");
 		return;
 	}
 	pluginList.push_back(processor);
 	AccessClass::getProcessorList()->addPluginItem(String("test"), size_t(0x1));
-	std::cout << "Size of list after is: " << pluginList.size() << std::endl;
+	LOGD("Size of list after is: ", pluginList.size());
 }
 
-void PluginManager::Manager::removeListPlugin(PluginManager::Plugin *processor) {
-	std::cout << "Size of list before is: " << pluginList.size() << std::endl;
+void PluginManager::Manager::removeListPlugin(PluginManager::Plugin *processor) {	
+	LOGD("Size of list before is: ", pluginList.size());
 	if(!processor) {
 		ERROR_MSG("PluginManager::removeListPlugin: Invalid processor.");
 		return;
 	}
 	pluginList.remove(processor);
-	std::cout << "Size of list after is: " << pluginList.size() << std::endl;
+	LOGD("Size of list after is: ", pluginList.size());
 }
 
 void PluginManager::Manager::removeAllPlugins() {
@@ -545,12 +562,12 @@ void PluginManager::Manager::removeAllPlugins() {
 	void *handle;
 #endif
 	for(std::list<PluginManager::Plugin *>::iterator i = pluginList.begin(); i != pluginList.end(); i = pluginList.begin()) {
-		std::cout << "Size of list before all is: " << pluginList.size() << std::endl;
+		LOGD("Size of list before all is: ", pluginList.size());
 		handle = (*i)->processorHandle;
 		removeListPlugin(*i);
 		delete *i;
 		closeHandle(handle);
-		std::cout << "Size of list after all is: " << pluginList.size() << std::endl;
+		LOGD("Size of list after all is: ", pluginList.size());
 	}
 }
 

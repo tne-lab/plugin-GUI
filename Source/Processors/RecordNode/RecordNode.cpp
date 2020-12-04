@@ -2,6 +2,7 @@
 
 #include "../../UI/EditorViewport.h"
 #include "../../UI/ControlPanel.h"
+#include "../../Processors/MessageCenter/MessageCenterEditor.h"
 #include "BinaryFormat/BinaryRecording.h"
 #include "OpenEphysFormat/OriginalRecording.h"
 
@@ -40,7 +41,8 @@ RecordNode::RecordNode()
 	hasRecorded(false),
 	settingsNeeded(false),
 	receivedSoftwareTime(false),
-    numSubprocessors(0)
+    numSubprocessors(0),
+	isConnectedToMessageCenter(false)
 {
 	setProcessorType(PROCESSOR_TYPE_RECORD_NODE);
 
@@ -69,8 +71,46 @@ RecordNode::~RecordNode()
 {
 }
 
+void RecordNode::connectToMessageCenter()
+{
+
+	const EventChannel* messageChannel = AccessClass::getMessageCenter()->messageCenter->getMessageChannel();
+
+	if (!isConnectedToMessageCenter)
+	{
+		eventChannelArray.add(new EventChannel(*messageChannel));
+	
+		isConnectedToMessageCenter = true;
+
+		LOGD("Record node ", getNodeId(), " connected to Message Center");
+	}
+
+}
+
+
+void RecordNode::disconnectMessageCenter()
+{
+
+	const EventChannel* origin = AccessClass::getMessageCenter()->messageCenter->getMessageChannel();
+
+	for (auto eventChannel : eventChannelArray)
+	{
+
+		if (eventChannel->getSourceNodeID() > 900)
+		{
+			eventChannelArray.removeObject(eventChannel);
+		}
+
+		isConnectedToMessageCenter = false;
+
+		LOGD("Record node ", getNodeId(), " disconnected from Message Center");
+	}
+
+}
+
 void RecordNode::addInputChannel(const GenericProcessor* sourceNode, int chan)
 {
+	// not getting called
 
 	if (chan != AccessClass::getProcessorGraph()->midiChannelIndex)
 	{
@@ -85,7 +125,6 @@ void RecordNode::addInputChannel(const GenericProcessor* sourceNode, int chan)
 	}
 	else
 	{
-
 		for (int n = 0; n < sourceNode->getTotalEventChannels(); n++)
 		{
 			const EventChannel* orig = sourceNode->getEventChannel(n);
@@ -151,7 +190,7 @@ String RecordNode::generateDirectoryName()
 
 	AccessClass::getControlPanel()->setDateText(datestring);
 
-	if (filename.length() < 24)
+	if (filename.length() < 24) // this is a hack
 		filename += datestring;
 	else
 		filename = filename.substring(0, filename.length() - 1);
@@ -162,23 +201,27 @@ String RecordNode::generateDirectoryName()
 
 }
 
+// called by FifoMonitor
 File RecordNode::getDataDirectory()
 {
 	return dataDirectory;
 }
 
+// called by RecordNodeEditor
 void RecordNode::setDataDirectory(File directory)
 {
 	dataDirectory = directory;
 	newDirectoryNeeded = true;
 }
 
+// called by RecordNode::startRecording and RHD2000Editor (should be removed)
 void RecordNode::createNewDirectory()
 {
 	rootFolder = File(dataDirectory.getFullPathName() + File::separator + generateDirectoryName() + File::separator + getName() + " " + String(getNodeId()));
 	newDirectoryNeeded = false;
 }
 
+// called by RecordEngine
 String RecordNode::generateDateString() const
 {
 
@@ -214,35 +257,42 @@ String RecordNode::generateDateString() const
 
 }
 
+// called by CoreServices
 int RecordNode::getExperimentNumber() const
 {
 	LOGD(__FUNCTION__, " = ", experimentNumber);
 	return experimentNumber;
 }
 
+// called by CoreServices
 int RecordNode::getRecordingNumber() const
 {
 	LOGD(__FUNCTION__, " = ", recordingNumber);
 	return recordingNumber;
 }
 
+// called by ProcessorGraph::createNewProcessor
 AudioProcessorEditor* RecordNode::createEditor()
 {
 	editor = new RecordNodeEditor(this, true);
 	return editor;
 }
 
+// Juce method, not used
 void RecordNode::prepareToPlay(double sampleRate, int estimatedSamplesPerBlock)
 {
 	/* This gets called right when the play button is pressed*/
 }
 
+// called by RecordEngine when saving the signal chain
 const String &RecordNode::getLastSettingsXml() const
 {
 	return lastSettingsText;
 }
 
-/* Use this function to change paramaters while recording...*/
+/* Use this function to change parameters while recording...*/
+// Called by:
+// - EngineConfigComponent (3, 0.0f) -- used to disable record thread (deprecated?)
 void RecordNode::setParameter(int parameterIndex, float newValue)
 {
 	editor->updateParameterButtons(parameterIndex);
@@ -255,32 +305,37 @@ void RecordNode::setParameter(int parameterIndex, float newValue)
 
 }
 
+// Called by ProcessorGraph::enableProcessors()
 void RecordNode::updateRecordChannelIndexes()
 {
 	//Keep the nodeIDs of the original processor from each channel comes from
 	updateChannelIndexes(false);
 }
 
+// Called when deleting FifoMonitor
 void RecordNode::updateChannelStates(int srcIndex, int subProcIdx, std::vector<bool> channelStates)
 {
 	this->dataChannelStates[srcIndex][subProcIdx] = channelStates;
 }
 
+// called by updateSettings (could be refactored)
 void RecordNode::updateSubprocessorMap()
 {
+
+	LOGDD("Record Node ", getNodeId(), " updating subprocessor map");
     
     std::map<int, std::vector<int>> inputs;
 
     int updatedNumSubprocessors = 0;
     int ch = 0;
-    
+
     while (ch < dataChannelArray.size())
     {
         
         DataChannel* chan = dataChannelArray[ch];
         int sourceID = chan->getSourceNodeID();
         int subProcIdx = chan->getSubProcessorIdx();
-        
+
         if (inputs.empty() || inputs[sourceID].empty() || inputs[sourceID].back() != subProcIdx)
         {
             //Found a new subprocessor
@@ -294,11 +349,13 @@ void RecordNode::updateSubprocessorMap()
         {
             int orderInSubprocessor = 0;
             synchronizer->addSubprocessor(chan->getSourceNodeID(), chan->getSubProcessorIdx(), chan->getSampleRate());
+
             if (synchronizer->masterProcessor < 0)
             {
                 synchronizer->setMasterSubprocessor(chan->getSourceNodeID(), chan->getSubProcessorIdx());
             }
-            while (ch < dataChannelArray.size() && dataChannelArray[ch]->getSubProcessorIdx() == subProcIdx)
+            while (ch < dataChannelArray.size() && dataChannelArray[ch]->getSubProcessorIdx() == subProcIdx
+            	& dataChannelArray[ch]->getSourceNodeID() == sourceID)
             {
                 dataChannelStates[sourceID][dataChannelArray[ch]->getSubProcessorIdx()].push_back(CONTINUOUS_CHANNELS_ON_BY_DEFAULT);
                 dataChannelOrder[ch] = orderInSubprocessor++;
@@ -341,6 +398,8 @@ void RecordNode::updateSubprocessorMap()
     eventMap.clear();
     syncChannelMap.clear();
     syncOrderMap.clear();
+
+	LOGDD("Record Node: ", getNodeId(), " has ", eventChannelArray.size(), " event channels");
     for (int ch = 0; ch < eventChannelArray.size(); ch++)
     {
 
@@ -358,36 +417,42 @@ void RecordNode::updateSubprocessorMap()
         }
 
     }
-
 }
 
+// called by GenericProcessor, RecordNodeEditor, SourceProcessorInfo,
+// TimestampSourceSelectionComponent
 int RecordNode::getNumSubProcessors() const
 {
 	return numSubprocessors;
 }
 
+// called by RecordNodeEditor (when loading), SyncControlButton
 void RecordNode::setMasterSubprocessor(int srcIndex, int subProcIdx)
 {
 	synchronizer->setMasterSubprocessor(srcIndex, subProcIdx);
 }
 
+// called by RecordNodeEditor (when loading), SyncControlButton
 void RecordNode::setSyncChannel(int srcIndex, int subProcIdx, int channel)
 {
 	syncChannelMap[srcIndex][subProcIdx] = channel;
 	synchronizer->setSyncChannel(srcIndex, subProcIdx, syncOrderMap[srcIndex][subProcIdx]+channel);
 }
 
+// called by SyncControlButton
 int RecordNode::getSyncChannel(int srcIndex, int subProcIdx)
 {
 	return syncChannelMap[srcIndex][subProcIdx];
 	//return synchronizer->getSyncChannel(srcIndex, subProcIdx);
 }
 
+// called by SyncControlButton
 bool RecordNode::isMasterSubprocessor(int srcIndex, int subProcIdx)
 {
 	return (srcIndex == synchronizer->masterProcessor && subProcIdx == synchronizer->masterSubprocessor);
 }
 
+// called by GenericProcessor::update()
 void RecordNode::updateSettings()
 {
 
@@ -395,8 +460,22 @@ void RecordNode::updateSettings()
 
 }
 
+// called by GenericProcessor::enableProcessor
 bool RecordNode::enable()
 {
+
+	connectToMessageCenter();
+
+	bool openEphysFormatSelected = static_cast<RecordNodeEditor*> (getEditor())->getSelectedEngineIdx() == 1;
+
+	if (openEphysFormatSelected && getNumInputs() > 300)
+	{
+		AlertWindow::showMessageBoxAsync(AlertWindow::WarningIcon,
+			"WARNING!", "Open Ephys format does not support > 300 channels. Resetting to Binary format");
+		static_cast<RecordNodeEditor*> (getEditor())->engineSelectCombo->setSelectedItemIndex(0);
+		setEngine(0);
+		return false;
+	}
 
 	if (hasRecorded)
 	{
@@ -414,6 +493,7 @@ bool RecordNode::enable()
 
 }
 
+// called by GenericProcessor::setRecording()
 void RecordNode::startRecording()
 {
 
@@ -438,6 +518,8 @@ void RecordNode::startRecording()
 		DataChannel* chan = dataChannelArray[ch];
 		int srcIndex = chan->getSourceNodeID();
 		int subIndex = chan->getSubProcessorIdx();
+
+		LOGD("Channel: ", ch, " Source Node: ", srcIndex, " Sub Index: ", subIndex);
 
 		if (dataChannelStates[srcIndex][subIndex][dataChannelOrder[ch]])
 		{
@@ -484,6 +566,8 @@ void RecordNode::startRecording()
 
 	hasRecorded = true;
 
+	
+
 	/* Set write properties */
 	setFirstBlock = false;
 
@@ -510,19 +594,18 @@ void RecordNode::startRecording()
 			rootFolder.createDirectory();
 		}
 		
-		//TODO:
-		/*
 		if (settingsNeeded)
 		{
 			String settingsFileName = rootFolder.getFullPathName() + File::separator + "settings" + ((experimentNumber > 1) ? "_" + String(experimentNumber) : String::empty) + ".xml";
-			AccessClass::getEditorViewport()->saveState(File(settingsFileName), m_lastSettingsText);
+			AccessClass::getEditorViewport()->saveState(File(settingsFileName), lastSettingsText);
 			settingsNeeded = false;
 		}
-		*/
 
 		useSynchronizer = static_cast<RecordNodeEditor*> (getEditor())->getSelectedEngineIdx() == 0;
 
 		recordThread->setFileComponents(rootFolder, experimentNumber, recordingNumber);
+
+		LOGD("Num event channels: ", eventChannelArray.size());
 		recordThread->startThread();
 		isRecording = true;
 	}
@@ -531,6 +614,7 @@ void RecordNode::startRecording()
 
 }
 
+// called by GenericProcessor::setRecording()
 void RecordNode::stopRecording()
 {
 
@@ -538,10 +622,12 @@ void RecordNode::stopRecording()
 	if (recordThread->isThreadRunning())
 	{
 		recordThread->signalThreadShouldExit();
-		recordThread->waitForThreadToExit(200); //2000
+		recordThread->waitForThreadToExit(2000); //2000
 	}
 
 	eventMonitor->displayStatus();
+
+	disconnectMessageCenter();
 
 }
 
@@ -558,10 +644,24 @@ void RecordNode::setRecordSpikes(bool recordSpikes)
 void RecordNode::handleEvent(const EventChannel* eventInfo, const MidiMessage& event, int samplePosition)
 {
 
+	//Ignore any duplicate messages from MessageCenter
+	if (Event::getSourceID(event) > 900)
+	{
+		if (!msgCenterMessages.contains(Event::getTimestamp(event)))
+		{
+			msgCenterMessages.add(Event::getTimestamp(event));
+			LOGD("Received message.");
+		}
+		else
+			return;
+	}
+
 	eventMonitor->receivedEvents++;
 
 	if (recordEvents) 
 	{
+		// flags whether or not to write events
+
 		int64 timestamp = Event::getTimestamp(event);
 		uint64 eventChan = event.getChannel();
 		int eventIndex;
@@ -580,15 +680,14 @@ void RecordNode::handleEvent(const EventChannel* eventInfo, const MidiMessage& e
 
 }
 
-
+// only called if recordSpikes is true
 void RecordNode::handleSpike(const SpikeChannel* spikeInfo, const MidiMessage& event, int samplePosition)
 {
-
-
+    
 	SpikeEventPtr newSpike = SpikeEvent::deserializeFromMessage(event, spikeInfo);
 	if (!newSpike) 
 	{
-		std::cout << "Unable to deserialize spike event!" << std::endl; 
+		LOGD("Unable to deserialize spike event!");
 		return;
 	}
 
@@ -705,11 +804,13 @@ void RecordNode::process(AudioSampleBuffer& buffer)
 
 }
 
+// called by process method
 bool RecordNode::isFirstChannelInRecordedSubprocessor(int ch)
 {
 	return std::find(startRecChannels.begin(), startRecChannels.end(), ch) != startRecChannels.end();
 }
 
+// called by ProcessorGraph::connectProcessors
 void RecordNode::registerProcessor(const GenericProcessor* sourceNode)
 {
 	settings.numInputs += sourceNode->getNumOutputs();
@@ -717,11 +818,13 @@ void RecordNode::registerProcessor(const GenericProcessor* sourceNode)
 	recordEngine->registerProcessor(sourceNode);
 }
 
+// not called
 void RecordNode::registerSpikeSource(const GenericProcessor *processor)
 {
 	recordEngine->registerSpikeSource(processor);
 }
 
+// not called
 int RecordNode::addSpikeElectrode(const SpikeChannel *elec)
 {
 	spikeChannelArray.add(new SpikeChannel(*elec));
@@ -729,6 +832,7 @@ int RecordNode::addSpikeElectrode(const SpikeChannel *elec)
 	return spikeElectrodeIndex++;
 }
 
+// called in RecordNode::handleSpike
 void RecordNode::writeSpike(const SpikeEvent *spike, const SpikeChannel *spikeElectrode)
 {
 	//if (isRecording && shouldRecord)
@@ -741,6 +845,7 @@ void RecordNode::writeSpike(const SpikeEvent *spike, const SpikeChannel *spikeEl
 	}
 }
 
+// FileNameComponent listener
 void RecordNode::filenameComponentChanged(FilenameComponent *fnc)
 {
 
@@ -748,16 +853,19 @@ void RecordNode::filenameComponentChanged(FilenameComponent *fnc)
 	newDirectoryNeeded = true;
 }
 
+// not called?
 float RecordNode::getFreeSpace() const
 {
 	return 1.0f - float(dataDirectory.getBytesFreeOnVolume()) / float(dataDirectory.getVolumeTotalSize());
 }
 
+// not called?
 void RecordNode::registerRecordEngine(RecordEngine *engine)
 {
 	engineArray.add(engine);
 }
 
+// not called?
 void RecordNode::clearRecordEngines()
 {
 	engineArray.clear();

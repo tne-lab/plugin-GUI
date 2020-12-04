@@ -29,11 +29,24 @@
 #include "../../AccessClass.h"
 
 class GenericProcessor;
+class GenericEditor;
 class RecordNode;
 class AudioNode;
 class MessageCenter;
 class SignalChainTabButton;
 class TimestampSourceSelectionWindow;
+
+struct ProcessorDescription {
+    bool fromProcessorList;
+    String processorName;
+    int processorType;
+    int processorIndex;
+    String libName;
+    int libVersion;
+    bool isSource;
+    bool isSink;
+    int nodeId;
+};
 
 /**
   Owns all processors and constructs the signal chain.
@@ -56,12 +69,32 @@ public:
     ProcessorGraph();
     ~ProcessorGraph();
 
-    void* createNewProcessor(Array<var>& description, int id);
-    GenericProcessor* createProcessorFromDescription(Array<var>& description);
+    GenericProcessor* createProcessor(ProcessorDescription& description,
+                         GenericProcessor* sourceNode = nullptr,
+                         GenericProcessor* destNode = nullptr,
+                         bool signalChainIsLoading=false);
+    GenericProcessor* createProcessorFromDescription(ProcessorDescription& description);
+    
+    bool checkForNewRootNodes(GenericProcessor* processor,
+                              bool processorBeingAdded = true,
+                              bool processorBeingMoved = false);
+    
+    void moveProcessor(GenericProcessor*, GenericProcessor* newSource = nullptr, GenericProcessor* newDest = nullptr,
+                       bool moveDownstream = true);
 
     void removeProcessor(GenericProcessor* processor);
     Array<GenericProcessor*> getListOfProcessors();
+    
+    
+    Array<GenericProcessor*> getRootNodes() {return rootNodes;}
+    
+    Array<GenericEditor*> getVisibleEditors(GenericProcessor* processor);
+
+    
+    void updateSettings(GenericProcessor* processor, bool signalChainIsLoading = false);
+    void updateViews(GenericProcessor* processor);
     void clearSignalChain();
+    void deleteNodes(Array<GenericProcessor*> nodesToDelete);
 
     bool enableProcessors();
     bool disableProcessors();
@@ -72,7 +105,7 @@ public:
     
     bool hasRecordNode();
 
-    void updateConnections(Array<SignalChainTabButton*, CriticalSection>);
+    void updateConnections();
 
     bool processorWithSameNameExists(const String& name);
 
@@ -80,6 +113,8 @@ public:
 
     /** Loops through processors and restores parameters, if they're available. */
     void restoreParameters();
+    
+    //void loadParametersFromXml(GenericProcessor*);
 
     void updatePointers();
 
@@ -102,9 +137,13 @@ public:
 	uint32 getGlobalTimestampSourceFullId() const;
 
 	void setTimestampWindow(TimestampSourceSelectionWindow* window);
+    
+    void viewSignalChain(int index);
 
 private:
     int currentNodeId;
+    
+    bool isLoadingSignalChain;
 
     enum nodeIds
     {
@@ -119,12 +158,16 @@ private:
     void connectProcessors(GenericProcessor* source, GenericProcessor* dest,
         bool connectContinuous, bool connectEvents);
     void connectProcessorToAudioNode(GenericProcessor* source);
+    void connectProcessorToMessageCenter(GenericProcessor* source);
 
 	int64 m_startSoftTimestamp{ 0 };
 	const GenericProcessor* m_timestampSource{ nullptr };
 	int m_timestampSourceSubIdx;
 	Array<const GenericProcessor*> m_validTimestampSources;
 	WeakReference<TimestampSourceSelectionWindow> m_timestampWindow;
+    
+    Array<GenericProcessor*> rootNodes;
+
 };
 
 

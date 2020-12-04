@@ -24,7 +24,7 @@ The GUI is based around a *true plugin architecture*, meaning the data processin
 
 Our primary user base is scientists performing electrophysiology experiments with tetrodes or silicon probes, but the GUI can also be adapted for use with other types of sensors.
 
-[![docs](https://img.shields.io/badge/docs-confluence-blue.svg)](https://open-ephys.atlassian.net/wiki/spaces/OEW/pages/491527/Open+Ephys+GUI)
+[![docs](https://img.shields.io/badge/docs-open--ephys.github.io-blue.svg)](https://open-ephys.github.io/gui-docs/)
 [![latest release](https://img.shields.io/github/release/open-ephys/plugin-gui.svg)](https://github.com/open-ephys/plugin-GUI/releases)
 ![Linux](https://github.com/open-ephys/plugin-GUI/workflows/Linux/badge.svg)
 ![OSX](https://github.com/open-ephys/plugin-GUI/workflows/macOS/badge.svg)
@@ -44,11 +44,11 @@ Our primary user base is scientists performing electrophysiology experiments wit
 
 The easiest way to get started is to download the installer for your platform of choice:
 
-- [Windows](https://dl.bintray.com/open-ephys-gui/Release-Installer/Install-Open-Ephys-GUI-v0.5.0.exe) (Neuropixels plugins available via File > Plugin Installer)
-- [Ubuntu/Debian](https://dl.bintray.com/open-ephys-gui/Release-Installer/open-ephys-gui-v0.5.0.deb)
-- [macOS](https://dl.bintray.com/open-ephys-gui/Release-Installer/Open_Ephys_GUI_v0.5.0.dmg)
+- [Windows](https://dl.bintray.com/open-ephys-gui/Release-Installer/Install-Open-Ephys-GUI-v0.5.3.exe) (Neuropixels plugins available via File -> Plugin Installer)
+- [Ubuntu/Debian](https://dl.bintray.com/open-ephys-gui/Release-Installer/open-ephys-gui-v0.5.3.deb)
+- [macOS](https://dl.bintray.com/open-ephys-gui/Release-Installer/Open_Ephys_GUI_v0.5.3.dmg)
 
-It’s also possible to obtain the binaries as a .zip file for [Windows](https://dl.bintray.com/open-ephys-gui/Release/open-ephys-v0.5.0-windows.zip), [Linux](https://dl.bintray.com/open-ephys-gui/Release/open-ephys-v0.5.0-linux.zip), or [Mac](https://dl.bintray.com/open-ephys-gui/Release/open-ephys-v0.5.0-mac.zip).
+It’s also possible to obtain the binaries as a .zip file for [Windows](https://dl.bintray.com/open-ephys-gui/Release/open-ephys-v0.5.3-windows.zip), [Linux](https://dl.bintray.com/open-ephys-gui/Release/open-ephys-v0.5.3-linux.zip), or [Mac](https://dl.bintray.com/open-ephys-gui/Release/open-ephys-v0.5.3-mac.zip).
 
 Detailed installation instructions can be found [here](https://open-ephys.github.io/gui-docs/User-Manual/Installing-the-GUI.html).
 
