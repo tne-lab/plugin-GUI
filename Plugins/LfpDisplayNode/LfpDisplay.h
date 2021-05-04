@@ -2,7 +2,7 @@
     ------------------------------------------------------------------
 
     This file is part of the Open Ephys GUI
-    Copyright (C) 2013 Open Ephys
+    Copyright (C) 2021 Open Ephys
 
     ------------------------------------------------------------------
 
@@ -30,6 +30,7 @@
 
 #include "LfpDisplayClasses.h"
 #include "LfpDisplayNode.h"
+
 namespace LfpViewer {
 #pragma  mark - LfpDisplay -
 //==============================================================================
@@ -46,7 +47,7 @@ namespace LfpViewer {
 class LfpDisplay : public Component
 {
 public:
-    LfpDisplay(LfpDisplayCanvas*, Viewport*);
+    LfpDisplay(LfpDisplaySplitter*, Viewport*);
     ~LfpDisplay();
     
     Image lfpChannelBitmap; // plot as bitmap instead of separately setting pixels
@@ -63,6 +64,8 @@ public:
 
     void resized();
 
+    void restoreViewPosition();
+
     void reactivateChannels();
 
     void mouseDown(const MouseEvent& event);
@@ -77,7 +80,7 @@ public:
     void setChannelHeight(int r, bool resetSingle = true);
     int getChannelHeight();
     
-    LfpChannelColourScheme * getColourSchemePtr();
+    ChannelColourScheme * getColourSchemePtr();
         
     /** Caches a new channel height without updating the channels */
     void cacheNewChannelHeight(int r);
@@ -90,6 +93,9 @@ public:
     
     /** Reorders the displayed channels, reversed if state == true and normal if false */
     void setChannelsReversed(bool state);
+
+    /** Reorders the displayed channels by depth if state == true and normal if false */
+    void orderChannelsByDepth(bool state);
     
     /** Returns a factor of 2 by which the displayed channels should skip */
     int getChannelDisplaySkipAmount();
@@ -114,6 +120,8 @@ public:
     void setEnabledState(bool state, int chan, bool updateSavedChans = true);
     bool getEnabledState(int);
     
+    void setScrollPosition(int x, int y);
+
     /** Returns true if the median offset is enabled for plotting, else false */
     bool getMedianOffsetPlotting();
     
@@ -134,7 +142,24 @@ public:
 
     /** Returns true if a single channel is focused in viewport */
     bool getSingleChannelState();
+
+    /** Returns the index of the channel that is focused in viewport */
+    int getSingleChannelShown();
+
+    /** Sets the view to a single channel */
+    void setSingleChannelView(int channel);
     
+    /** Convenience struct for holding a channel and its info in drawableChannels */
+    struct LfpChannelTrack
+    {
+        LfpChannelDisplay* channel;
+        LfpChannelDisplayInfo* channelInfo;
+    };
+
+    Array<LfpChannelTrack> drawableChannels;        // holds the channels and info that are
+                                                // drawable to the screen
+
+
     /** Set the viewport's channel focus behavior.
      
         When a single channel is selected, it fills the entire viewport and
@@ -147,7 +172,7 @@ public:
                         Note: this parameter is NOT the index in channel[], but
                         the index of the channel in drawableChannels[].
      */
-    void toggleSingleChannel(int chan = -2);
+    void toggleSingleChannel(LfpChannelTrack drawableChannel);
     
     /** Reconstructs the list of drawableChannels based on ordering and filterning parameters */
     void rebuildDrawableChannelsList();
@@ -162,14 +187,7 @@ public:
     OwnedArray<LfpChannelDisplay> channels;             // all channels
     OwnedArray<LfpChannelDisplayInfo> channelInfo;      // all channelInfos
     
-    /** Convenience struct for holding a channel and its info in drawableChannels */
-    struct LfpChannelTrack
-    {
-        LfpChannelDisplay * channel;
-        LfpChannelDisplayInfo * channelInfo;
-    };
-    Array<LfpChannelTrack> drawableChannels;        // holds the channels and info that are
-                                                    // drawable to the screen
+    
 
     bool eventDisplayEnabled[8];
     bool isPaused; // simple pause function, skips screen buffer updates
@@ -196,10 +214,12 @@ public:
     
     TrackZoomInfo_Struct trackZoomInfo; // and create an instance here
 
+    Array<bool> savedChannelState;
+
 private:
     
     int singleChan;
-	Array<bool> savedChannelState;
+	
 
     int numChans;
     int displaySkipAmt;
@@ -207,16 +227,20 @@ private:
     float drawableSampleRate;
     uint32 drawableSubprocessor;
 
+    int scrollX;
+    int scrollY;
+
     int totalHeight;
 
     int colorGrouping;
     
     bool channelsReversed;
+    bool channelsOrderedByDepth;
     bool m_MedianOffsetPlottingFlag;
     bool m_SpikeRasterPlottingFlag;
     float m_SpikeRasterThreshold;
 
-    LfpDisplayCanvas* canvas;
+    LfpDisplaySplitter* canvasSplit;
     Viewport* viewport;
 
     float range[3];
@@ -229,7 +253,7 @@ private:
     // TODO: (kelly) add reference to a color scheme
 //    LfpChannelColourScheme * colourScheme;
     uint8 activeColourScheme;
-    OwnedArray<LfpChannelColourScheme> colourSchemeList;
+    OwnedArray<ChannelColourScheme> colourSchemeList;
 };
   
 }; // namespace

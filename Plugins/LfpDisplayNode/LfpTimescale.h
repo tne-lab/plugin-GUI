@@ -35,13 +35,13 @@ namespace LfpViewer {
 //==============================================================================
 /**
  
-    Displays the timescale of the LfpDisplayCanvas in the viewport.
+    Displays the timescale of the LfpDisplaySplitter in the viewport.
  
  */
 class LfpTimescale : public Component
 {
 public:
-    LfpTimescale(LfpDisplayCanvas*, LfpDisplay*);
+    LfpTimescale(LfpDisplaySplitter*, LfpDisplay*);
     ~LfpTimescale();
 
     void paint(Graphics& g);
@@ -54,20 +54,23 @@ public:
     
     void mouseUp(const MouseEvent &e) override;
 
-    void setTimebase(float t);
+    void setTimebase(float t, float offset = 0.0f);
 
 private:
 
-    LfpDisplayCanvas* canvas;
+    LfpDisplaySplitter* canvasSplit;
     LfpDisplay* lfpDisplay;
 
     float timebase;
+    float offset;
     float labelIncrement;
     float numIncrements;
 
     Font font;
 
     StringArray labels;
+    Array<bool> isMajor;
+    Array<float> fractionWidth;
 
 };
 

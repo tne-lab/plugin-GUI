@@ -331,6 +331,7 @@ void RecordNode::updateChannelStates(int srcIndex, int subProcIdx, std::vector<b
 // called by updateSettings (could be refactored)
 void RecordNode::updateSubprocessorMap()
 {
+	//std::cout << "UPDATE SUBPROCESSOR MAP" << std::endl;
 
 	bool refreshEditor = false;
     
@@ -340,7 +341,7 @@ void RecordNode::updateSubprocessorMap()
 	int originalChannelCount = numChannels;
     int ch = 0;
 
-    while (ch < dataChannelArray.size())
+    while (ch < dataChannelArray.size()) 
     {
         
         DataChannel* chan = dataChannelArray[ch];
@@ -379,33 +380,47 @@ void RecordNode::updateSubprocessorMap()
             {
                 dataChannelStates[sourceID][dataChannelArray[ch]->getSubProcessorIdx()].push_back(CONTINUOUS_CHANNELS_ON_BY_DEFAULT);
                 dataChannelOrder[ch] = orderInSubprocessor++;
+
+				//std::cout << " Channel " << ch << ", " << " order: " << dataChannelOrder[ch] << ", record state: " << dataChannelStates[sourceID][subProcIdx].back() << std::endl;
+
+
                 ch++;
+
+
             }
 			refreshEditor = true;
+
+			LOGDD("RecordNode found ", orderInSubprocessor, " channels in ", sourceID, ".", subProcIdx);
         }
         else
 		{
 			// check if channel count has changed for existing source
 			int count = 0;
+			int originalSize = dataChannelStates[sourceID][subProcIdx].size();
 
 			for (int i = 0; i < dataChannelArray.size(); i++)
 			{
+
+				//std::cout << "Channel " << i << ": " << dataChannelArray[i]->getSourceNodeID() << "." << dataChannelArray[i]->getSubProcessorIdx() << std::endl;
 				if (dataChannelArray[i]->getSourceNodeID() == sourceID && dataChannelArray[i]->getSubProcessorIdx() == subProcIdx)
+				{
+					dataChannelOrder[ch + count] = count;
 					count++;
+				}
+					
 			}
 			//If channel count is greater, add new channels to dataChannelStates
-			if (count > dataChannelStates[sourceID][subProcIdx].size())
+			if (count > originalSize)
 			{
-				count = count - dataChannelStates[sourceID][subProcIdx].size();
-				for (int i=0; i<count; i++)
+				for (int i = 0; i < count - originalSize; i++)
 				{
 					dataChannelStates[sourceID][subProcIdx].push_back(CONTINUOUS_CHANNELS_ON_BY_DEFAULT);
+					
 				}
 			} //else if less, remove n channels from dataChannelStates
 			else if (count < dataChannelStates[sourceID][subProcIdx].size())
 			{
-				count = dataChannelStates[sourceID][subProcIdx].size() - count;
-				for (int i=0; i<count; i++)
+				for (int i = 0; i < originalSize - count; i++)
 				{
 					dataChannelStates[sourceID][subProcIdx].pop_back();
 				}
@@ -414,8 +429,15 @@ void RecordNode::updateSubprocessorMap()
 			{
 				//else do nothing
 			}
+
+			LOGDD("RecordNode found ", count, " channels in ", sourceID, ".", subProcIdx);
+
 			ch += count;
+
+			//std::cout << " Channel " << ch << " record state: " << dataChannelStates[sourceID][subProcIdx].back() << std::endl;
 		}
+
+		
         
     }
 
@@ -542,6 +564,12 @@ bool RecordNode::enable()
 
 }
 
+bool RecordNode::disable()
+{
+	disconnectMessageCenter();
+	return true;
+}
+
 // called by GenericProcessor::setRecording()
 void RecordNode::startRecording()
 {
@@ -568,13 +596,15 @@ void RecordNode::startRecording()
 		int srcIndex = chan->getSourceNodeID();
 		int subIndex = chan->getSubProcessorIdx();
 
-		LOGDD("Channel: ", ch, " Source Node: ", srcIndex, " Sub Index: ", subIndex);
+		LOGDD("Channel: ", ch, " Source Node: ", srcIndex, " Sub Index: ", subIndex, " Order: ", dataChannelOrder[ch]);
 
 		if (dataChannelStates[srcIndex][subIndex][dataChannelOrder[ch]])
 		{
 
 			int chanOrderInProcessor = subIndex * dataChannelStates[srcIndex][subIndex].size() + dataChannelOrder[ch];
 			channelMap.add(ch);
+
+			//LOGD("  RECORD!");
 
 			//TODO: This logic will not work after a channel mapper with channels mapped from different subprocessors!
 			if (chan->getSourceNodeID() != lastProcessor || chan->getSubProcessorIdx() != lastSubProcessor)
@@ -644,21 +674,22 @@ void RecordNode::startRecording()
 		{
 			rootFolder.createDirectory();
 		}
-		
-		if (settingsNeeded)
-		{
-			String settingsFileName = rootFolder.getFullPathName() + File::separator + "settings" + ((experimentNumber > 1) ? "_" + String(experimentNumber) : String::empty) + ".xml";
-			AccessClass::getEditorViewport()->saveState(File(settingsFileName), lastSettingsText);
-			settingsNeeded = false;
-		}
 
 		useSynchronizer = static_cast<RecordNodeEditor*> (getEditor())->getSelectedEngineIdx() == 0;
 
 		recordThread->setFileComponents(rootFolder, experimentNumber, recordingNumber);
 
 		LOGD("Num event channels: ", eventChannelArray.size());
+
 		recordThread->startThread();
 		isRecording = true;
+
+		if (settingsNeeded)
+		{
+			String settingsFileName = rootFolder.getFullPathName() + File::separator + "settings" + ((experimentNumber > 1) ? "_" + String(experimentNumber) : String::empty) + ".xml";
+			AccessClass::getEditorViewport()->saveState(File(settingsFileName), lastSettingsText);
+			settingsNeeded = false;
+		}
 	}
 	else
 		isRecording = false;
@@ -677,8 +708,6 @@ void RecordNode::stopRecording()
 	}
 
 	eventMonitor->displayStatus();
-
-	disconnectMessageCenter();
 
 }
 
@@ -750,20 +779,7 @@ void RecordNode::handleSpike(const SpikeChannel* spikeInfo, const MidiMessage& e
 
 void RecordNode::handleTimestampSyncTexts(const MidiMessage& event)
 {
-
-	if (event.getVelocity() == 136)
-	{
-		if (!receivedSoftwareTime)
-		{
-			handleEvent(nullptr, event, 0);
-			receivedSoftwareTime = true;
-		}
-	}
-	else
-	{
-		handleEvent(nullptr, event, 0);
-	}
-
+	handleEvent(nullptr, event, 0);
 }
 	
 void RecordNode::process(AudioSampleBuffer& buffer)

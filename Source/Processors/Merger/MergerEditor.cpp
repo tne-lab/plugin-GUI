@@ -104,22 +104,12 @@ void MergerEditor::buttonEvent(Button* button)
     
     if (button == pipelineSelectorA)
     {
-        pipelineSelectorA->setToggleState(true, dontSendNotification);
-        pipelineSelectorB->setToggleState(false, dontSendNotification);
-        Merger* processor = (Merger*) getProcessor();
-        processor->switchIO(0);
-
+        AccessClass::getEditorViewport()->switchIO(getProcessor(), 0);
     }
     else if (button == pipelineSelectorB)
     {
-        pipelineSelectorB->setToggleState(true, dontSendNotification);
-        pipelineSelectorA->setToggleState(false, dontSendNotification);
-        Merger* processor = (Merger*) getProcessor();
-        processor->switchIO(1);
-
+        AccessClass::getEditorViewport()->switchIO(getProcessor(), 1);
     }
-
-    AccessClass::getProcessorGraph()->updateViews(getProcessor());
 }
 
 Array<GenericProcessor*> MergerEditor::getSelectableProcessors()
@@ -180,8 +170,10 @@ void MergerEditor::mouseDown(const MouseEvent& e)
 
         PopupMenu menu;
         int menuItemIndex = 1;
-        int continuousMergeIndexA, continuousMergeIndexB = -1;
-        int inputSelectionIndexA, inputSelectionIndexB = -1;
+        int continuousMergeIndexA = -1;
+        int continuousMergeIndexB = -1;
+        int inputSelectionIndexA = -1;
+        int inputSelectionIndexB = -1;
         
         Array<GenericProcessor*> selectableProcessors = getSelectableProcessors();
         

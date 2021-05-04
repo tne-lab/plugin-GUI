@@ -35,7 +35,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "LfpBitmapPlotter.h"
 #include "PerPixelBitmapPlotter.h"
 #include "SupersampledBitmapPlotter.h"
-#include "LfpChannelColourScheme.h"
 
 #include <math.h>
 
@@ -44,7 +43,7 @@ using namespace LfpViewer;
 #pragma  mark - LfpChannelDisplayInfo -
 // -------------------------------
 
-LfpChannelDisplayInfo::LfpChannelDisplayInfo(LfpDisplayCanvas* canvas_, LfpDisplay* display_, LfpDisplayOptions* options_, int ch)
+LfpChannelDisplayInfo::LfpChannelDisplayInfo(LfpDisplaySplitter* canvas_, LfpDisplay* display_, LfpDisplayOptions* options_, int ch)
     : LfpChannelDisplay(canvas_, display_, options_, ch)
 {
 
@@ -80,7 +79,7 @@ void LfpChannelDisplayInfo::buttonClicked(Button* button)
 
     bool state = button->getToggleState();
 
-    display->setEnabledState(state, chan);
+    display->setEnabledState(state, chan, true);
 
     //UtilityButton* b = (UtilityButton*) button;
 
@@ -97,7 +96,7 @@ void LfpChannelDisplayInfo::buttonClicked(Button* button)
 
 void LfpChannelDisplayInfo::setEnabledState(bool state)
 {
-    enableButton->setToggleState(state, sendNotification);
+    enableButton->setToggleState(state, dontSendNotification);
 }
 
 void LfpChannelDisplayInfo::setSingleChannelState(bool state)
@@ -131,7 +130,7 @@ void LfpChannelDisplayInfo::mouseDrag(const MouseEvent &e)
                 zoomInfo.componentStartHeight = getChannelHeight();
                 zoomInfo.zoomPivotRatioY = (getY() + e.getMouseDownY())/(float)display->getHeight();
                 zoomInfo.zoomPivotRatioX = (getX() + e.getMouseDownX())/(float)display->getWidth();
-                zoomInfo.zoomPivotViewportOffset = getPosition() + e.getMouseDownPosition() - canvas->viewport->getViewPosition();
+                zoomInfo.zoomPivotViewportOffset = getPosition() + e.getMouseDownPosition() - canvasSplit->viewport->getViewPosition();
                 
                 zoomInfo.unpauseOnScrollEnd = !display->isPaused;
                 if (!display->isPaused) display->options->togglePauseButton(true);
@@ -183,14 +182,14 @@ void LfpChannelDisplayInfo::mouseDrag(const MouseEvent &e)
             
             options->setSpreadSelection(newHeight, false, true); // update combobox
             
-            canvas->fullredraw = true;//issue full redraw - scrolling without modifier doesnt require a full redraw
+            canvasSplit->fullredraw = true;//issue full redraw - scrolling without modifier doesnt require a full redraw
             
             display->setBounds(0,0,display->getWidth()-0, display->getChannelHeight()*display->drawableChannels.size()); // update height so that the scrollbar is correct
             
             int newViewportY = display->trackZoomInfo.zoomPivotRatioY * display->getHeight() - display->trackZoomInfo.zoomPivotViewportOffset.getY();
             if (newViewportY < 0) newViewportY = 0; // make sure we don't adjust beyond the edge of the actual view
             
-            canvas->viewport->setViewPosition(0, newViewportY);
+            canvasSplit->viewport->setViewPosition(0, newViewportY);
         }
     }
 }
@@ -210,7 +209,6 @@ void LfpChannelDisplayInfo::mouseUp(const MouseEvent &e)
 
 void LfpChannelDisplayInfo::paint(Graphics& g)
 {
-
     int center = getHeight()/2 - (isSingleChannel?(75):(0));
 	const bool showChannelNumbers = options->getChannelNameState();
 
@@ -223,7 +221,7 @@ void LfpChannelDisplayInfo::paint(Graphics& g)
     g.drawText(channelString,
                showChannelNumbers ? 6 : 2,
                center-4,
-               getWidth()/2,
+               getWidth(),
                10,
                isCentered ? Justification::centred : Justification::centredLeft,
                false);
@@ -252,8 +250,8 @@ void LfpChannelDisplayInfo::paint(Graphics& g)
         //g.drawText("Y:", 5, center+200,41,10,Justification::centred,false);
 
         g.setColour(Colours::grey);
-        g.drawText(String(canvas->getStd(chan)), 5, center+110,41,10,Justification::centred,false);
-        g.drawText(String(canvas->getMean(chan)), 5, center+60,41,10,Justification::centred,false);
+        g.drawText(String(canvasSplit->getStd(chan)), 5, center+110,41,10,Justification::centred,false);
+        g.drawText(String(canvasSplit->getMean(chan)), 5, center+60,41,10,Justification::centred,false);
         if (x > 0)
         {
             //g.drawText(String(x), 5, center+150,41,10,Justification::centred,false);
@@ -275,12 +273,14 @@ void LfpChannelDisplayInfo::updateXY(float x_, float y_)
 void LfpChannelDisplayInfo::resized()
 {
 
+   // std::cout << "Resizing info" << std::endl;
+
     int center = getHeight()/2 - (isSingleChannel?(75):(0));
     setEnabledButtonVisibility(getHeight() >= 16);
     
     if (getEnabledButtonVisibility())
     {
-        enableButton->setBounds(getWidth()/2 - 10, center - 5, 10, 10);
+        enableButton->setBounds(getWidth() - 13, center - 5, 10, 10);
     }
     
     setChannelNumberIsHidden(getHeight() < 16 && (getDrawableChannelNumber() + 1) % 10 != 0);
