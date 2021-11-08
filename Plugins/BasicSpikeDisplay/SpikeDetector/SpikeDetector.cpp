@@ -308,7 +308,7 @@ void SpikeDetector::setChannelThreshold (int electrodeNum, int channelNum, float
     currentElectrode = electrodeNum;
     currentChannelIndex = channelNum;
 
-    std::cout << "Setting electrode " << electrodeNum << " channel threshold " << channelNum << " to " << thresh << std::endl;
+    //std::cout << "Setting electrode " << electrodeNum << " channel threshold " << channelNum << " to " //<< thresh << std::endl;
 
     setParameter (99, thresh);
 }
@@ -461,8 +461,9 @@ void SpikeDetector::process (AudioSampleBuffer& buffer)
                             std::cout << std::endl;
                             sampleIndex++;
                         }
-                        sampleIndex = peakIndex - (electrode->prePeakSamples + 1);
+                        
                         */
+                        sampleIndex -= (electrode->prePeakSamples + 1);
 
 						const SpikeChannel* spikeChan = getSpikeChannel(i);
 						SpikeEvent::SpikeBuffer spikeData(spikeChan);
