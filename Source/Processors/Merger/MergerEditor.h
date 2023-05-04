@@ -28,6 +28,10 @@
 #include "../../../JuceLibraryCode/JuceHeader.h"
 #include "../Editors/GenericEditor.h"
 
+class StreamSelectorButton;
+class StreamButtonHolder;
+class DataStream;
+
 /**
 
   User interface for the Merger utility.
@@ -36,30 +40,60 @@
 
 */
 
-class MergerEditor : public GenericEditor
+class MergerEditor : public GenericEditor,
+    public Button::Listener
 
 {
 public:
-    MergerEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors);
-    virtual ~MergerEditor();
+    
+    /** Constructor*/
+    MergerEditor(GenericProcessor* parentNode);
+    
+    /** Destructor*/
+    virtual ~MergerEditor() { }
 
-    virtual void buttonEvent(Button* button);
+    /** Called whenever the pathway selector button or stream selector button is pressed.*/
+    void buttonClicked(Button* button);
 
+    /** Disables stream selector buttons*/
+    void startAcquisition();
+
+    /** Enables stream selector buttons*/
+    void stopAcquisition();
+
+    /** Changes the active pathway to 0 or 1 */
     void switchSource(int);
+    
+    /** Swaps the active pathway*/
     void switchSource();
 
+    /** Changes the active pathway to 0 or 1, and selects the editor */
     void switchIO(int);
-
+    
+    /** Called for mouse events in the editor's title bar */
     void mouseDown(const MouseEvent& event);
 
+    /** Returns the pathway (0 or 1) for a particular editor*/
     int getPathForEditor(GenericEditor* editor);
 
+    /** Returns an array of the editors that feed into the merger*/
     Array<GenericEditor*> getConnectedEditors();
 
-private:
+    /** Remove unused buttons */
+    void updateSettings() override;
+    
+    /** Checks whether a stream should be sent through the Merger*/
+    bool checkStream(const DataStream* stream);
 
-    ImageButton* pipelineSelectorA;
-    ImageButton* pipelineSelectorB;
+
+private:
+    
+    String getNameString(GenericProcessor*);
+    Array<GenericProcessor*> getSelectableProcessors();
+    
+    std::unique_ptr<ImageButton> pipelineSelectorA;
+    std::unique_ptr<ImageButton> pipelineSelectorB;
+
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MergerEditor);
 

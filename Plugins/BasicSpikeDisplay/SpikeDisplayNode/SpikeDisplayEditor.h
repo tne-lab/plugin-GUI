@@ -25,12 +25,7 @@
 #define SPIKEDISPLAYEDITOR_H_
 
 #include <VisualizerEditorHeaders.h>
-#include <RecordingLib.h>
-#include "SpikeDisplayNode.h"
-#include "SpikeDisplayCanvas.h"
 
-
-#define MAX_N_SUB_CHAN 8
 class Visualizer;
 class UtilityButton;
 
@@ -42,42 +37,40 @@ class UtilityButton;
 
 */
 
-class SpikeDisplayEditor : public VisualizerEditor
+#define MAX_N_SUB_CHAN 8
+
+class SpikeDisplayEditor : public VisualizerEditor,
+                           public Button::Listener
 {
 public:
+
+    /** Constructor */
     SpikeDisplayEditor(GenericProcessor*);
-    ~SpikeDisplayEditor();
 
-    void buttonEvent(Button* button);
+    /** Destructor*/
+    ~SpikeDisplayEditor() { }
 
-    void startRecording();
-    void stopRecording();
+    /** Sends messages from control buttons to canvas (currently disabled) */
+    void buttonClicked(Button* button) override;
 
-    // void updateSettings();
-    // void updateVisualizer();
+    /** Creates the SpikeDisplayCanvas */
+    Visualizer* createNewCanvas() override;
 
-    Visualizer* createNewCanvas();
+    /** Writes editor state to xml */
+    void saveVisualizerEditorParameters(XmlElement* xml) override;
+
+    /** Writes editor state to xml */
+    void loadVisualizerEditorParameters(XmlElement* xml) override;
 
 private:
 
-    UtilityButton* panUpBtn;
-    UtilityButton* panDownBtn;
-    UtilityButton* zoomInBtn;
-    UtilityButton* zoomOutBtn;
-    UtilityButton* clearBtn;
-    UtilityButton* saveImgBtn;
+    std::unique_ptr<UtilityButton> scaleUpBtn;
+    std::unique_ptr<UtilityButton> scaleDownBtn;
 
-    Label* panLabel;
-    Label* zoomLabel;
+    std::unique_ptr<Label> scaleLabel;
 
-    UtilityButton* allSubChansBtn;
-
-    int nSubChannels;
-    Label* subChanLabel;
-    UtilityButton* subChanBtn[MAX_N_SUB_CHAN];
-    bool subChanSelected[MAX_N_SUB_CHAN];
-
-    void initializeButtons();
+    Array<float> scaleFactors;
+    int selectedScaleFactor;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SpikeDisplayEditor);
 

@@ -10,6 +10,7 @@
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
+ /Users/franman/Documents/Programming/GitHub/plugin-GUI/Plugins/BasicSpikeDisplay/SpikeDisplayNode/SpikeDisplayCanvas.h
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -26,37 +27,144 @@
 
 #include <VisualizerWindowHeaders.h>
 
-#include "SpikeDisplayNode.h"
+#include "SpikeDisplay.h"
 
 #include <vector>
 
-#define WAVE1 0
-#define WAVE2 1
-#define WAVE3 2
-#define WAVE4 3
-#define PROJ1x2 4
-#define PROJ1x3 5
-#define PROJ1x4 6
-#define PROJ2x3 7
-#define PROJ2x4 8
-#define PROJ3x4 9
-
-#define TETRODE_PLOT 1004
-#define STEREO_PLOT  1002
-#define SINGLE_PLOT  1001
-
-#define MAX_NUMBER_OF_SPIKE_SOURCES 128
-#define MAX_N_CHAN 4
-
+class SpikePlot;
 class SpikeDisplayNode;
 
-class SpikeDisplay;
-class GenericAxes;
-class ProjectionAxes;
-class WaveAxes;
-class SpikePlot;
-class RecordNode;
-class SpikeThresholdCoordinator;
+class SpikeDisplayCache
+{
+public:
+    SpikeDisplayCache () {}
+    virtual ~SpikeDisplayCache() {}
+
+    void setMonitor(std::string key, bool isMonitored) {
+        monitors[key] = isMonitored;
+    };
+
+    bool isMonitored(std::string key) {
+        return monitors[key];
+    };
+
+    void setRange(std::string key, int channelIdx, double range) {
+        ranges[key][channelIdx] = range;
+    };
+
+    double getRange(std::string key, int channelIdx) {
+        return ranges[key][channelIdx];
+    };
+
+    void setThreshold(std::string key,int channelIdx, double thresh) {
+        thresholds[key][channelIdx] = thresh;
+    };
+
+    double getThreshold(std::string key, int channelIdx) {
+        return thresholds[key][channelIdx];
+    };
+
+    bool hasCachedDisplaySettings(std::string cacheKey)
+    {
+        /*
+        LOGDD("SpikeDisplayCache keys:");
+        std::vector<std::string> keys = extract_keys(ranges);
+        std::vector<std::map<int,double>> vals = extract_values(ranges);
+        for (int i = 0; i < keys.size(); i++)
+        {
+            std::vector<int> channels = extract_keys(vals[i]);
+            std::vector<double> ranges = extract_values(vals[i]);
+            for (int j = 0; j < channels.size(); j++)
+                LOGDD("Key: ", keys[i], " Channel: ", channels[j], " Range: ", ranges[j]);
+        }
+        */
+        return thresholds.count(cacheKey) > 0;
+    };
+
+    std::string findSimilarKey(std::string key, int streamIndex)
+    {
+        std::vector<std::string> keys = extract_keys(ranges);
+
+        unsigned sourcePos = 0;
+        unsigned streamPos = key.find_first_of("|");
+        unsigned namePos = key.find_last_of("|");
+
+        // First check for a source ID change (match only stream + electrode name)
+        for (int i = 0; i < keys.size(); i++)
+        {
+            std::string partToMatch = key.substr(streamPos, key.length() - streamPos);
+            std::string possibleMatch = keys[i].substr(streamPos, keys[i].length() - streamPos);
+            if (partToMatch.compare(possibleMatch) == 0)
+                return keys[i];
+        }
+
+        // Next check for a stream name change (match only node + electrode name)
+        std::vector<std::string> matches;
+        for (int i = 0; i < keys.size(); i++)
+        {
+            int namePos2 = keys[i].find_last_of("|");
+            std::string partToMatch = key.substr(sourcePos, streamPos - sourcePos) + key.substr(namePos, key.length() - namePos);
+            std::string possibleMatch = keys[i].substr(sourcePos, streamPos - sourcePos) + keys[i].substr(namePos2, keys[i].length() - namePos2);
+            if (partToMatch.compare(possibleMatch) == 0)
+                matches.push_back(keys[i]);
+        }
+
+        // Check if multiple matches, if so, default to stream index
+        if (matches.size() == 1)
+            return matches[0];
+        else if (matches.size() > streamIndex)
+            return matches[streamIndex];
+
+        // No match found
+        return "";
+    }
+
+private:
+
+    std::map<std::string, std::map<int, double>> ranges;
+    std::map<std::string, std::map<int, double>> thresholds;
+    std::map<std::string, bool> monitors;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SpikeDisplayCache);
+};
+
+/**
+    Allows spike plot thresholds to be adjusted synchronously
+*/
+class SpikeThresholdCoordinator
+{
+public:
+
+    /** Constructor*/
+    SpikeThresholdCoordinator();
+
+    /** Destructor*/
+    ~SpikeThresholdCoordinator();
+
+    /** Registers a plot to interact with this coordinator*/
+    void registerSpikePlot(SpikePlot* sp);
+
+    /** De-registers a plot to interact with this coordinators*/
+    void deregisterSpikePlot(SpikePlot* sp);
+
+    /** Sets the lock threshold state*/
+    void setLockThresholds(bool en);
+
+    /** Returns the lock threshold state*/
+    bool getLockThresholds();
+
+    /** Sets the thresholds of all registered plots*/
+    void thresholdChanged(float displayThreshold, float range);
+
+private:
+
+    bool lockThresholds;
+    Array<SpikePlot*> registeredPlots;
+
+    WeakReference<SpikeThresholdCoordinator>::Master masterReference;
+    friend class WeakReference<SpikeThresholdCoordinator>;
+
+};
 
 /**
 
@@ -66,402 +174,72 @@ class SpikeThresholdCoordinator;
 
 */
 
-class SpikeDisplayCanvas : public Visualizer, public Button::Listener
+class SpikeDisplayCanvas : public Visualizer, 
+                           public Button::Listener
 
 {
 public:
-    SpikeDisplayCanvas(SpikeDisplayNode* n);
-    ~SpikeDisplayCanvas();
 
+    /** Constructor */
+    SpikeDisplayCanvas(SpikeDisplayNode* n);
+
+    /** Destructor */
+    ~SpikeDisplayCanvas() { }
+
+    /** Render black background */
     void paint(Graphics& g);
 
+    /** Called instead of "repaint" to avoid redrawing underlying components.*/
     void refresh();
 
-    void processSpikeEvents();
-
-    void beginAnimation();
-    void endAnimation();
-
+    /** Called when the component's tab becomes visible again*/
     void refreshState();
 
-    void setParameter(int, float) {}
-    void setParameter(int, int, int, float) {}
-
+    /** Creates spike displays for incoming spike channels*/
     void update();
 
+    /** Aligns components*/
     void resized();
 
-    bool keyPressed(const KeyPress& key);
-
+    /** Respond to clear / lock thresholds / invert spikes buttons*/
     void buttonClicked(Button* button);
 
-    void startRecording() { } // unused
-    void stopRecording() { } // unused
+    /** Clears audio monitor selection for all sub-plots*/
+    void resetAudioMonitorState();
 
+    /** Sets the scaling facotr for the sub-plots*/
+    void setPlotScaleFactor(float scale);
+
+    /** Saves display parameters */
+    void saveCustomParametersToXml(XmlElement* xml);
+
+    /** Loads display parameters */
+    void loadCustomParametersFromXml(XmlElement* xml);
+
+    /** Apply cached settings */
+    void applyCachedDisplaySettings(int plotIdx, std::string cacheKey);
+
+    /** Pointer to the underlying SpikeDisplayNode*/
     SpikeDisplayNode* processor;
 
-    void saveVisualizerParameters(XmlElement* xml);
-
-    void loadVisualizerParameters(XmlElement* xml);
+    /** Manages connections from SpikeChannels to SpikePlots */
+    std::unique_ptr<SpikeDisplayCache> cache;
 
 private:
 
-    ScopedPointer<SpikeDisplay> spikeDisplay;
-    ScopedPointer<Viewport> viewport;
-
-    ScopedPointer<UtilityButton> clearButton;
+    std::unique_ptr<SpikeDisplay> spikeDisplay;
+    std::unique_ptr<Viewport> viewport;
 
     bool newSpike;
-  //  SpikeObject spike;
 
     int scrollBarThickness;
 
-    ScopedPointer<SpikeThresholdCoordinator> thresholdCoordinator;
-    ScopedPointer<UtilityButton> lockThresholdsButton;
-    ScopedPointer<UtilityButton> invertSpikesButton;
+    std::unique_ptr<UtilityButton> clearButton;
+    std::unique_ptr<SpikeThresholdCoordinator> thresholdCoordinator;
+    std::unique_ptr<UtilityButton> lockThresholdsButton;
+    std::unique_ptr<UtilityButton> invertSpikesButton;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SpikeDisplayCanvas);
-
-};
-
-class SpikeDisplay : public Component
-{
-public:
-    SpikeDisplay(SpikeDisplayCanvas*, Viewport*);
-    ~SpikeDisplay();
-
-    void removePlots();
-    void clear();
-    SpikePlot* addSpikePlot(int numChannels, int electrodeNum, String name);
-    SpikePlot* getSpikePlot(int index);
-
-    void paint(Graphics& g);
-
-    void resized();
-
-    void mouseDown(const MouseEvent& event);
-
-    void plotSpike(const SpikeEvent* spike, int electrodeNum);
-
-    void invertSpikes(bool);
-
-    int getTotalHeight()
-    {
-        return totalHeight;
-    }
-
-    int getNumPlots();
-    int getNumChannelsForPlot(int plotNum);
-    float getThresholdForWaveAxis(int plotNum, int axisNum);
-    float getRangeForWaveAxis(int plotNum, int axisNum);
-
-    void setThresholdForWaveAxis(int plotNum, int axisNum, float threshold);
-    void setRangeForWaveAxis(int plotNum, int axisNum, float range);
-
-    void registerThresholdCoordinator(SpikeThresholdCoordinator* stc);
-
-private:
-
-    //void computeColumnLayout();
-    //void initializeSpikePlots();
-    //void repositionSpikePlots();
-
-    int numColumns;
-
-    int totalHeight;
-
-    SpikeDisplayCanvas* canvas;
-    Viewport* viewport;
-
-    OwnedArray<SpikePlot> spikePlots;
-
-    bool shouldInvert;
-
-    // float tetrodePlotMinWidth, stereotrodePlotMinWidth, singleElectrodePlotMinWidth;
-    // float tetrodePlotRatio, stereotrodePlotRatio, singleElectrodePlotRatio;
-
-    SpikeThresholdCoordinator* thresholdCoordinator;
-
-};
-
-/**
-
-  Class for drawing the waveforms and projections of incoming spikes.
-
-  Also responsible for saving spikes.
-
-*/
-
-class SpikePlot : public Component, Button::Listener
-{
-public:
-    SpikePlot(SpikeDisplayCanvas*, int elecNum, int plotType, String name_);
-    virtual ~SpikePlot();
-
-    void paint(Graphics& g);
-    void resized();
-
-    void select();
-    void deselect();
-
-    void processSpikeObject(const SpikeEvent* s);
-
-    SpikeDisplayCanvas* canvas;
-
-    bool isSelected;
-
-    int electrodeNumber;
-
-    int nChannels;
-
-    void initAxes();
-    void getBestDimensions(int*, int*);
-
-    void clear();
-
-    void invertSpikes(bool);
-
-    float minWidth;
-    float aspectRatio;
-
-    void buttonClicked(Button* button);
-
-    float getDisplayThresholdForChannel(int);
-    void setDisplayThresholdForChannel(int axisNum, float threshold);
-    void setDetectorThresholdForChannel(int, float);
-
-    float getRangeForChannel(int);
-    void setRangeForChannel(int axisNum, float range);
-
-    //For locking the tresholds
-    void registerThresholdCoordinator(SpikeThresholdCoordinator* stc);
-    void setAllThresholds(float displayThreshold, float range);
-
-private:
-
-    int plotType;
-    int nWaveAx;
-    int nProjAx;
-
-    bool limitsChanged;
-
-    double limits[MAX_N_CHAN][2];
-
-    OwnedArray<ProjectionAxes> pAxes;
-    OwnedArray<WaveAxes> wAxes;
-    OwnedArray<UtilityButton> rangeButtons;
-    Array<float> ranges;
-
-    void initLimits();
-    void setLimitsOnAxes();
-    void updateAxesPositions();
-
-    String name;
-
-    Font font;
-
-    WeakReference<SpikeThresholdCoordinator> thresholdCoordinator;
-
-};
-
-/**
-
-  Base class for drawing axes for spike visualization.
-
-  @see SpikeDisplayCanvas
-
-*/
-
-class GenericAxes : public Component
-{
-public:
-
-    GenericAxes(int t);
-
-    virtual ~GenericAxes();
-
-    virtual bool updateSpikeData(const SpikeEvent* s);
-
-    void setXLims(double xmin, double xmax);
-    void getXLims(double* xmin, double* xmax);
-    void setYLims(double ymin, double ymax);
-    void getYLims(double* ymin, double* ymax);
-
-    void setType(int type);
-    int getType();
-
-    virtual void paint(Graphics& g) = 0;
-
-    int roundUp(int, int);
-    void makeLabel(int val, int gain, bool convert, char* s);
-
-protected:
-    double xlims[2];
-    double ylims[2];
-
-   // SpikeObject s;
-
-    bool gotFirstSpike;
-
-    int type;
-
-    Font font;
-
-    double ad16ToUv(int x, int gain);
-
-};
-
-
-/**
-
-  Class for drawing spike waveforms.
-
-*/
-
-class WaveAxes : public GenericAxes
-{
-public:
-    WaveAxes(int channel);
-    ~WaveAxes() {}
-
-    bool updateSpikeData(const SpikeEvent* s);
-    bool checkThreshold(const SpikeEvent* spike);
-
-    void paint(Graphics& g);
-
-    void plotSpike(const SpikeEvent* s, Graphics& g);
-
-    void clear();
-
-    void mouseMove(const MouseEvent& event);
-    void mouseExit(const MouseEvent& event);
-    void mouseDown(const MouseEvent& event);
-    void mouseDrag(const MouseEvent& event);
-
-    void setRange(float);
-    float getRange()
-    {
-        return range;
-    }
-
-    float getDisplayThreshold();
-    void setDetectorThreshold(float);
-
-    //MouseCursor getMouseCursor();
-
-    //For locking the thresholds
-    void registerThresholdCoordinator(SpikeThresholdCoordinator* stc);
-    void setDisplayThreshold(float threshold);
-
-    void invertSpikes(bool shouldInvert)
-    {
-        spikesInverted = shouldInvert;
-        repaint();
-    }
-
-private:
-
-    Colour waveColour;
-    Colour thresholdColour;
-    Colour gridColour;
-
-    bool drawGrid;
-
-    float displayThresholdLevel;
-    float detectorThresholdLevel;
-
-    void drawWaveformGrid(Graphics& g);
-
-    void drawThresholdSlider(Graphics& g);
-
-    int spikesReceivedSinceLastRedraw;
-
-    Font font;
-
-   OwnedArray<SpikeEvent> spikeBuffer;
-
-    int spikeIndex;
-    int bufferSize;
-
-    float range;
-
-    bool isOverThresholdSlider;
-    bool isDraggingThresholdSlider;
-
-    MouseCursor::StandardCursorType cursorType;
-    SpikeThresholdCoordinator* thresholdCoordinator;
-
-    bool spikesInverted;
-
-};
-
-
-
-
-
-/**
-
-  Class for drawing the peak projections of spike waveforms.
-
-*/
-
-class ProjectionAxes : public GenericAxes
-{
-public:
-    ProjectionAxes(int projectionNum);
-    ~ProjectionAxes() {}
-
-    bool updateSpikeData(const SpikeEvent* s);
-
-    void paint(Graphics& g);
-
-    void clear();
-
-    void setRange(float, float);
-
-    static void n2ProjIdx(int i, int* p1, int* p2);
-
-private:
-
-    void updateProjectionImage(float, float, float, Colour);
-
-    void calcWaveformPeakIdx(const SpikeEvent*, int, int, int*, int*);
-
-    int ampDim1, ampDim2;
-
-    Image projectionImage;
-
-    Colour pointColour;
-    Colour gridColour;
-
-    int imageDim;
-
-    int rangeX;
-    int rangeY;
-
-    int spikesReceivedSinceLastRedraw;
-
-};
-
-class SpikeThresholdCoordinator
-{
-public:
-    SpikeThresholdCoordinator();
-    ~SpikeThresholdCoordinator();
-
-    void registerSpikePlot(SpikePlot* sp);
-    void unregisterSpikePlot(SpikePlot* sp);
-    void setLockThresholds(bool en);
-    bool getLockThresholds();
-
-    void thresholdChanged(float displayThreshold, float range);
-
-private:
-    bool lockThresholds;
-    Array<SpikePlot*> registeredPlots;
-
-    WeakReference<SpikeThresholdCoordinator>::Master masterReference;
-    friend class WeakReference<SpikeThresholdCoordinator>;
 
 };
 

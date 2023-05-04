@@ -29,6 +29,7 @@ FileSource::FileSource()
     , numRecords    (0)
     , activeRecord  (-1)
     , filename      ("")
+    , loopCount     (0)
 {
 }
 
@@ -91,6 +92,11 @@ int FileSource::getActiveRecord() const
     return activeRecord.get();
 }
 
+const EventInfo& FileSource::getEventInfo()
+{
+    return eventInfoMap[currentStream];
+}
+
 
 RecordedChannelInfo FileSource::getChannelInfo (int recordIndex, int channel) const
 {
@@ -98,17 +104,10 @@ RecordedChannelInfo FileSource::getChannelInfo (int recordIndex, int channel) co
 }
 
 
-RecordedChannelInfo FileSource::getChannelInfo (int channel) const
-{
-    return getChannelInfo (activeRecord.get(), channel);
-}
-
-
 void FileSource::setActiveRecord (int index)
 {
-//    activeRecord = index;
     activeRecord.set(index);
-    updateActiveRecord();
+    updateActiveRecord(index);
 }
 
 
@@ -124,9 +123,9 @@ String FileSource::getFileName() const
 }
 
 
-bool FileSource::OpenFile (File file)
+bool FileSource::openFile (File file)
 {
-    if (Open (file))
+    if (open (file))
     {
         fileOpened = true;
         fillRecordInfo();
@@ -136,7 +135,7 @@ bool FileSource::OpenFile (File file)
     else
     {
         fileOpened = false;
-        filename = String::empty;
+        filename = String();
     }
 
     return fileOpened;
@@ -146,3 +145,4 @@ bool FileSource::isReady()
 {
     return true;
 }
+

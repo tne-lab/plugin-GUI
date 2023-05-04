@@ -25,86 +25,82 @@
 #define SPIKEDISPLAYNODE_H_
 
 #include <ProcessorHeaders.h>
-#include "SpikeDisplayEditor.h"
 
 class DataViewport;
 class SpikePlot;
 
-
 /**
-  Takes in MidiEvents and extracts SpikeObjects from the MidiEvent buffers.
-  Those Events are then held in a queue until they are pulled by the SpikeDisplayCanvas.
+  Looks for incoming Spike events and draws them to the SpikeDisplayCanvas.
 
   @see GenericProcessor, SpikeDisplayEditor, SpikeDisplayCanvas
 */
 class SpikeDisplayNode :  public GenericProcessor
 {
 public:
+    /** Constructor*/
     SpikeDisplayNode();
-    ~SpikeDisplayNode();
+    
+    /** Destructor*/
+    ~SpikeDisplayNode() {}
 
+    /** Creates the editor */
     AudioProcessorEditor* createEditor() override;
 
-    void process (AudioSampleBuffer& buffer) override;
+    /** Sends incoming spikes to the SpikeDisplayCanvas */
+    void process (AudioBuffer<float>& buffer) override;
 
-    void setParameter (int parameterIndex, float newValue) override;
+    /** Informs the SpikeDisplayNode when a redraw is needed*/
+    void setParameter(int, float) override;
 
-	void handleSpike(const SpikeChannel* spikeInfo, const MidiMessage& event, int samplePosition) override;
+    /** Called for each incoming spike*/
+	void handleSpike(SpikePtr spike) override;
 
+    /** Creates a display for each incoming spike channel*/
     void updateSettings() override;
 
-    bool enable()   override;
-    bool disable()  override;
+    /** Starts animation*/
+    bool startAcquisition()   override;
 
-    void startRecording()   override;
-    void stopRecording()    override;
+    /** Stops animation*/
+    bool stopAcquisition()  override;
 
+    /** Returns the name of an electrode for a given index*/
     String getNameForElectrode (int i) const;
+
+    /** Returns the channel count for an electrode*/
     int getNumberOfChannelsForElectrode (int i) const;
+
+    /** Returns the total number of available electrodes*/
     int getNumElectrodes() const;
 
+    /** Sets the corresponding spike plot for an electrode*/
     void addSpikePlotForElectrode (SpikePlot* sp, int i);
+
+    /** Removes pointers to SpikePlot objects*/
     void removeSpikePlots();
 
-    bool checkThreshold (int, float, SpikeEvent*);
-
-
 private:
+    
     struct Electrode
     {
         String name;
 
         int numChannels;
-        int recordIndex;
-        int currentSpikeIndex;
-
-        Array<float> displayThresholds;
-        Array<float> detectorThresholds;
-
-        OwnedArray<SpikeEvent> mostRecentSpikes;
-
-		float bitVolts;
 
         SpikePlot* spikePlot;
+        SpikeChannel* spikeChannel;
     };
 
     OwnedArray<Electrode> electrodes;
 
+    std::map<const SpikeChannel*, SpikePlot*> electrodeMap;
+
+    int spikeCount;
+    int totalCallbacks;
+
     int displayBufferSize;
+
     bool redrawRequested;
-
-    // members for recording
-    bool isRecording;
-    //   bool signalFilesShouldClose;
-    //   RecordNode* recordNode;
-    //   String baseDirectory;
-    //   File dataDirectory;
-    //   uint8_t* spikeBuffer;
-    //   SpikeObject currentSpike;
-
-    //   uint16 recordingNumber;
-
-    //    CriticalSection* diskWriteLock;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SpikeDisplayNode);
 };

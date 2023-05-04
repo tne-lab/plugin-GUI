@@ -24,9 +24,11 @@
 #ifndef EVENTQUEUE_H_INCLUDED
 #define EVENTQUEUE_H_INCLUDED
 
-#include "../../../JuceLibraryCode/JuceHeader.h"
-#include "../Events/Events.h"
+#include <JuceHeader.h>
+
 #include <vector>
+
+#include "../Events/Spike.h"
 
 template <class MsgContainer>
 class AsyncEventMessage :
@@ -77,14 +79,14 @@ public:
 	void reset()
 	{
 		m_data.clear();
-		m_fifo.reset();
 		m_data.resize(m_fifo.getTotalSize());
 	}
 
 	void resize(int size)
 	{
+		m_data.clear();
 		m_fifo.setTotalSize(size);
-		reset();
+		m_data.resize(size);
 	}
 
 	void addEvent(const EventClass& ev, int64 t, int extra = 0)
@@ -132,10 +134,10 @@ private:
 };
 //NOTE: Events are sent as midimessages while spikes as spike objects due to the difference on how they are passed to the record node.
 //Once the probe system is implemented, this will be normalized
-typedef EventQueue<MidiMessage> EventMsgQueue;
-typedef EventQueue<SpikeEvent> SpikeMsgQueue;
-typedef ReferenceCountedObjectPtr<AsyncEventMessage<MidiMessage>> EventMessagePtr;
-typedef ReferenceCountedObjectPtr<AsyncEventMessage<SpikeEvent>> SpikeMessagePtr;
+typedef EventQueue<EventPacket> EventMsgQueue;
+typedef EventQueue<Spike> SpikeMsgQueue;
+typedef ReferenceCountedObjectPtr<AsyncEventMessage<EventPacket>> EventMessagePtr;
+typedef ReferenceCountedObjectPtr<AsyncEventMessage<Spike>> SpikeMessagePtr;
 
 #endif  // EVENTQUEUE_H_INCLUDED
 

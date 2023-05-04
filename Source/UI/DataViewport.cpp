@@ -27,15 +27,12 @@
 
 DataViewport::DataViewport() :
     TabbedComponent(TabbedButtonBar::TabsAtRight),
-    tabDepth(32), tabIndex(0), shutdown(false)
+    tabDepth(32), tabIndex(1), shutdown(false)
 {
-
-    tabArray.clear();
-    editorArray.clear();
 
     setTabBarDepth(tabDepth);
     setIndent(8); // gap to leave around the edge
-    // of the content component
+                  // of the content component
     setColour(TabbedComponent::outlineColourId,
               Colours::darkgrey);
     setColour(TabbedComponent::backgroundColourId,
@@ -43,44 +40,52 @@ DataViewport::DataViewport() :
 
 }
 
-DataViewport::~DataViewport()
-{
-
-}
-
-int DataViewport::addTabToDataViewport(String name, Component* component, GenericEditor* editor)
+int DataViewport::addTabToDataViewport(String name,
+                                       Component* component)
 {
 
     if (tabArray.size() == 0)
         setVisible(true);
 
-    //int tabIndex = getTabbedButtonBar().getNumTabs();
-    tabIndex++;
-
-    // Viewport* viewport = new Viewport();
-    // viewport->setViewedComponent(component, false);
-    //  viewport->setBounds(0,0,getWidth(), getHeight());
-    //  viewport->setVisible(true);
+    //if (tabArray.contains(tabIndex))
+    //    return tabIndex;
 
     addTab(name, Colours::lightgrey, component, false, tabIndex);
 
-    getTabbedButtonBar().setCurrentTabIndex(tabIndex);
-
     getTabbedButtonBar().setTabBackgroundColour(tabIndex, Colours::darkgrey);
+    getTabbedButtonBar().setCurrentTabIndex(tabIndex);
 
     setOutline(0);
 
     tabArray.add(tabIndex);
 
-    editorArray.add(editor);
+    //std::cout << "Tab Array: ";
+    //for (int i = 0; i < tabArray.size(); i++)
+    //    std::cout << tabArray[i] << " ";
+    //std::cout << std::endl;
 
-    std::cout << "Adding tab with index " << tabIndex << std::endl;
+    LOGD("Data Viewport adding tab with index ", tabIndex);
 
     setCurrentTabIndex(tabArray.size()-1);
 
-    return tabIndex;
+    tabIndex++;
+
+    return tabIndex - 1;
 
 }
+
+void DataViewport::addTabAtIndex(int tabIndex_, String tabName, Component* tabComponent)
+{
+
+	if (!savedTabIndices.contains(tabIndex_))
+	{
+        savedTabIndices.add(tabIndex_);
+        savedTabComponents.add(tabComponent);
+        savedTabNames.add(tabName);
+	}
+    
+}
+
 
 void DataViewport::selectTab(int index)
 {
@@ -97,8 +102,8 @@ void DataViewport::destroyTab(int index)
     int newIndex = tabArray.indexOf(index);
 
     tabArray.remove(newIndex);
-    editorArray.remove(newIndex); // do this after the editor has been refreshed
-    
+    //tabIndex--;
+
     removeTab(newIndex);
 
     if (tabArray.size() == 0)
@@ -106,23 +111,73 @@ void DataViewport::destroyTab(int index)
 
     setCurrentTabIndex(tabArray.size()-1);
 
+    //std::cout << "Tab Array: ";
+    //for (int i = 0; i < tabArray.size(); i++)
+    //    std::cout << tabArray[i] << " ";
+    //std::cout << std::endl;
+    
+    if (tabArray.size() == 2) // just graph and info tab left
+        tabIndex = 3;
+
+}
+
+void DataViewport::saveStateToXml(XmlElement* xml)
+{
+    XmlElement* dataViewportState = xml->createNewChildElement("DATAVIEWPORT");
+    dataViewportState->setAttribute("selectedTab", tabArray[getCurrentTabIndex()]);
+}
+
+void DataViewport::loadStateFromXml(XmlElement* xml)
+{
+
+    //LOGD("DataViewport::loadStateFromXml()");
+    
+    std::vector<int> tabOrder(savedTabIndices.size());
+    std::iota(tabOrder.begin(), tabOrder.end(), 0); //Initializing
+    sort(tabOrder.begin(), tabOrder.end(), [&](int i, int j)
+        {return savedTabIndices[i] < savedTabIndices[j]; });
+
+    for (int i = 0; i < tabOrder.size(); i++)
+    {
+        tabIndex = savedTabIndices[tabOrder[i]];
+        addTabToDataViewport(savedTabNames[tabOrder[i]], savedTabComponents[tabOrder[i]]);
+    }
+
+    for (auto* xmlNode : xml->getChildIterator())
+    {
+        if (xmlNode->hasTagName("DATAVIEWPORT"))
+        {
+			int index = xmlNode->getIntAttribute("selectedTab", -1);
+            if (index != -1)
+                selectTab(index);
+        }
+
+    }
+
+    savedTabIndices.clear();
+    savedTabComponents.clear();
+    savedTabNames.clear();
+
 }
 
 void DataViewport::disableConnectionToEditorViewport()
 {
-    std::cout << "DISABLING DATAVIEWPORT CONNECTION" << std::endl;
     shutdown = true;
 }
 
 void DataViewport::currentTabChanged(int newIndex, const String& newTabName)
 {
-    // std::cout << "CURRENT TAB CHANGED" << std::endl;
-    //std::cout << "number of editors remaining: " << editorArray.size() << std::endl;
+    //LOGD("Data Viewport current tab changed; newIndex = ", newIndex);
 
     if (!shutdown)
     {
-        //getEditorViewport()->makeEditorVisible(editorArray[newIndex]);
-        getTopLevelComponent()->repaint();
+
+        if (getTabContentComponent(newIndex) != nullptr)
+        {
+            LOGD("Refreshing state for ", newTabName);
+            Visualizer* v = (Visualizer*)getTabContentComponent(newIndex);
+            v->refreshState();
+        }
     }
 }
 

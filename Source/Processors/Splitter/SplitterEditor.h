@@ -27,6 +27,10 @@
 
 #include "../../../JuceLibraryCode/JuceHeader.h"
 #include "../Editors/GenericEditor.h"
+#include "Splitter.h"
+
+class StreamInfoView;
+class StreamSelector;
 
 /**
 
@@ -36,27 +40,51 @@
 
 */
 
-class SplitterEditor : public GenericEditor
+class SplitterEditor : public GenericEditor,
+    public Button::Listener
 {
 public:
-    SplitterEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors);
+    
+    /** Constructor */
+    SplitterEditor(GenericProcessor* parentNode);
+
+    /** Destructor */
     virtual ~SplitterEditor();
 
-    void buttonEvent(Button* button);
+    /** Respond to clicks on path buttons */
+    void buttonClicked(Button* button);
 
+    /** Switch to dest path 0 or 1*/
     void switchDest(int);
+
+    /** Switch to the opposite dest path */
     void switchDest();
 
+    /** Alias for switchDest */
     void switchIO(int i);
 
+    /** Returns the path that leads to a given editor (0 or 1) */
     int getPathForEditor(GenericEditor* editor);
+
+    /** Checks whether a stream should be sent down a particular output path */
+    bool checkStream(const DataStream* stream, Splitter::Output output);
+
+    /** Returns all the editors directly downstream of this splitter */
     Array<GenericEditor*> getConnectedEditors();
 
+    /** Called when an output stream is enabled or disabled */
+    void streamEnabledStateChanged(uint16 streamId, bool isEnabled, bool isLoading) override;
+
+    /** Updates settings for this editor */
+    void updateSettings() override;
 
 private:
 
-    ImageButton* pipelineSelectorA;
-    ImageButton* pipelineSelectorB;
+    std::unique_ptr<ImageButton> pipelineSelectorA;
+    std::unique_ptr<ImageButton> pipelineSelectorB;
+
+    std::unique_ptr<StreamSelector> streamSelectorA;
+    std::unique_ptr<StreamSelector> streamSelectorB;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SplitterEditor);
 

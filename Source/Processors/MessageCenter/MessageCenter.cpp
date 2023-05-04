@@ -25,33 +25,62 @@
 #include "MessageCenterEditor.h"
 #include "../ProcessorGraph/ProcessorGraph.h"
 #include "../../AccessClass.h"
+#include "../../Utils/Utils.h"
+
+#include "../Events/Event.h"
+#include "../Settings/ProcessorInfo.h"
+
 #define MAX_MSG_LENGTH 512
 //---------------------------------------------------------------------
 
 MessageCenter::MessageCenter() :
-GenericProcessor("Message Center"), newEventAvailable(false), isRecording(false)
+    GenericProcessor("Message Center"), 
+    newEventAvailable(false)
 {
 
     setPlayConfigDetails(0, // number of inputs
                          0, // number of outputs
                          44100.0, // sampleRate
                          128);    // blockSize
-}
 
-MessageCenter::~MessageCenter()
-{
+    eventChannel = nullptr;
 
 }
 
-void MessageCenter::addSpecialProcessorChannels(Array<EventChannel*>& channels) 
+
+void MessageCenter::addSpecialProcessorChannels() 
 {
-	clearSettings();
-	EventChannel* chan = new EventChannel(EventChannel::TEXT, 1, MAX_MSG_LENGTH, CoreServices::getGlobalSampleRate(), this, 0);
-	chan->setName("GUI Messages");
-	chan->setDescription("Messages from the GUI Message Center");
-	channels.add(chan);
-	eventChannelArray.add(new EventChannel(*chan));
-	updateChannelIndexes();
+    processorInfo.reset();
+    processorInfo = std::unique_ptr<ProcessorInfoObject>(new ProcessorInfoObject(this));
+
+    if (dataStreams.size() == 0)
+    {
+        DataStream::Settings settings{
+        "MessageCenter stream",
+        "Description",
+        "messagecenter.stream",
+
+        1000.0f
+        };
+
+        dataStreams.add(new DataStream(settings));
+        dataStreams.getLast()->addProcessor(processorInfo.get());
+
+        EventChannel::Settings eventSettings{
+            EventChannel::Type::TEXT,
+            "Messages",
+            "Broadcasts messages from the MessageCenter",
+            "messagecenter.events",
+
+            dataStreams.getLast()
+        };
+
+        eventChannels.add(new EventChannel(eventSettings));
+        eventChannels.getLast()->addProcessor(processorInfo.get());
+
+        updateChannelIndexMaps();
+    }
+    
 }
 
 AudioProcessorEditor* MessageCenter::createEditor()
@@ -63,59 +92,65 @@ AudioProcessorEditor* MessageCenter::createEditor()
 
 }
 
+const EventChannel* MessageCenter::getMessageChannel()
+{
+    if (eventChannels.size() > 0)
+        return eventChannels[0];
+    else
+        return nullptr;
+}
+
+DataStream* MessageCenter::getMessageStream()
+{
+    if (dataStreams.size() > 0)
+        return dataStreams[0];
+
+    return nullptr;
+}
+
 void MessageCenter::setParameter(int parameterIndex, float newValue)
 {
-    if (isRecording)
+    if (parameterIndex == 1)
     {
         newEventAvailable = true;
         messageCenterEditor->messageReceived(true);
     }
-    else
-    {
-        messageCenterEditor->messageReceived(false);
-    }
 
 }
 
-bool MessageCenter::enable()
+bool MessageCenter::startAcquisition()
 {
     messageCenterEditor->startAcquisition();
     return true;
 }
 
-bool MessageCenter::disable()
+bool MessageCenter::stopAcquisition()
 {
     messageCenterEditor->stopAcquisition();
     return true;
 }
 
-
 void MessageCenter::process(AudioSampleBuffer& buffer)
 {
-    if (needsToSendTimestampMessage)
-    {
-		MidiBuffer& eventBuffer = *AccessClass::ExternalProcessorAccessor::getMidiBuffer(this);
-		HeapBlock<char> data;
-		size_t dataSize = SystemEvent::fillTimestampSyncTextData(data, this, 0, CoreServices::getGlobalTimestamp(), true);
-
-		eventBuffer.addEvent(data, dataSize, 0);
-
-        needsToSendTimestampMessage = false;
-    }
-
+    
     if (newEventAvailable)
     {
-        //int numBytes = 0;
 
-        String eventString = messageCenterEditor->getLabelString();
+        String eventString = messageCenterEditor->getOutgoingMessage();
 
 		eventString = eventString.dropLastCharacters(eventString.length() - MAX_MSG_LENGTH);
+        
+        int64 ts = CoreServices::getGlobalTimestamp();
 
-		TextEventPtr event = TextEvent::createTextEvent(getEventChannel(0), CoreServices::getGlobalTimestamp(), eventString);
-		addEvent(getEventChannel(0), event, 0);
+		TextEventPtr event = TextEvent::createTextEvent(eventChannels[0],
+                                                        ts,
+                                                        eventString);
+
+		addEvent(event, 0);
+
+        //std::cout << "Message Center added " << eventString << " with timestamp " <<  ts << std::endl;
 
         newEventAvailable = false;
     }
-
 
 }

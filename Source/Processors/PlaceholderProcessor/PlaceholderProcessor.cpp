@@ -25,14 +25,14 @@
 #include "PlaceholderProcessorEditor.h"
 
 
-PlaceholderProcessor::PlaceholderProcessor (String pName, String lName, int lVer, bool pSource, bool pSink) 
-    : GenericProcessor      (pName)
-    , m_processorName       (pName)
-    , m_libName             (lName)
-    , m_libVersion          (lVer)
-    , m_isSourceProcessor   (pSource)
-    , m_isSinkProcessor     (pSink)
+PlaceholderProcessor::PlaceholderProcessor (String pluginName, 
+    String libraryName, 
+    String libraryVersion)
+    : GenericProcessor      (pluginName)
+    , m_libName             (libraryName)
+    , m_libVersion          (libraryVersion)
 {
+
 }
 
 
@@ -41,38 +41,20 @@ PlaceholderProcessor::~PlaceholderProcessor()
 }
 
 
-bool PlaceholderProcessor::hasEditor() const
+void PlaceholderProcessor::updateSettings()
 {
-    return true;
+    isEnabled = false;
 }
-
 
 AudioProcessorEditor* PlaceholderProcessor::createEditor()
 {
-    editor = new PlaceholderProcessorEditor (this, m_processorName, m_libName, m_libVersion);
-    return editor;
+    editor = std::make_unique<PlaceholderProcessorEditor> (this, getName(), m_libName, m_libVersion);
+    return editor.get();
 }
 
 
-void PlaceholderProcessor::process (AudioSampleBuffer& continuousBuffer)
+bool PlaceholderProcessor::startAcquisition()
 {
-}
-
-
-bool PlaceholderProcessor::isSource() const
-{
-    return m_isSourceProcessor;
-}
-
-
-bool PlaceholderProcessor::isSink() const
-{
-    return m_isSinkProcessor;
-}
-
-
-bool PlaceholderProcessor::isReady()
-{
-    CoreServices::sendStatusMessage ("Cannot acquire with placeholder nodes");
-    return false; //This processor never allows processing
+    CoreServices::sendStatusMessage ("Cannot acquire data with placeholder plugin.");
+    return false; // prevents acquisition from starting
 }

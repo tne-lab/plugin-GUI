@@ -24,304 +24,295 @@
 #include "PhaseDetector.h"
 #include "PhaseDetectorEditor.h"
 
-
-PhaseDetector::PhaseDetector()
-    : GenericProcessor      ("Phase Detector")
-    , activeModule          (-1)
-    , risingPos             (false)
-    , risingNeg             (false)
-    , fallingPos            (false)
-    , fallingNeg            (false)
+PhaseDetectorSettings::PhaseDetectorSettings() :
+    samplesSinceTrigger(0),
+    lastSample(0.0f),
+    isActive(true),
+    wasTriggered(false),
+    detectorType(PEAK),
+    currentPhase(NO_PHASE),
+    triggerChannel(0),
+    outputLine(0),
+    gateLine(0)
 {
-    setProcessorType (PROCESSOR_TYPE_FILTER);
-	lastNumInputs = 0;
+
+}
+
+TTLEventPtr PhaseDetectorSettings::createEvent(int64 sample_number, bool state)
+{
+
+    TTLEventPtr event = TTLEvent::createTTLEvent(eventChannel,
+                                                 sample_number,
+                                                 outputLine,
+                                                 state);
+
+    if (state)
+    {
+        samplesSinceTrigger = 0;
+        wasTriggered = true;
+    }
+    else {
+        wasTriggered = false;
+    }
+
+    return event;
 }
 
 
-PhaseDetector::~PhaseDetector()
+TTLEventPtr PhaseDetectorSettings::clearOutputLine(int64 sample_number)
 {
+
+    TTLEventPtr event = TTLEvent::createTTLEvent(eventChannel,
+                                                 sample_number,
+                                                 lastOutputLine,
+                                                 false);
+
+    outputLineChanged = false;
+
+    return event;
 }
 
+PhaseDetector::PhaseDetector() : GenericProcessor ("Phase Detector")
+{
+
+    addSelectedChannelsParameter(Parameter::STREAM_SCOPE, "Channel", "The continuous channel to analyze", 1);
+    addIntParameter(Parameter::STREAM_SCOPE, "TTL_out", "The output TTL line", 1, 1, 16);
+    addIntParameter(Parameter::STREAM_SCOPE,"gate_line", "The input TTL line for gating the signal (0 = off)", 0, 0, 16);
+    addCategoricalParameter(Parameter::STREAM_SCOPE,
+        "phase",
+        "The phase for triggering the output",
+        { "PEAK",
+         "FALLING ZERO-CROSSING",
+         "TROUGH",
+         "RISING ZERO-CROSSING"
+          },
+        0);
+}
 
 AudioProcessorEditor* PhaseDetector::createEditor()
 {
-    editor = new PhaseDetectorEditor (this, true);
+    editor = std::make_unique<PhaseDetectorEditor> (this);
 
-    std::cout << "Creating editor." << std::endl;
-
-    return editor;
+    return editor.get();
 }
 
-void PhaseDetector::addModule()
+void PhaseDetector::parameterValueChanged(Parameter* param)
 {
-    DetectorModule m = DetectorModule();
-    m.inputChan = -1;
-    m.outputChan = -1;
-    m.gateChan = -1;
-    m.isActive = true;
-    m.lastSample = 0.0f;
-    m.type = NONE;
-    m.samplesSinceTrigger = 5000;
-    m.wasTriggered = false;
-    m.phase = NO_PHASE;
-
-    modules.add (m);
-}
-
-
-void PhaseDetector::setActiveModule (int i)
-{
-    activeModule = i;
-}
-
-
-void PhaseDetector::setParameter (int parameterIndex, float newValue)
-{
-    DetectorModule& module = modules.getReference (activeModule);
-
-    if (parameterIndex == 1) // module type
+    if (param->getName().equalsIgnoreCase("phase"))
     {
-        int val = (int) newValue;
-
-        switch (val)
+        settings[param->getStreamId()]->detectorType = DetectorType((int) param->getValue());
+    } 
+    else if (param->getName().equalsIgnoreCase("Channel"))
+    {
+        Array<var>* array = param->getValue().getArray();
+        
+        if (array->size() > 0)
         {
-            case 0:
-                module.type = NONE;
-                break;
-
-            case 1:
-                module.type = PEAK;
-                break;
-
-            case 2:
-                module.type = FALLING_ZERO;
-                break;
-
-            case 3:
-                module.type = TROUGH;
-                break;
-
-            case 4:
-                module.type = RISING_ZERO;
-                break;
-
-            default:
-                module.type = NONE;
-        }
-    }
-    else if (parameterIndex == 2)   // inputChan
-    {
-        module.inputChan = (int) newValue;
-    }
-    else if (parameterIndex == 3)   // outputChan
-    {
-        module.outputChan = (int) newValue;
-    }
-    else if (parameterIndex == 4)   // gateChan
-    {
-        module.gateChan = (int) newValue;
-        if (module.gateChan < 0)
-        {
-            module.isActive = true;
+            int localIndex = int(array->getFirst());
+            int globalIndex = getDataStream(param->getStreamId())->getContinuousChannels()[localIndex]->getGlobalIndex();
+            settings[param->getStreamId()]->triggerChannel = globalIndex;
         }
         else
         {
-            module.isActive = false;
+            settings[param->getStreamId()]->triggerChannel = -1;
         }
+    } 
+    else if (param->getName().equalsIgnoreCase("TTL_out"))
+    {
+        settings[param->getStreamId()]->lastOutputLine = settings[param->getStreamId()]->outputLine;
+        settings[param->getStreamId()]->outputLine = (int)param->getValue() - 1;
+        settings[param->getStreamId()]->outputLineChanged = true;
     }
+    else if (param->getName().equalsIgnoreCase("gate_line"))
+    {
+        settings[param->getStreamId()]->gateLine = (int)param->getValue() - 1;
+    }
+
 }
 
-//Usually, to be more ordered, we'd create the event channels overriding the createEventChannels() method.
-//However, since in this case there a couple of things we need to do prior to creating the channels (resetting
-//the modules input channels in case the channel count changes, to reflect the same change on the combo box)
-//we think it's better to do all in this method, that gets always called after all the create*Channels.
 void PhaseDetector::updateSettings()
 {
-	moduleEventChannels.clear();
-	for (int i = 0; i < modules.size(); i++)
+    settings.update(getDataStreams());
+
+	for (auto stream : getDataStreams())
 	{
-		if (getNumInputs() != lastNumInputs)
-			modules.getReference(i).inputChan = -1;
-		const DataChannel* in = getDataChannel(modules[i].inputChan);
-		EventChannel *ev;
-		if (in)
-			ev = new EventChannel(EventChannel::TTL, 8, 1, in, this);
-		else
-			ev = new EventChannel(EventChannel::TTL, 8, 1, -1, this);
+        // update "settings" objects
+        parameterValueChanged(stream->getParameter("phase"));
+        parameterValueChanged(stream->getParameter("Channel"));
+        parameterValueChanged(stream->getParameter("TTL_out"));
+        parameterValueChanged(stream->getParameter("gate_line"));
 
-		ev->setName("Phase detector output " + String(i + 1));
-		ev->setDescription("Triggers when the input signal mets a given phase condition");
-		String identifier = "dataderived.phase.";
-		String typeDesc;
-		switch (modules[i].type)
-		{
-		case PEAK: typeDesc = "Positive peak"; identifier += "peak.positve";  break;
-		case FALLING_ZERO: typeDesc = "Zero crossing with negative slope"; identifier += "zero.negative";  break;
-		case TROUGH: typeDesc = "Negative peak"; identifier += "peak.negative"; break;
-		case RISING_ZERO: typeDesc = "Zero crossing with positive slope"; identifier += "zero.positive"; break;
-		default: typeDesc = "No phase selected"; break;
-		}
-		ev->setIdentifier(identifier);
-		MetaDataDescriptor md(MetaDataDescriptor::CHAR, 34, "Phase Type", "Description of the phase condition", "channelInfo.extra");
-		MetaDataValue mv(md);
-		mv.setValue(typeDesc);
-		ev->addMetaData(md, mv);
-		if (in)
-		{
-			md = MetaDataDescriptor(MetaDataDescriptor::UINT16, 3, "Source Channel",
-				"Index at its source, Source processor ID and Sub Processor index of the channel that triggers this event", "source.channel.identifier.full");
-			mv = MetaDataValue(md);
-			uint16 sourceInfo[3];
-			sourceInfo[0] = in->getSourceIndex();
-			sourceInfo[1] = in->getSourceNodeID();
-			sourceInfo[2] = in->getSubProcessorIdx();
-			mv.setValue(static_cast<const uint16*>(sourceInfo));
-			ev->addMetaData(md, mv);
-		}
-		eventChannelArray.add(ev);
-		moduleEventChannels.add(ev);
+        EventChannel::Settings s{
+            EventChannel::Type::TTL,
+            "Phase detector output",
+            "Triggers when the input signal meets a given phase condition",
+            "dataderived.phase",
+            getDataStream(stream->getStreamId())
+
+        };
+
+		eventChannels.add(new EventChannel(s));
+        eventChannels.getLast()->addProcessor(processorInfo.get());
+        settings[stream->getStreamId()]->eventChannel = eventChannels.getLast();
 	}
-	lastNumInputs = getNumInputs();
 }
 
 
-bool PhaseDetector::enable()
+
+void PhaseDetector::handleTTLEvent (TTLEventPtr event)
 {
-    return true;
-}
 
-
-void PhaseDetector::handleEvent (const EventChannel* channelInfo, const MidiMessage& event, int sampleNum)
-{
-    // MOVED GATING TO PULSE PAL OUTPUT!
-    // now use to randomize phase for next trial
-
-    //std::cout << "GOT EVENT." << std::endl;
-
-    if (Event::getEventType(event)  == EventChannel::TTL)
+    const uint16 eventStream = event->getStreamId();
+	
+    if (settings[eventStream]->gateLine > -1)
     {
-		TTLEventPtr ttl = TTLEvent::deserializeFromMessage(event, channelInfo);
+     
+        if (settings[eventStream]->gateLine == event->getLine())
+            settings[eventStream]->isActive = event->getState();
+        
+    }
 
-        // int eventNodeId = *(dataptr+1);
-		const int eventId = ttl->getState() ? 1 : 0;
-		const int eventChannel = ttl->getChannel();
+}
 
-        for (int i = 0; i < modules.size(); ++i)
+
+void PhaseDetector::process (AudioBuffer<float>& buffer)
+{
+    checkForEvents();
+
+    // loop through the streams
+    for (auto stream : getDataStreams())
+    {
+
+        if ((*stream)["enable_stream"])
         {
-            DetectorModule& module = modules.getReference (i);
+            PhaseDetectorSettings* module = settings[stream->getStreamId()];
+            
+            const uint16 streamId = stream->getStreamId();
+            const int64 firstSampleInBlock = getFirstSampleNumberForBlock(streamId);
+            const uint32 numSamplesInBlock = getNumSamplesInBlock(streamId);
 
-            if (module.gateChan == eventChannel)
+            // check to see if it's active and has a channel
+            if (module->isActive && module->outputLine >= 0
+                && module->triggerChannel >= 0
+                && module->triggerChannel < buffer.getNumChannels())
             {
-                if (eventId)
-                    module.isActive = true;
-                else
-                    module.isActive = false;
+                for (int i = 0; i < numSamplesInBlock; ++i)
+                {
+                    const float sample = *buffer.getReadPointer(module->triggerChannel, i);
+
+                    if (sample < module->lastSample
+                        && sample > 0
+                        && module->currentPhase != FALLING_POS)
+                    {
+                        if (module->detectorType == PEAK)
+                        {
+                            TTLEventPtr ptr = module->createEvent(
+                                                                  firstSampleInBlock + i,
+                                                                  true);
+
+                            addEvent(ptr, i);
+
+                            //LOGD("PEAK");
+                        }
+
+                        module->currentPhase = FALLING_POS;
+                    }
+                    else if (sample < 0
+                        && module->lastSample >= 0
+                        && module->currentPhase != FALLING_NEG)
+                    {
+                        if (module->detectorType == FALLING_ZERO)
+                        {
+
+                            TTLEventPtr ptr = module->createEvent(
+                                                                  firstSampleInBlock + i,
+                                                                  true);
+
+                            addEvent(ptr, i);
+
+                            //("FALLING ZERO");
+                        }
+
+                        module->currentPhase = FALLING_NEG;
+                    }
+                    else if (sample > module->lastSample
+                        && sample < 0
+                        && module->currentPhase != RISING_NEG)
+                    {
+                        if (module->detectorType == TROUGH)
+                        {
+
+                            TTLEventPtr ptr = module->createEvent(
+                                                                  firstSampleInBlock + i,
+                                                                  true);
+
+                            addEvent(ptr, i);
+
+                            //LOGD("TROUGH");
+                        }
+
+                        module->currentPhase = RISING_NEG;
+                    }
+                    else if (sample > 0
+                        && module->lastSample <= 0
+                        && module->currentPhase != RISING_POS)
+                    {
+                        if (module->detectorType == RISING_ZERO)
+                        {
+                            TTLEventPtr ptr = module->createEvent(
+                                                                  firstSampleInBlock + i,
+                                                                  true);
+
+                            addEvent(ptr, i);
+
+                            //LOGD("RISING ZERO");
+                        }
+
+                        module->currentPhase = RISING_POS;
+                    }
+
+                    module->lastSample = sample;
+
+                    if (module->wasTriggered)
+                    {
+                        if (module->samplesSinceTrigger > 2000)
+                        {
+                            TTLEventPtr ptr = module->createEvent(
+                                                                  firstSampleInBlock + i,
+                                                                  false);
+
+                            addEvent(ptr, i);
+
+                            //LOGD("TURNING OFF");
+                        }
+                        else
+                        {
+                            module->samplesSinceTrigger++;
+                        }
+                    }
+
+                    if (module->outputLineChanged)
+                    {
+                        TTLEventPtr ptr = module->clearOutputLine(
+                                                                 firstSampleInBlock + i);
+
+                        addEvent(ptr, i);
+
+                    }
+                }
+            }
+
+            // If event is on when 'None' is selected in channel selector, turn off event
+            if (module->wasTriggered && module->triggerChannel < 0)
+            {
+                TTLEventPtr ptr = module->createEvent(firstSampleInBlock, false);
+
+                addEvent(ptr, 0);
             }
         }
+
+        
     }
 }
 
-
-void PhaseDetector::process (AudioSampleBuffer& buffer)
-{
-    checkForEvents ();
-
-    // loop through the modules
-    for (int m = 0; m < modules.size(); ++m)
-    {
-        DetectorModule& module = modules.getReference (m);
-
-        // check to see if it's active and has a channel
-        if (module.isActive && module.outputChan >= 0
-            && module.inputChan >= 0
-            && module.inputChan < buffer.getNumChannels())
-        {
-            for (int i = 0; i < getNumSamples (module.inputChan); ++i)
-            {
-                const float sample = *buffer.getReadPointer (module.inputChan, i);
-
-                if (sample < module.lastSample
-                    && sample > 0
-                    && module.phase != FALLING_POS)
-                {
-                    if (module.type == PEAK)
-                    {
-						uint8 ttlData = 1 << module.outputChan;
-						TTLEventPtr event = TTLEvent::createTTLEvent(moduleEventChannels[m], getTimestamp(module.inputChan) + i, &ttlData, sizeof(uint8), module.outputChan);
-						addEvent(moduleEventChannels[m], event, i);
-                        module.samplesSinceTrigger = 0;
-                        module.wasTriggered = true;
-                    }
-
-                    module.phase = FALLING_POS;
-                }
-                else if (sample < 0
-                         && module.lastSample >= 0
-                         && module.phase != FALLING_NEG)
-                {
-                    if (module.type == FALLING_ZERO)
-                    {
-						uint8 ttlData = 1 << module.outputChan;
-						TTLEventPtr event = TTLEvent::createTTLEvent(moduleEventChannels[m], getTimestamp(module.inputChan) + i, &ttlData, sizeof(uint8), module.outputChan);
-						addEvent(moduleEventChannels[m], event, i);
-                        module.samplesSinceTrigger = 0;
-                        module.wasTriggered = true;
-                    }
-
-                    module.phase = FALLING_NEG;
-                }
-                else if (sample > module.lastSample && sample < 0 && module.phase != RISING_NEG)
-                {
-                    if (module.type == TROUGH)
-                    {
-						uint8 ttlData = 1 << module.outputChan;
-						TTLEventPtr event = TTLEvent::createTTLEvent(moduleEventChannels[m], getTimestamp(module.inputChan) + i, &ttlData, sizeof(uint8), module.outputChan);
-						addEvent(moduleEventChannels[m], event, i);
-                        module.samplesSinceTrigger = 0;
-                        module.wasTriggered = true;
-                    }
-
-                    module.phase = RISING_NEG;
-                }
-                else if (sample > 0
-                         && module.lastSample <= 0
-                         && module.phase != RISING_POS)
-                {
-                    if (module.type == RISING_ZERO)
-                    {
-						uint8 ttlData = 1 << module.outputChan;
-						TTLEventPtr event = TTLEvent::createTTLEvent(moduleEventChannels[m], getTimestamp(module.inputChan) + i, &ttlData, sizeof(uint8), module.outputChan);
-						addEvent(moduleEventChannels[m], event, i);
-                        module.samplesSinceTrigger = 0;
-                        module.wasTriggered = true;
-                    }
-
-                    module.phase = RISING_POS;
-                }
-
-                module.lastSample = sample;
-
-                if (module.wasTriggered)
-                {
-                    if (module.samplesSinceTrigger > 1000)
-                    {
-						uint8 ttlData = 0;
-						TTLEventPtr event = TTLEvent::createTTLEvent(moduleEventChannels[m], getTimestamp(module.inputChan) + i, &ttlData, sizeof(uint8), module.outputChan);
-						addEvent(moduleEventChannels[m], event, i);
-                        module.wasTriggered = false;
-                    }
-                    else
-                    {
-                        module.samplesSinceTrigger++;
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-void PhaseDetector::estimateFrequency()
-{
-}
 

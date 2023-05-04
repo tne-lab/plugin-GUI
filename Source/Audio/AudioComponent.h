@@ -49,10 +49,12 @@ public:
     /** Constructor. Finds the audio component (if there is one), and sets the
     default sample rate and buffer size.*/
     AudioComponent();
+    
+    /** Destructor. Ends the audio callbacks if they are active.*/
     ~AudioComponent();
 
-    /** Begins the audio callbacks that drive data acquisition.*/
-    void beginCallbacks();
+    /** Begins the audio callbacks that drive data acquisition. Returns true if a valid audio device was found*/
+    bool beginCallbacks();
 
     /** Stops the audio callbacks that drive data acquisition.*/
     void endCallbacks();
@@ -67,10 +69,13 @@ public:
 
     /** Returns true if the audio callbacks are active, false otherwise.*/
     bool callbacksAreActive();
+    
+    /** Checks whether a device is available*/
+    bool checkForDevice();
 
     /** Restarts communication with the audio device in order to update settings
-    or just prior the start of data acquisition callbacks.*/
-    void restartDevice();
+    or just prior the start of data acquisition callbacks. Returns true if a device was found*/
+    bool restartDevice();
 
     /** Stops communication with the selected audio device (to conserve CPU load
     when callbacks are not active).*/
@@ -94,7 +99,7 @@ private:
 
     bool isPlaying;
 
-    ScopedPointer<AudioProcessorPlayer> graphPlayer;
+    std::unique_ptr<AudioProcessorPlayer> graphPlayer;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AudioComponent);
 

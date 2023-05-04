@@ -25,26 +25,23 @@
 #define __GENERICEDITOR_H_DD406E71__
 
 #include "../../../JuceLibraryCode/JuceHeader.h"
-#include "../GenericProcessor/GenericProcessor.h"
-#include "../../CoreServices.h"
-#include "../PluginManager/OpenEphysPlugin.h"
-#include "../Channel/InfoObjects.h"
 
-#include <stdio.h>
+#include "../PluginManager/OpenEphysPlugin.h"
+
+#include "../Parameter/ParameterEditor.h"
+#include "StreamSelector.h"
+#include "DelayMonitor.h"
+#include "TTLMonitor.h"
 
 class GenericProcessor;
 class DrawerButton;
 class TriangleButton;
 class UtilityButton;
-class ParameterEditor;
-class ChannelSelector;
-
-
 
 /**
     Base class for creating processor editors.
 
-    If a processor doesn't havesign an editor defined, a GenericEditor will be used.
+    If a processor doesn't have an editor defined, a GenericEditor will be used.
 
     Classes derived from this class must place their controls as child components.
     They shouldn't try to re-draw any aspects of their background.
@@ -52,14 +49,11 @@ class ChannelSelector;
     @see GenericProcessor, EditorViewport
 */
 class PLUGIN_API GenericEditor  : public AudioProcessorEditor
-                                , public Timer
-                                , public Button::Listener
-                                , public Slider::Listener
 {
 public:
-    /** Constructor. Loads fonts and creates default buttons.
-        useDefaultParameter Editors false means custom parameter editors will be used.*/
-    GenericEditor (GenericProcessor* owner, bool useDefaultParameterEditors);
+
+    /** Constructor. */
+    GenericEditor (GenericProcessor* owner);
 
     /** Destructor.*/
     virtual ~GenericEditor();
@@ -76,15 +70,8 @@ public:
     /** Called whenever a key is pressed and the editor has keyboard focus.*/
     bool keyPressed (const KeyPress& key) override;
 
-    /** Handles button clicks for all editors. Deals with clicks on the editor's
-        title bar and channel selector drawer. */
-    virtual void buttonClicked (Button* buttonThatWasClicked) override;
-
     /** Called when the boundaries of the editor are updated. */
     virtual void resized() override;
-
-    /** Handles slider events for all editors. */
-    virtual void sliderValueChanged (Slider* sliderWhichValueHasChanged) override;
 
     // =====================================================================
     // =====================================================================
@@ -109,38 +96,26 @@ public:
     /** Returns an editor's selection state.*/
     bool getSelectionState();
 
-    /** Used to enable an editor's processor.*/
-    void enable();
-
-    /** Used to disable an editor's processor.*/
-    void disable();
-
-    /** Returns whether or not the editor's processor is enabled (i.e., whether it's able to handle data.*/
-    bool getEnabledState();
-
-    /** Used to enable or disable an editor's processor.*/
-    void setEnabledState(bool);
-
     /** Used to set desired width of editor. */
     void setDesiredWidth (int width);
-
-    /** Called at the start of a recording **/
-    void startRecording();
-
-    /** Called at the end of a recording **/
-    void stopRecording();
 
     /** Called just prior to the start of acquisition, to allow the editor to prepare.*/
     void editorStartAcquisition();
 
 	/** Called just prior to the start of acquisition, to allow custom commands. */
-	virtual void startAcquisition();
+	virtual void startAcquisition() { }
 
     /** Called after the end of acquisition.*/
     void editorStopAcquisition();
 
 	/** Called after the end of acquisition, to allow custom commands .*/
-	virtual void stopAcquisition();
+	virtual void stopAcquisition() { }
+    
+    /** Called at the start of a recording, to allow any components to be disabled  **/
+    virtual void startRecording() { }
+
+    /** Called at the end of a recording, to allow any components to be enabled **/
+    virtual void stopRecording() { }
 
     /** Returns the name of the editor.*/
     String getName();
@@ -153,6 +128,9 @@ public:
 
     /** Get name on title bar. */
     String getDisplayName();
+
+    /** Returns a string containing the editor name and underlying processor ID. */
+    String getNameAndId();
 
 	/** Returns a custom channel number for the Channel Selector buttons. Useful for channel mappers */
 	virtual int getChannelDisplayNumber(int chan) const;
@@ -178,15 +156,6 @@ public:
     /** Returns the processor associated with an editor.*/
     GenericProcessor* getProcessor() const;
 
-    /** Causes the editor to fade in when it first appears in the EditorViewport. */
-    void fadeIn();
-
-    /** Indicates whether or not the editor is in the processof fading in. */
-    bool isFading;
-
-    /** Used to control the speed at which the editor fades in. */
-    float accumulator;
-
     /** Required for SplitterEditor only.*/
     virtual void switchDest();
 
@@ -203,26 +172,12 @@ public:
     bool isMerger();
 
     bool isUtility();
-
-    /** Called by buttonClicked(). Deals with clicks on custom buttons. Subclasses of
-        GenericEditor should modify this method only.*/
-    virtual void buttonEvent (Button* button);
-
-    /** Called by sliderValueChanged(). Deals with clicks on custom sliders. Subclasses
-        of GenericEditor should modify this method only.*/
-    virtual void sliderEvent (Slider* slider);
-
-    /** Required for opening displays in a VisualizerEditor. Hopefully will be deprecated soon.*/
+    
+    /** Used by VisualizerEditor to bring the editor's tab to the foreground.*/
     virtual void editorWasClicked();
 
     /** Checks to see if a button click occurred on the ChannelSelector drawer button.*/
     bool checkDrawerButton (Button* button);
-
-    /** Returns the record status of a given channel from the ChannelSelector.*/
-    bool getRecordStatus (int chan);
-
-    /** Returns the audio monitoring status of a given channel from the ChannelSelector.*/
-    bool getAudioStatus (int chan);
 
     /** Selects all the channels in the input array.*/
     void selectChannels (Array<int>);
@@ -231,10 +186,13 @@ public:
     void refreshColors();
 
     /** Called when an editor's processor updates its settings (mainly to update channel count).*/
-    void update();
+    void update(bool isEnabled);
 
     /** Allows other UI elements to use background color of editor. */
     Colour getBackgroundColor();
+
+    /** Changes the background color of this editor. */
+    void setBackgroundColor(Colour colour);
 
     /** Allows other elements to use background gradient of editor. */
     ColourGradient getBackgroundGradient();
@@ -242,25 +200,17 @@ public:
     /** Called by the update() method to allow the editor to update its custom settings.*/
     virtual void updateSettings();
 
+    /** Called when the editor needs to update the view of its parameters.*/
+    void updateView();
+
+    /** Called when the editor needs to update the view of its parameters.*/
+    virtual void updateCustomView();
+
     /** Allows an editor to update the settings of its visualizer (such as channel count and sample rate).*/
     virtual void updateVisualizer();
 
-    /** Used by SpikeDetectorEditor. */
-    virtual void channelChanged (int channel, bool newState);
-
-    /** Returns all selected channels from the ChannelSelector. */
-    Array<int> getActiveChannels();
-
     /** An array of pointers to ParameterEditors created based on the Parameters of an editor's underlying processor. */
-    Array<ParameterEditor*> parameterEditors;
-
-    /** Returns the Channel object for a given continuous channel number. */
-    const DataChannel* getChannel (int chan) const;
-
-    /** Returns the Channel object for a given event channel number. */
-    const EventChannel* getEventChannel (int chan) const;
-
-	const SpikeChannel* getSpikeChannel(int chan) const;
+    OwnedArray<ParameterEditor> parameterEditors;
 
     /** Stores the font used to display the editor's name. */
     Font titleFont;
@@ -268,32 +218,26 @@ public:
     /** True if data acquisition has begun. */
     bool acquisitionIsActive;
 
-    /** Returns param/audio/record selection state for a given channel */
-    void getChannelSelectionState (int chan, bool* p, bool* r, bool* a);
-
-    /** Sets param/audio/record selection state for a given channel */
-    void setChannelSelectionState (int chan, bool p, bool r, bool a);
+    /** Writes editor state to xml */
+    void saveToXml (XmlElement* xml);
 
     /** Writes editor state to xml */
-    void saveEditorParameters (XmlElement* xml);
+    void loadFromXml (XmlElement* xml);
 
     /** Writes editor state to xml */
-    void loadEditorParameters (XmlElement* xml);
+    virtual void saveCustomParametersToXml (XmlElement* xml);
 
     /** Writes editor state to xml */
-    virtual void saveCustomParameters (XmlElement* xml);
-
-    /** Writes editor state to xml */
-    virtual void loadCustomParameters (XmlElement* xml);
-
-    /** Syncs parametereditor colors with parameter values */
-    void updateParameterButtons (int parameterIndex = -1);
+    virtual void loadCustomParametersFromXml (XmlElement* xml);
 
     /** Checks to see whether or not an editor is collapsed */
     bool getCollapsedState();
-
-    /**  Collapses an editor if it's open, and opens it if it's collpased*/
+    
+    /**  Sets the collapsed state for the editor*/
     void switchCollapsedState();
+
+    /**  Sets the collapsed state for the editor*/
+    void setCollapsedState(bool);
 
     /**  Notifies the editor that the collapsed state changed, for non-standard function. */
     virtual void collapsedStateChanged();
@@ -307,13 +251,30 @@ public:
     /** Returns the editors a splitter or merger is connected to */
     virtual Array<GenericEditor*> getConnectedEditors();
 
-    /** Returns an array of record statuses for all channels. Used by GraphNode */
-    Array<bool> getRecordStatusArray();
+    /** Changes the state of the TTLMonitor */
+    void setTTLState(uint16 streamId, int bit, bool state);
 
+    /** Notify editor about changes in the StreamSelector */
+    void updateSelectedStream(uint16 streamId);
+
+    /** Get the ID of the stream that's currently selected.*/
+    uint16 getCurrentStream() { return selectedStream; }
+
+    /** Notifies editor that the selected stream has changed.*/
+    virtual void selectedStreamHasChanged();
+
+    /** Notifies editor that the selected stream has changed.*/
+    virtual void streamEnabledStateChanged(uint16 streamId, bool enabledState, bool isLoading = false);
+
+    /** Updates the mean latency for a particular data stream (called by LatencyMeter class)*/
+    void setMeanLatencyMs(uint16 streamId, float latencyMs);
+
+    /** Returns the total width of the editor in it's current state. */
+    virtual int getTotalWidth();
 
 protected:
     /** A pointer to the button that opens the drawer for the ChannelSelector. */
-    DrawerButton* drawerButton;
+    std::unique_ptr<DrawerButton> drawerButton;
 
     /** Determines the width of the ChannelSelector drawer when opened. */
     int drawerWidth;
@@ -321,17 +282,46 @@ protected:
     /** Saves the open/closed state of the ChannelSelector drawer. */
     bool drawerOpen;
 
-    /** Can be overridden to customize the layout of ParameterEditors. */
-    // Ideally this would be virtual, but since it's run in the construct and because virtual functions don't get overriden in the constructor, it's not.
-    void addParameterEditors (bool useStandard);
+    /** Adds a text box editor for a parameter of a given name. */
+    void addTextBoxParameterEditor (const String& name, int xPos, int yPos);
 
-    /** A pointer to the editor's ChannelSelector. */
-    ChannelSelector* channelSelector;
+    /** Adds a check box editor for a parameter of a given name. */
+    void addCheckBoxParameterEditor(const String& name, int xPos, int yPos);
+
+    /** Adds a slider editor for a parameter of a given name. */
+    void addSliderParameterEditor(const String& name, int xPos, int yPos);
+
+    /** Adds a combo box editor for a parameter of a given name. */
+    void addComboBoxParameterEditor(const String& name, int xPos, int yPos);
+
+    /** Adds a selected channels editor for a parameter of a given name. */
+    void addSelectedChannelsParameterEditor(const String& name, int xPos, int yPos);
+    
+    /** Adds a selected channels editor for a parameter of a given name. */
+    void addMaskChannelsParameterEditor(const String& name, int xPos, int yPos);
+
+    /** Adds a custom editor for a parameter of a given name. */
+    void addCustomParameterEditor(ParameterEditor* editor, int xPos, int yPos);
+
+    /** A pointer to the editor's StreamSelector. */
+    std::unique_ptr<StreamSelector> streamSelector;
+
+    /** Holds the value of the stream that's currently visible*/
+    uint16 selectedStream;
 
 
 private:
-    /** Used for fading in the editor. */
-    virtual void timerCallback() override;
+
+    class ButtonResponder : public Button::Listener
+    {
+    public:
+        ButtonResponder(GenericEditor* editor_) : editor(editor_) { }
+        void buttonClicked(Button* button);
+    private:
+        GenericEditor* editor;
+    };
+
+    ButtonResponder drawerButtonListener;
 
     /** Stores the editor's background color. */
     Colour backgroundColor;
@@ -343,28 +333,26 @@ private:
     bool isEnabled;
     bool isCollapsed;
 
-    /**Used to determine if an editor is a splitter or Merger to avoid calling on ChannelSelector*/
-    bool isSplitOrMerge;
-
     int tNum;
     int originalWidth;
 
-    /**initializing function Used to share constructor functions*/
-    void constructorInitialize (GenericProcessor* owner, bool useDefaultParameterEditors);
-
     String name;
     String displayName;
+
+    std::map<uint16, DelayMonitor*> delayMonitors;
+    std::map<uint16, TTLMonitor*> ttlMonitors;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GenericEditor);
 };
 
 
 /**
-  Used to show and hide the ChannelSelector.
+  Used to show and hide the StreamSelector.
 
-  Appears on the right-hand size of all editors (except SplitterEditor and MergerEditor).
+  Appears on the right-hand size of all plugins that process
+  at least one DataStream (except RecordNodeEditor).
 
-  @see GenericEditor, ChannelSelector
+  @see GenericEditor, StreamSelector
 */
 class PLUGIN_API DrawerButton : public Button
 {
@@ -405,7 +393,7 @@ private:
 class PLUGIN_API LoadButton : public ImageButton
 {
 public:
-    LoadButton();
+    LoadButton(const String& name);
     ~LoadButton();
 };
 
@@ -418,7 +406,7 @@ public:
 class PLUGIN_API SaveButton : public ImageButton
 {
 public:
-    SaveButton();
+    SaveButton(const String& name);
     ~SaveButton();
 };
 

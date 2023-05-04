@@ -26,11 +26,13 @@
 
 #include "../../UI/EditorViewport.h"
 
+#include "../Settings/ConfigurationObject.h"
+#include "../Settings/DataStream.h"
+
 Splitter::Splitter()
     : GenericProcessor("Splitter"),
-      destNodeA(0), destNodeB(0), activePath(0)
+      destNodeA(nullptr), destNodeB(nullptr), activePath(0)
 {
-    setProcessorType(PROCESSOR_TYPE_SPLITTER);
     sendSampleCount = false;
 }
 
@@ -41,11 +43,37 @@ Splitter::~Splitter()
 
 AudioProcessorEditor* Splitter::createEditor()
 {
-    editor = new SplitterEditor(this, true);
-    //tEditor(editor);
+    editor = std::make_unique<SplitterEditor>(this);
+    return editor.get();
+}
 
-    //std::cout << "Creating editor." << std::endl;
-    return editor;
+void Splitter::updateSettings()
+{
+
+    streamsForPathA.clear();
+    streamsForPathB.clear();
+
+    if (sourceNode != nullptr)
+    {
+        // figure out which streams to send
+        SplitterEditor* editor = (SplitterEditor*)getEditor();
+
+        for (auto stream : sourceNode->getStreamsForDestNode(this))
+        {
+            if (checkStream(stream, OUTPUT_A))
+                streamsForPathA.add(stream);
+
+            if (checkStream(stream, OUTPUT_B))
+                streamsForPathB.add(stream);
+        }
+    }
+}
+
+bool Splitter::checkStream(const DataStream* stream, Splitter::Output output)
+{
+    SplitterEditor* ed = (SplitterEditor*)getEditor();
+
+    return ed->checkStream(stream, output);
 }
 
 void Splitter::setPathToProcessor(GenericProcessor* p)
@@ -60,8 +88,6 @@ void Splitter::setPathToProcessor(GenericProcessor* p)
     {
         switchIO(1);
     }
-
-
 }
 
 void Splitter::setSplitterDestNode(GenericProcessor* dn)
@@ -70,13 +96,13 @@ void Splitter::setSplitterDestNode(GenericProcessor* dn)
 
     if (activePath == 0)
     {
-        std::cout << "Setting destination node A." << std::endl;
+        LOGDD("Setting destination node A.");
         destNodeA = dn;
     }
     else
     {
         destNodeB = dn;
-        std::cout << "Setting destination node B." << std::endl;
+        LOGDD("Setting destination node B.");
 
     }
 }
@@ -84,29 +110,26 @@ void Splitter::setSplitterDestNode(GenericProcessor* dn)
 void Splitter::switchIO(int destNum)
 {
 
-    //std::cout << "Switching to dest number " << destNum << std::endl;
+    LOGDD("Switching to dest number ", destNum);
 
     activePath = destNum;
 
     if (destNum == 0)
     {
         destNode = destNodeA;
-        // std::cout << "Dest node: " << getDestNode() << std::endl;
+        LOGDD("   Dest node: ", getDestNode(0));
     }
     else
     {
         destNode = destNodeB;
-        // std::cout << "Dest node: " << getDestNode() << std::endl;
+        LOGDD("   Dest node: ", getDestNode(1));
     }
-
-    // getEditorViewport()->makeEditorVisible(getEditor(), false);
-
 }
 
 void Splitter::switchIO()
 {
 
-    //std::cout << "Splitter switching source." << std::endl;
+    LOGDD("Splitter switching source.");
 
     if (activePath == 0)
     {
@@ -118,10 +141,51 @@ void Splitter::switchIO()
         activePath = 0;
         destNode = destNodeA;
     }
-
+    
 }
 
 int Splitter::getPath()
 {
     return activePath;
+}
+
+GenericProcessor* Splitter::getDestNode(int path)
+{
+    if (path == 0)
+    {
+        return destNodeA;
+    } else {
+        return destNodeB;
+    }
+}
+
+Array<const DataStream*> Splitter::getStreamsForDestNode(GenericProcessor* node)
+{
+    Array<const DataStream*> outputStreams;
+
+    if (node == destNodeA)
+    {
+        for (auto stream : streamsForPathA)
+            outputStreams.add(stream);
+    }
+    else if (node == destNodeB)
+    {
+        for (auto stream : streamsForPathB)
+            outputStreams.add(stream);
+    }
+
+    return outputStreams;
+}
+
+void Splitter::saveCustomParametersToXml(XmlElement* parentElement)
+{
+    parentElement->setAttribute("activePath", activePath);
+
+}
+
+void Splitter::loadCustomParametersFromXml(XmlElement* xml)
+{
+    SplitterEditor* se = (SplitterEditor*) getEditor();
+    
+    se->switchDest(xml->getIntAttribute("activePath", 0));
 }

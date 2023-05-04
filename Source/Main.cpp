@@ -20,7 +20,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
-#ifdef WIN32
+#ifdef _WIN32
+#include <winsock2.h>
 #include <Windows.h>
 #define _MAIN
 #endif
@@ -30,8 +31,6 @@
 
 #include <stdio.h>
 #include <fstream>
-
-//------------------------------------------------------------------
 
 /**
 
@@ -44,91 +43,122 @@
 
 */
 
-
-class OpenEphysApplication  : public JUCEApplication
+class OpenEphysApplication : public JUCEApplication
 {
 public:
-    //==============================================================================
+
     OpenEphysApplication() {}
 
     ~OpenEphysApplication() {}
 
-    //==============================================================================
     void initialise(const String& commandLine)
     {
 
         std::cout << commandLine << std::endl;
 
         StringArray parameters;
-        parameters.addTokens(commandLine," ","\"");
+        parameters.addTokens(commandLine, " ", "\"");
         parameters.removeEmptyStrings();
 
-#ifdef WIN32
-        //glWinInit();
+#ifdef _WIN32
 
-        int consoleArg = parameters.indexOf("--console", true);
-        if (consoleArg != -1)
+        if (AllocConsole())
         {
-            parameters.remove(consoleArg);
-            if (AllocConsole())
-            {
-                freopen("CONOUT$","w",stdout);
-				freopen("CONOUT$","w",stderr);
-                console_out = std::ofstream("CONOUT$");
-                std::cout.rdbuf(console_out.rdbuf());
-				std::cerr.rdbuf(console_out.rdbuf());
-                SetConsoleTitle("Debug Console");
-				std::cout << "Debug console..." << std::endl;
-            }
+            freopen("CONOUT$", "w", stdout);
+            freopen("CONOUT$", "w", stderr);
+            console_out = std::ofstream("CONOUT$");
+            std::cout.rdbuf(console_out.rdbuf());
+            std::cerr.rdbuf(console_out.rdbuf());
+            SMALL_RECT windowSize = { 0, 0, 85 - 1, 35 - 1 };
+            COORD bufferSize = { 85 , 9999 };
+            HANDLE wHnd = GetStdHandle(STD_OUTPUT_HANDLE);
+            SetConsoleTitle("Open Ephys GUI ::: Console");
+            SetConsoleWindowInfo(wHnd, true, &windowSize);
+            SetConsoleScreenBufferSize(wHnd, bufferSize);
         }
 
 #endif
 
-        customLookAndFeel = new CustomLookAndFeel();
-        LookAndFeel::setDefaultLookAndFeel(customLookAndFeel);
+        SystemStats::setApplicationCrashHandler(handleCrash);
 
+        customLookAndFeel = std::make_unique<CustomLookAndFeel>();
+        LookAndFeel::setDefaultLookAndFeel(customLookAndFeel.get());
 
         // signal chain to load
         if (!parameters.isEmpty())
         {
             File fileToLoad(File::getCurrentWorkingDirectory().getChildFile(parameters[0]));
-            mainWindow = new MainWindow(fileToLoad);
+            mainWindow = std::make_unique<MainWindow>(fileToLoad);
         }
         else
         {
-            mainWindow = new MainWindow();
+            mainWindow = std::make_unique<MainWindow>();
         }
     }
 
     void shutdown() { }
 
-    //==============================================================================
-    void systemRequestedQuit()
+    static void handleCrash(void* input)
     {
-		mainWindow->shutDownGUI();
-        //std::cout << "Quit requested" << std::endl;
-        quit();
+        MainWindow::handleCrash(input);
     }
 
-    //==============================================================================
+    void systemRequestedQuit()
+    {
+        bool shouldQuit = true;
+
+        if (CoreServices::getAcquisitionStatus())
+        {
+            
+            String message;
+            
+            if (CoreServices::getRecordingStatus())
+            {
+                AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+                                            "Cannot quit while recording is active.",
+                                            "Please stop recording before closing the GUI.",
+                                            "OK");
+                shouldQuit = false;
+            } else {
+                shouldQuit = AlertWindow::showOkCancelBox(AlertWindow::WarningIcon,
+                    "Are you sure you want to quit?",
+                    "The GUI is still acquiring data.",
+                    "Yes",
+                    "No");
+            }
+
+        }
+
+        if(shouldQuit)
+        {
+            mainWindow->shutDownGUI();
+            quit();
+        }
+    }
+
     const String getApplicationName()
     {
         return "Open Ephys GUI";
     }
+
     const String getApplicationVersion()
     {
         return ProjectInfo::versionString;
     }
+
     bool moreThanOneInstanceAllowed()
     {
         return true;
     }
+
+    
+
     void anotherInstanceStarted(const String& commandLine)
     {}
 
 private:
-    ScopedPointer <MainWindow> mainWindow;
-    ScopedPointer <CustomLookAndFeel> customLookAndFeel;
+    std::unique_ptr <MainWindow> mainWindow;
+    std::unique_ptr <CustomLookAndFeel> customLookAndFeel;
     std::ofstream console_out;
 };
 

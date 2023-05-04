@@ -30,6 +30,8 @@
 #include "../Processors/ProcessorManager/ProcessorManager.h"
 #include "../Processors/ProcessorGraph/ProcessorGraph.h"
 
+#include "../Utils/Utils.h"
+
 
 enum colorIds
 {
@@ -38,36 +40,47 @@ enum colorIds
 	SINK_COLOR = 803,
 	SOURCE_COLOR = 804,
 	UTILITY_COLOR = 805,
+	RECORD_COLOR = 806,
+	AUDIO_COLOR = 807
 };
 
-	ProcessorList::ProcessorList()
-: isDragging(false), totalHeight(800), itemHeight(32), subItemHeight(22),
-	xBuffer(1), yBuffer(1)
+ProcessorList::ProcessorList(Viewport* v) :
+    viewport(v),
+    isDragging(false),
+    totalHeight(800),
+    itemHeight(32),
+    subItemHeight(22),
+	xBuffer(1),
+    yBuffer(1),
+    hoverItem(nullptr),
+    maximumNameOffset(0)
 {
 
-	listFontLight = Font("Default Light", 25, Font::plain);
-	listFontPlain = Font("Default", 20, Font::plain);
+	listFontLight = Font("CP Mono", "Light", 25);
+	listFontPlain = Font("CP Mono", "Plain", 20);
 
 	setColour(PROCESSOR_COLOR, Colour(59, 59, 59));
 	setColour(FILTER_COLOR, Colour(0, 174, 239));
 	setColour(SINK_COLOR, Colour(0, 166, 81));
 	setColour(SOURCE_COLOR, Colour(241, 90, 41));
 	setColour(UTILITY_COLOR, Colour(147, 149, 152));
+	setColour(RECORD_COLOR, Colour(255, 0, 0));
+	setColour(AUDIO_COLOR, Colour(0,0,0));
+
 	ProcessorListItem* sources = new ProcessorListItem("Sources");
 	ProcessorListItem* filters = new ProcessorListItem("Filters");
 	ProcessorListItem* sinks = new ProcessorListItem("Sinks");
 	ProcessorListItem* utilities = new ProcessorListItem("Utilities");
+	ProcessorListItem* record = new ProcessorListItem("Recording");
 
-
-	baseItem = new ProcessorListItem("Processors");
+	baseItem = std::make_unique<ProcessorListItem>("Processors");
 	baseItem->addSubItem(sources);
 	baseItem->addSubItem(filters);
 	baseItem->addSubItem(sinks);
 	baseItem->addSubItem(utilities);
+	baseItem->addSubItem(record);
 
-	// set parent names / colors
 	baseItem->setParentName("Processors");
-
 
 	for (int n = 0; n < baseItem->getNumSubItems(); n++)
 	{
@@ -75,21 +88,23 @@ enum colorIds
 		baseItem->getSubItem(n)->setParentName(category);
 		for (int m = 0; m < baseItem->getSubItem(n)->getNumSubItems(); m++)
 		{
-			baseItem->getSubItem(n)->getSubItem(m)->setParentName(category);// = category;
+			baseItem->getSubItem(n)->getSubItem(m)->setParentName(category);
 		}
 	}
 }
 
-ProcessorList::~ProcessorList()
-{
-
-}
 
 void ProcessorList::resized()
 {
 	setBounds(0,0,195,getTotalHeight());
 }
 
+void ProcessorList::timerCallback()
+{
+    maximumNameOffset += 1;
+    
+    repaint();
+}
 
 
 bool ProcessorList::isOpen()
@@ -99,11 +114,7 @@ bool ProcessorList::isOpen()
 
 void ProcessorList::paint(Graphics& g)
 {
-
 	drawItems(g);
-
-	///drawButton(g, true);
-
 }
 
 
@@ -113,7 +124,7 @@ void ProcessorList::drawItems(Graphics& g)
 
 	category = baseItem->getName();
 
-	drawItem(g, baseItem);
+	drawItem(g, baseItem.get());
 
 	if (baseItem->isOpen())
 	{
@@ -133,7 +144,7 @@ void ProcessorList::drawItems(Graphics& g)
 							getSubItem(m)->
 							hasSubItems());
 					drawItem(g, baseItem->getSubItem(n)->getSubItem(m));
-
+                    
 				}
 			}
 		}
@@ -141,8 +152,6 @@ void ProcessorList::drawItems(Graphics& g)
 
 	if (isOpen())
 		setSize(getWidth(),totalHeight);
-
-	//resized();
 
 }
 
@@ -152,25 +161,18 @@ void ProcessorList::drawItem(Graphics& g, ProcessorListItem* item)
 	Colour c = findColour(item->colorId);
 
 	g.setColour(c);
-
+    
 	if (item->hasSubItems())
 		g.fillRect(1.0, 0.0, getWidth()-2, itemHeight);
 	else
 		g.fillRect(1.0, 10.0, getWidth()-2, subItemHeight);
 
 	drawItemName(g,item);
-
-	if (item->hasSubItems())
-	{
-		drawButton(g, item->isOpen());
-	}
 }
 
 void ProcessorList::drawItemName(Graphics& g, ProcessorListItem* item)
 {
-
-	String name;
-
+    
 	g.setColour(Colours::white);
 	g.setFont(listFontPlain);
 
@@ -178,63 +180,54 @@ void ProcessorList::drawItemName(Graphics& g, ProcessorListItem* item)
 
 	if (item->getNumSubItems() == 0)
 	{
-		if (item->isSelected())
-		{
-			g.drawText(">", 5, 5, getWidth()-9, itemHeight, Justification::left, false);
-			// glRasterPos2f(9.0/getWidth(),0.72);
-			// getFont(cpmono_plain)->FaceSize(15);
-			// getFont(cpmono_plain)->Render(">");
-		}
-
-		name = item->getName();
+		
+		String name = item->getName();
+        
+        float scrollbarOffset = 0.0f; 
+        float maxWidth = getWidth();
 
 		offsetX = 20.0f;
-
+        
+        if (item == hoverItem)
+        {
+            maxWidth = listFontPlain.getStringWidthFloat(name);
+            
+            if (maxWidth + 25 < getWidth() - scrollbarOffset)
+            {
+                maximumNameOffset = 0;
+                stopTimer();
+            } else if (maximumNameOffset + getWidth() > maxWidth + 25 + scrollbarOffset)
+            {
+                stopTimer();
+            }
+            
+            offsetX -= maximumNameOffset;
+        }
+        
 		offsetY = 0.72f;
+        
+        g.setFont(listFontPlain);
+        
+        if (item->isSelected())
+        {
+            g.drawText(">", offsetX - 15, 5, getWidth()-9, itemHeight, Justification::left, false);
+        }
+        g.drawText(name, offsetX, 5, maxWidth, itemHeight, Justification::left, false);
+
 	}
 	else
 	{
-		name = item->getName().toUpperCase();
+		String name = item->getName().toUpperCase();
 		offsetX = 5.0f;
 		offsetY = 0.75f;
-	}
-
-	if (item->getNumSubItems() == 0)
-	{
-		g.setFont(listFontPlain);
-		g.drawText(name, offsetX, 5, getWidth()-offsetX, itemHeight, Justification::left, false);
-
-	}
-	else
-	{
-		g.setFont(listFontLight);
-		g.drawText(name, offsetX, 0, getWidth()-offsetX, itemHeight, Justification::left, false);
+        
+        g.setFont(listFontLight);
+        g.drawText(name, offsetX, 0, getWidth(), itemHeight, Justification::left, false);
 	}
 
 
 }
 
-void ProcessorList::drawButton(Graphics& g, bool isOpen)
-{
-
-
-
-	// glColor4f(1.0f,1.0f,1.0f,1.0f);
-	// glLineWidth(1.0f);
-	// glBegin(GL_LINE_LOOP);
-
-	// if (isOpen)
-	// {
-	// 	glVertex2f(0.875,0.35);
-	// 	glVertex2f(0.9,0.65);
-	// } else {
-	// 	glVertex2f(0.925,0.65);
-	// 	glVertex2f(0.875,0.5);
-	// }
-	// glVertex2f(0.925,0.35);
-	// glEnd();
-
-}
 
 void ProcessorList::clearSelectionState()
 {
@@ -253,14 +246,11 @@ void ProcessorList::clearSelectionState()
 
 ProcessorListItem* ProcessorList::getListItemForYPos(int y)
 {
-	int bottom = (yBuffer + itemHeight); // - getScrollAmount();
-
-	//std::cout << "Bottom: " << bottom << std::endl;
-	//std::cout << "Y coordinate: " << y << std::endl;
+	int bottom = (yBuffer + itemHeight);
 
 	if (y < bottom)
 	{
-		return baseItem;
+		return baseItem.get();
 
 	}
 	else
@@ -313,12 +303,10 @@ void ProcessorList::setViewport(Graphics& g, bool hasSubItems)
 		height = subItemHeight;
 	}
 
-	g.setOrigin(0, yBuffer + height); //xBuffer, getHeight()-(totalHeight) - height + getScrollAmount());
-
+	g.setOrigin(0, yBuffer + height);
 
 	totalHeight += yBuffer + height;
 
-	//std::cout << totalHeight << std::endl;
 }
 
 int ProcessorList::getTotalHeight()
@@ -328,6 +316,7 @@ int ProcessorList::getTotalHeight()
 
 void ProcessorList::toggleState()
 {
+
 	ProcessorListItem* fli = getListItemForYPos(0);
 	fli->reverseOpenState();
 	AccessClass::getUIComponent()->childComponentChanged();
@@ -339,27 +328,22 @@ void ProcessorList::mouseDown(const MouseEvent& e)
 
 	isDragging = false;
 
-	Point<int> pos = e.getPosition();
+	juce::Point<int> pos = e.getPosition();
 	int xcoord = pos.getX();
 	int ycoord = pos.getY();
-
-	//std::cout << xcoord << " " << ycoord << std::endl;
 
 	ProcessorListItem* listItem = getListItemForYPos(ycoord);
 
 	if (listItem != 0)
 	{
-		//std::cout << "Selecting: " << fli->getName() << std::endl;
+		LOGA("Processor List Selecting: ", listItem->getName());
+
 		if (!listItem->hasSubItems())
 		{
 			clearSelectionState();
 			listItem->setSelected(true);
 		}
 
-	}
-	else
-	{
-		//std::cout << "No selection." << std::endl;
 	}
 
 	if (listItem != 0)
@@ -385,32 +369,35 @@ void ProcessorList::mouseDown(const MouseEvent& e)
 				{
 					currentColor = SINK_COLOR;
 				}
+				else if (listItem->getName().equalsIgnoreCase("Recording"))
+				{
+					currentColor = RECORD_COLOR;
+				}
 				else
 				{
 					return;
 				}
 
 				int options=0;
-				options += (0 << 0); // showAlpha
-				options += (0 << 1); // showColorAtTop
-				options += (0 << 2); // showSliders
-				options += (1 << 3); // showColourSpace
+				options += (1 << 1); // showColorAtTop
+				options += (1 << 2); // editableColour
+				options += (1 << 4); // showColourSpace
 
-				ColourSelector colourSelector(options);
-				colourSelector.setName("background");
-				colourSelector.setCurrentColour(findColour(currentColor));
-				colourSelector.addChangeListener(this);
-				colourSelector.addChangeListener(AccessClass::getProcessorGraph());
-				colourSelector.setColour(ColourSelector::backgroundColourId, Colours::transparentBlack);
-				colourSelector.setSize(300, 275);
+				auto* colourSelector = new ColourSelector(options);
+				colourSelector->setName("background");
+				colourSelector->setCurrentColour(findColour(currentColor));
+				colourSelector->addChangeListener(this);
+				colourSelector->addChangeListener(AccessClass::getProcessorGraph());
+				colourSelector->setColour(ColourSelector::backgroundColourId, Colours::lightgrey);
+				colourSelector->setSize(250, 270);
 
-				juce::Rectangle<int> rect = juce::Rectangle<int>(0,0,10,10);
+				juce::Rectangle<int> rect = juce::Rectangle<int>(e.getScreenPosition().getX(),
+                                                                 e.getScreenPosition().getY(),1,1);
 
-				CallOutBox callOut(colourSelector, rect, nullptr);
-				callOut.setTopLeftPosition(e.getScreenX(), e.getScreenY());
-				callOut.setArrowSize(0.0f);
-
-				callOut.runModalLoop();
+				CallOutBox& myBox
+                    = CallOutBox::launchAsynchronously(std::unique_ptr<Component>(colourSelector),
+                                                       rect,
+                                                       nullptr);
 
 			}
 			else
@@ -419,7 +406,7 @@ void ProcessorList::mouseDown(const MouseEvent& e)
 			}
 		}
 
-		if (listItem == baseItem)
+		if (listItem == baseItem.get())
 		{
 			if (listItem->isOpen())
 			{
@@ -428,7 +415,6 @@ void ProcessorList::mouseDown(const MouseEvent& e)
 			else
 			{
 				AccessClass::getUIComponent()->childComponentChanged();
-				// totalHeight = itemHeight + 2*yBuffer;
 			}
 
 		}
@@ -447,6 +433,34 @@ void ProcessorList::changeListenerCallback(ChangeBroadcaster* source)
 
 }
 
+void ProcessorList::mouseMove(const MouseEvent& e)
+{
+
+    if (e.getMouseDownX() < getWidth() && !(isDragging))
+    {
+        ProcessorListItem* listItem = getListItemForYPos(e.getMouseDownY());
+        
+        if (hoverItem != listItem) // new hover item
+        {
+            hoverItem = listItem;
+            maximumNameOffset = 0;
+            startTimer(33);
+        }
+    }
+}
+
+
+void ProcessorList::mouseExit(const MouseEvent& e)
+{
+
+    hoverItem = nullptr;
+    maximumNameOffset = 0;
+    stopTimer();
+    isDragging = false;
+    
+    repaint();
+}
+
 void ProcessorList::mouseDrag(const MouseEvent& e)
 {
 
@@ -462,41 +476,34 @@ void ProcessorList::mouseDrag(const MouseEvent& e)
 			{
 				isDragging = true;
 
-				String b = listItem->getName();
-
-				const String dragDescription = b;
-
-				//std::cout << dragDescription << std::endl;
-
-				if (dragDescription.isNotEmpty())
+				if (listItem->getName().isNotEmpty())
 				{
 					DragAndDropContainer* const dragContainer
 						= DragAndDropContainer::findParentDragContainerFor(this);
 
 					if (dragContainer != 0)
 					{
-						//pos.setSize (pos.getWidth(), 10);
-
 						Image dragImage(Image::ARGB, 100, 15, true);
+
+						LOGA("Processor List - ", listItem->getName(), " drag start.");
 
 						Graphics g(dragImage);
 						g.setColour(findColour(listItem->colorId));
 						g.fillAll();
 						g.setColour(Colours::white);
 						g.setFont(14);
-						g.drawSingleLineText(listItem->getName(),10,12);//,75,15,Justification::centredRight,true);
+						g.drawSingleLineText(listItem->getName(),10,12);
 
 						dragImage.multiplyAllAlphas(0.6f);
 
-						Point<int> imageOffset(20,10);
+						juce::Point<int> imageOffset(20,10);
 
-						//See ProcessorGraph::createProcesorFromDescription for description info
 						Array<var> dragData;
-						dragData.add(true);
-						dragData.add(dragDescription);
-						dragData.add(listItem->processorType);
-						dragData.add(listItem->processorId);
-						dragData.add(listItem->getParentName());
+						dragData.add(true); // fromProcessorList
+						dragData.add(listItem->getName()); // pluginName
+                        dragData.add(listItem->index);  // processorIndex
+						dragData.add(listItem->pluginType); // pluginType
+                        dragData.add(listItem->processorType); // processorType
 
 						dragContainer->startDragging(dragData, this,
 								dragImage, true, &imageOffset);
@@ -512,7 +519,7 @@ void ProcessorList::saveStateToXml(XmlElement* xml)
 {
 	XmlElement* processorListState = xml->createNewChildElement("PROCESSORLIST");
 
-	for (int i = 0; i < 5; i++)
+	for (int i = 0; i < 7; i++)
 	{
 		XmlElement* colorState = processorListState->createNewChildElement("COLOR");
 
@@ -535,6 +542,12 @@ void ProcessorList::saveStateToXml(XmlElement* xml)
 			case 4:
 				id = UTILITY_COLOR;
 				break;
+			case 5: 
+				id = RECORD_COLOR;
+				break;
+			case 6:
+				id = AUDIO_COLOR;
+				break;
 			default:
 				// do nothing
 				;
@@ -552,11 +565,11 @@ void ProcessorList::saveStateToXml(XmlElement* xml)
 
 void ProcessorList::loadStateFromXml(XmlElement* xml)
 {
-	forEachXmlChildElement(*xml, xmlNode)
+	for (auto* xmlNode : xml->getChildIterator())
 	{
 		if (xmlNode->hasTagName("PROCESSORLIST"))
 		{
-			forEachXmlChildElement(*xmlNode, colorNode)
+			for (auto* colorNode : xmlNode->getChildIterator())
 			{
 				setColour(colorNode->getIntAttribute("ID"),
 						Colour(
@@ -581,6 +594,8 @@ Array<Colour> ProcessorList::getColours()
 	c.add(findColour(FILTER_COLOR));
 	c.add(findColour(SINK_COLOR));
 	c.add(findColour(UTILITY_COLOR));
+	c.add(findColour(RECORD_COLOR));
+	c.add(findColour(AUDIO_COLOR));
 	return c;
 }
 
@@ -605,6 +620,11 @@ void ProcessorList::setColours(Array<Colour> c)
 			case 4:
 				setColour(UTILITY_COLOR, c[i]);
 				break;
+			case 5: 
+				setColour(RECORD_COLOR, c[i]);
+				break;
+			case 6: 
+				setColour(AUDIO_COLOR, c[i]);
 			default:
 				;// do nothing
 		}
@@ -613,49 +633,135 @@ void ProcessorList::setColours(Array<Colour> c)
 
 void ProcessorList::fillItemList()
 {
-	int num;
+
+	LOGD("ProcessorList::fillItemList()");
+
 	baseItem->getSubItem(0)->clearSubItems(); //Sources
 	baseItem->getSubItem(1)->clearSubItems(); //Filters
-	baseItem->getSubItem(2)->clearSubItems(); //sinks
+	baseItem->getSubItem(2)->clearSubItems(); //Sinks
 	baseItem->getSubItem(3)->clearSubItems(); //Utilities
-
-	for (int pClass = 0; pClass < 3; pClass++)
+	baseItem->getSubItem(4)->clearSubItems(); //Record
+    
+	for (auto pluginType : ProcessorManager::getAvailablePluginTypes())
 	{
-		num = ProcessorManager::getNumProcessors((ProcessorClasses)pClass);
-		for (int i = 0; i < num; i++)
+        
+		for (int i = 0; i < ProcessorManager::getNumProcessorsForPluginType(pluginType); i++)
 		{
-			String name;
-			int type = -1;
-			ProcessorManager::getProcessorNameAndType((ProcessorClasses)pClass, i, name, type);
-			if (type > -1 && type < 4)
-			{
-				baseItem->getSubItem(type)->addSubItem(new ProcessorListItem(name, i, pClass));
-			}
+
+            Plugin::Description description = ProcessorManager::getPluginDescription(pluginType, i);
+
+			LOGD("Processor List - creating item for ", description.name);
+            
+            ProcessorListItem* item = new ProcessorListItem(description.name,
+                                            i,
+                                            description.type,
+                                            description.processorType);
+            
+            if (description.processorType == Plugin::Processor::SOURCE)
+                
+                baseItem->getSubItem(0)->addSubItem(item);
+            
+            else if (description.processorType == Plugin::Processor::FILTER)
+                
+                baseItem->getSubItem(1)->addSubItem(item);
+            
+            else if (description.processorType == Plugin::Processor::SINK)
+                
+                baseItem->getSubItem(2)->addSubItem(item);
+            
+            else if (description.processorType == Plugin::Processor::UTILITY
+                     || description.processorType == Plugin::Processor::MERGER
+                     || description.processorType == Plugin::Processor::SPLITTER
+                     || description.processorType == Plugin::Processor::AUDIO_MONITOR)
+                
+                baseItem->getSubItem(3)->addSubItem(item);
+            
+            else if (description.processorType == Plugin::Processor::RECORD_NODE)
+                
+                baseItem->getSubItem(4)->addSubItem(item);
 		}
 	}
-
 
 	for (int n = 0; n < baseItem->getNumSubItems(); n++)
 	{
 		const String category = baseItem->getSubItem(n)->getName();
-		baseItem->getSubItem(n)->setParentName(category);
-		for (int m = 0; m < baseItem->getSubItem(n)->getNumSubItems(); m++)
+        
+        baseItem->getSubItem(n)->setParentName(category);
+		
+        for (int m = 0; m < baseItem->getSubItem(n)->getNumSubItems(); m++)
 		{
-			baseItem->getSubItem(n)->getSubItem(m)->setParentName(category);// = category;
+			baseItem->getSubItem(n)->getSubItem(m)->setParentName(category);
 		}
 	}
 
 }
 
+
+Array<String> ProcessorList::getItemList()
+{
+
+	Array<String> listOfProcessors;
+    
+	for (int i = 0; i < 5; i++)
+	{
+        int numSubItems = baseItem->getSubItem(i)->getNumSubItems();
+
+		ProcessorListItem* subItem = baseItem->getSubItem(i);
+
+		for(int j = 0; j < numSubItems ; j++)
+		{
+			listOfProcessors.addIfNotAlreadyThere(subItem->getSubItem(j)->getName());
+		}
+	}
+
+	return listOfProcessors;
+}
+
+
+Plugin::Description ProcessorList::getItemDescriptionfromList(const String& name)
+{
+
+	Plugin::Description description;
+    
+	for (int i = 0; i < 5; i++)
+	{
+        int numSubItems = baseItem->getSubItem(i)->getNumSubItems();
+
+		ProcessorListItem* subItem = baseItem->getSubItem(i);
+
+		for(int j = 0; j < numSubItems ; j++)
+		{
+			if(name.equalsIgnoreCase(subItem->getSubItem(j)->getName()))
+			{
+				description.fromProcessorList = true;
+				description.index = subItem->getSubItem(j)->index;
+				description.name = subItem->getSubItem(j)->getName();
+				description.type = subItem->getSubItem(j)->pluginType;
+				description.processorType = subItem->getSubItem(j)->processorType;
+
+				break;
+			}
+		}
+	}
+
+	return description;
+}
+
 // ===================================================================
 
-	ProcessorListItem::ProcessorListItem(const String& name_, int pid, int ptype)
-		: processorId(pid), processorType(ptype), selected(false), open(true), name(name_)
+ProcessorListItem::ProcessorListItem(const String& name_,
+                                     int index_,
+                                     Plugin::Type pluginType_,
+                                     Plugin::Processor::Type processorType_):
+  index(index_),
+  pluginType(pluginType_),
+  processorType(processorType_),
+  selected(false),
+  open(true),
+  name(name_)
 {
 }
 
-ProcessorListItem::~ProcessorListItem()
-{ }
 
 bool ProcessorListItem::hasSubItems()
 {
@@ -734,6 +840,14 @@ void ProcessorListItem::setParentName(const String& name)
 	else if (parentName.equalsIgnoreCase("Sources"))
 	{
 		colorId = SOURCE_COLOR;
+	}
+	else if (parentName.equalsIgnoreCase("Recording"))
+	{
+		colorId = RECORD_COLOR;
+	}
+	else if (parentName.equalsIgnoreCase("Audio"))
+	{
+		colorId = AUDIO_COLOR;
 	}
 	else
 	{

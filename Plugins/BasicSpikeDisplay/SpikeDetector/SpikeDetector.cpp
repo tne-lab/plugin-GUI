@@ -24,608 +24,905 @@
 #include <stdio.h>
 #include "SpikeDetector.h"
 
+#include "SpikeDetectorEditor.h"
 
-SpikeDetector::SpikeDetector()
-    : GenericProcessor      ("Spike Detector")
-    , overflowBuffer        (2, 100)
-    , dataBuffer            (nullptr),
-      overflowBufferSize    (100)
-    , currentElectrode      (-1)
-    , uniqueID              (0)
+#define OVERFLOW_BUFFER_SAMPLES 200
+
+SpikeDetectorSettings::SpikeDetectorSettings() :
+    nextAvailableChannel(0),
+    singleElectrodeCount(0),
+    stereotrodeCount(0),
+    tetrodeCount(0)
 {
-    setProcessorType (PROCESSOR_TYPE_FILTER);
+    
+}
 
-    //// the standard form:
-    electrodeTypes.add ("single electrode");
-    electrodeTypes.add ("stereotrode");
-    electrodeTypes.add ("tetrode");
-
-    //// the technically correct form (Greek cardinal prefixes):
-    // electrodeTypes.add("hentrode");
-    // electrodeTypes.add("duotrode");
-    // electrodeTypes.add("triode");
-    // electrodeTypes.add("tetrode");
-    // electrodeTypes.add("pentrode");
-    // electrodeTypes.add("hextrode");
-    // electrodeTypes.add("heptrode");
-    // electrodeTypes.add("octrode");
-    // electrodeTypes.add("enneatrode");
-    // electrodeTypes.add("decatrode");
-    // electrodeTypes.add("hendecatrode");
-    // electrodeTypes.add("dodecatrode");
-    // electrodeTypes.add("triskaidecatrode");
-    // electrodeTypes.add("tetrakaidecatrode");
-    // electrodeTypes.add("pentakaidecatrode");
-    // electrodeTypes.add("hexadecatrode");
-    // electrodeTypes.add("heptakaidecatrode");
-    // electrodeTypes.add("octakaidecatrode");
-    // electrodeTypes.add("enneakaidecatrode");
-    // electrodeTypes.add("icosatrode");
-
-    for (int i = 0; i < electrodeTypes.size() + 1; ++i)
+AbsValueThresholder::AbsValueThresholder(int numChannels) : Thresholder()
+{
+    for (int i = 0; i < numChannels; i++)
     {
-        electrodeCounter.add (0);
+        thresholds.set(i, -50.0f);
     }
+}
 
+void AbsValueThresholder::setThreshold(int channel, float threshold)
+{
+    if (channel >= 0 && channel < thresholds.size())
+        thresholds.set(channel, threshold);
+}
+    
+float AbsValueThresholder::getThreshold(int channel)
+{
+    if (channel >= 0 && channel < thresholds.size())
+        return thresholds[channel];
+
+    return 0.0f;
+}
+
+bool AbsValueThresholder::checkSample(int channel, float sample)
+{
+    if (sample < thresholds[channel])
+        return true;
+    
+    return false;
 }
 
 
+StdDevThresholder::StdDevThresholder(int numChannels) : Thresholder()
+{
+    for (int i = 0; i < numChannels; i++)
+    {
+        stdLevels.set(i, 4.0f);
+        stds.set(i, 50.0/4.0f);
+        thresholds.set(i, -50.0f);
+        sampleBuffer.add(new Array<float>());
+        bufferIndex.add(-1);
+    }
+}
+
+void StdDevThresholder::setThreshold(int channel, float threshold)
+{
+    if (channel >= 0 && channel < stdLevels.size())
+    {
+        //std::cout << "Setting threshold for ch " << channel << " to " << threshold << std::endl;
+        stdLevels.set(channel, threshold);
+        thresholds.set(channel, - stds[channel] * stdLevels[channel]);
+        //std::cout << "Actual threshold: " << thresholds[channel] << std::endl;
+    }
+        
+}
+
+float StdDevThresholder::getThreshold(int channel)
+{
+    if (channel >= 0 && channel < stdLevels.size())
+        return stdLevels[channel];
+
+    return 0.0f;
+}
+
+bool StdDevThresholder::checkSample(int channel, float sample)
+{
+
+    index += 1;
+    index %= skipSamples;
+
+    if (index == 0)
+    {
+        // update buffer
+        int nextIndex = (bufferIndex[channel] + 1) % bufferSize;
+
+        sampleBuffer[channel]->set(nextIndex, sample);
+        
+        bufferIndex.set(channel, nextIndex);
+
+        // compute threshold
+        if (nextIndex == bufferSize - 1)
+            computeStd(channel);
+    }
+
+    if (sample < thresholds[channel])
+        return true;
+
+    return false;
+}
+
+void StdDevThresholder::computeStd(int channel)
+{
+    float mean = 0;
+
+    for (int i = 0; i < bufferSize; i++)
+        mean += sampleBuffer[channel]->getUnchecked(i);
+
+    mean /= bufferSize;
+
+    float std = 0;
+
+    for (int i = 0; i < bufferSize; i++)
+        std += pow(sampleBuffer[channel]->getUnchecked(i) - mean, 2);
+
+    std = pow(std / bufferSize, 0.5);
+    
+    stds.set(channel, std);
+
+    float threshold =  - std * stdLevels[channel];
+
+    thresholds.set(channel, threshold);
+}
+
+
+DynamicThresholder::DynamicThresholder(int numChannels) : Thresholder()
+{
+    for (int i = 0; i < numChannels; i++)
+    {
+        sigmaLevels.set(i, 4.0f);
+        medians.set(i, 50.0 / 4.0f);
+        thresholds.set(i, -50.0f);
+        sampleBuffer.add(new std::vector<float>(bufferSize));
+        bufferIndex.add(-1);
+    }
+}
+
+void DynamicThresholder::setThreshold(int channel, float threshold)
+{
+    if (channel >= 0 && channel < sigmaLevels.size())
+    {
+        sigmaLevels.set(channel, threshold);
+        thresholds.set(channel, -medians[channel] * sigmaLevels[channel]);
+    }
+        
+}
+
+float DynamicThresholder::getThreshold(int channel)
+{
+    if (channel >= 0 && channel < sigmaLevels.size())
+        return sigmaLevels[channel];
+
+    return 0.0f;
+}
+
+bool DynamicThresholder::checkSample(int channel, float sample)
+{
+
+    index += 1;
+    index %= skipSamples;
+
+    if (index == 0)
+    {
+        // update buffer
+        int nextIndex = (bufferIndex[channel] + 1) % bufferSize;
+
+        sampleBuffer.getUnchecked(channel)->at(nextIndex) = abs(sample) / scalar;
+
+        bufferIndex.set(channel, nextIndex);
+
+        // compute threshold
+        if (nextIndex == bufferSize - 1)
+            computeSigma(channel);
+    }
+
+    if (sample < thresholds[channel])
+        return true;
+
+    return false;
+}
+
+void DynamicThresholder::computeSigma(int channel)
+{
+   
+    std::sort(sampleBuffer.getUnchecked(channel)->begin(),
+        sampleBuffer.getUnchecked(channel)->end());
+    
+    float median = sampleBuffer.getUnchecked(channel)->at(bufferSize / 2);
+
+    medians.set(channel, median);
+    
+    float threshold = - ( median * sigmaLevels[channel]);
+
+    thresholds.set(channel, threshold);
+}
+
+    
+
+SpikeDetector::SpikeDetector()
+    : GenericProcessor ("Spike Detector"),
+      nextAvailableChannel(0),
+      singleElectrodeCount(0),
+      stereotrodeCount(0),
+      tetrodeCount(0)
+{
+    
+}
+
 SpikeDetector::~SpikeDetector()
 {
+    //mostRecentParameters.clear();
 }
 
 
 AudioProcessorEditor* SpikeDetector::createEditor()
 {
-    editor = new SpikeDetectorEditor (this, true);
-    return editor;
+    editor = std::make_unique<SpikeDetectorEditor> (this);
+    return editor.get();
 }
 
-void SpikeDetector::createSpikeChannels()
+void SpikeDetector::parameterValueChanged(Parameter* p)
 {
-	for (int i = 0; i < electrodes.size(); ++i)
-	{
-		SimpleElectrode* elec = electrodes[i];
-		unsigned int nChans = elec->numChannels;
-		Array<const DataChannel*> chans;
-		for (int c = 0; c < nChans; c++)
-		{
-			const DataChannel* ch = getDataChannel(elec->channels[c]);
-			if (!ch)
-			{
-				//not enough channels for the electrodes
-				return;
-			}
-			chans.add(ch);
-		}
-		SpikeChannel* spk = new SpikeChannel(SpikeChannel::typeFromNumChannels(nChans), this, chans);
-		spk->setNumSamples(elec->prePeakSamples, elec->postPeakSamples);
-		spikeChannelArray.add(spk);
-	}
-}
+    if (p->getName().equalsIgnoreCase("name"))
+    {
+        p->getSpikeChannel()->setName(p->getValueAsString());
 
+        CoreServices::updateSignalChain(getEditor());
+        
+    }
+    
+    else if (p->getName().equalsIgnoreCase("local_channels"))
+    {
+        
+        SelectedChannelsParameter* param = (SelectedChannelsParameter*) p;
+
+        p->getSpikeChannel()->localChannelIndexes = param->getArrayValue();
+        
+        CoreServices::updateSignalChain(getEditor());
+        
+        
+    } else if (p->getName().equalsIgnoreCase("waveform_type"))
+    {
+        
+        CategoricalParameter* param = (CategoricalParameter*) p;
+        SpikeChannel* spikeChannel = p->getSpikeChannel();
+
+        // switch number of channels!!!
+        if (param->getSelectedIndex() == 0)
+            spikeChannel->sendFullWaveform = true;
+        else
+            spikeChannel->sendFullWaveform = false;
+
+        CoreServices::updateSignalChain(getEditor());
+    }
+    else if (p->getName().contains("threshold"))
+    {
+        
+        FloatParameter* param = (FloatParameter*) p;
+        SpikeChannel* spikeChannel = p->getSpikeChannel();
+        
+        int channelIndex = p->getName().getTrailingIntValue() - 1;
+
+        spikeChannel->thresholder->setThreshold(channelIndex, param->getFloatValue());
+    }
+    else if (p->getName().equalsIgnoreCase("thrshlder_type"))
+    {
+        
+        CategoricalParameter* param = (CategoricalParameter*) p;
+        SpikeChannel* spikeChannel = p->getSpikeChannel();
+        
+        if (param->getSelectedString().equalsIgnoreCase("ABS"))
+        {
+            spikeChannel->thresholder.reset();
+            spikeChannel->thresholder =
+                std::make_unique<AbsValueThresholder>(
+                spikeChannel->getNumChannels());
+            
+            for (int ch = 0; ch < spikeChannel->getNumChannels(); ch++)
+            {
+                spikeChannel->thresholder->setThreshold(
+                    ch,
+                    (float) spikeChannel->getParameter("abs_threshold" + String(ch+1))->getValue());
+            }
+        } else if (param->getSelectedString().equalsIgnoreCase("STD"))
+        {
+            spikeChannel->thresholder.reset();
+            spikeChannel->thresholder =
+                std::make_unique<StdDevThresholder>(
+                spikeChannel->getNumChannels());
+            
+            for (int ch = 0; ch < spikeChannel->getNumChannels(); ch++)
+            {
+                spikeChannel->thresholder->setThreshold(
+                    ch,
+                    (float) spikeChannel->getParameter("std_threshold" + String(ch+1))->getValue());
+            }
+        } else if (param->getSelectedString().equalsIgnoreCase("STD"))
+        {
+            spikeChannel->thresholder.reset();
+            spikeChannel->thresholder =
+                std::make_unique<DynamicThresholder>(
+                spikeChannel->getNumChannels());
+            
+            for (int ch = 0; ch < spikeChannel->getNumChannels(); ch++)
+            {
+                spikeChannel->thresholder->setThreshold(
+                    ch,
+                    (float) spikeChannel->getParameter("dyn_threshold" + String(ch+1))->getValue());
+            }
+        }
+        
+    }
+        
+}
 
 void SpikeDetector::updateSettings()
 {
+    settings.update(getDataStreams());
+    
 	if (getNumInputs() > 0)
 	{
-		overflowBuffer.setSize(getNumInputs(), overflowBufferSize);
+		overflowBuffer.setSize(getNumInputs(), OVERFLOW_BUFFER_SAMPLES);
 		overflowBuffer.clear();
 	}
 
+
 }
 
-
-bool SpikeDetector::addElectrode (int nChans, int electrodeID)
+String SpikeDetector::ensureUniqueName(String name, uint16 currentStream)
 {
-    std::cout << "Adding electrode with " << nChans << " channels." << std::endl;
 
-    int firstChan;
+   // std::cout << "Candidate name: " << name << std::endl;
 
-    if (electrodes.size() == 0)
+    bool matchingName = true;
+
+    int append = 0;
+
+    String nameToCheck = name;
+
+    while (matchingName)
     {
-        firstChan = 0;
-    }
-    else
-    {
-        SimpleElectrode* e = electrodes.getLast();
-        firstChan = *(e->channels + (e->numChannels - 1)) + 1;
-    }
+        if (append > 0)
+            nameToCheck = name + " (" + String(append) + ")";
 
-    if (firstChan + nChans > getNumInputs())
-    {
-        firstChan = 0; // make sure we don't overflow available channels
-    }
+        matchingName = false;
 
-    int currentVal = electrodeCounter[nChans];
-    electrodeCounter.set (nChans, ++currentVal);
-
-    String electrodeName;
-
-    // hard-coded for tetrode configuration
-    if (nChans < 3)
-        electrodeName = electrodeTypes[nChans - 1];
-    else
-        electrodeName = electrodeTypes[nChans - 2];
-
-    String newName = electrodeName.substring (0,1);
-    newName = newName.toUpperCase();
-    electrodeName = electrodeName.substring (1, electrodeName.length());
-    newName += electrodeName;
-    newName += " ";
-    newName += electrodeCounter[nChans];
-
-    SimpleElectrode* newElectrode = new SimpleElectrode;
-
-    newElectrode->name = newName;
-    newElectrode->numChannels = nChans;
-    newElectrode->prePeakSamples = 8;
-    newElectrode->postPeakSamples = 32;
-    newElectrode->thresholds.malloc (nChans);
-    newElectrode->isActive.malloc (nChans);
-    newElectrode->channels.malloc (nChans);
-    newElectrode->isMonitored = false;
-
-    for (int i = 0; i < nChans; ++i)
-    {
-        *(newElectrode->channels + i) = firstChan+i;
-        *(newElectrode->thresholds + i) = getDefaultThreshold();
-        *(newElectrode->isActive + i) = true;
-    }
-
-    if (electrodeID > 0) 
-    {
-        newElectrode->electrodeID = electrodeID;
-        uniqueID = std::max (uniqueID, electrodeID);
-    }
-    else
-    {
-        newElectrode->electrodeID = ++uniqueID;
-    }
-
-    resetElectrode (newElectrode);
-
-    electrodes.add (newElectrode);
-
-    currentElectrode = electrodes.size() - 1;
-
-    return true;
-}
-
-
-float SpikeDetector::getDefaultThreshold() const
-{
-    return 50.0f;
-}
-
-
-StringArray SpikeDetector::getElectrodeNames() const
-{
-    StringArray names;
-
-    for (int i = 0; i < electrodes.size(); ++i)
-    {
-        names.add (electrodes[i]->name);
-    }
-
-    return names;
-}
-
-
-void SpikeDetector::resetElectrode (SimpleElectrode* e)
-{
-    e->lastBufferIndex = 0;
-}
-
-
-bool SpikeDetector::removeElectrode (int index)
-{
-    // std::cout << "Spike detector removing electrode" << std::endl;
-
-    if (index > electrodes.size() || index < 0)
-        return false;
-
-    electrodes.remove (index);
-    return true;
-}
-
-
-void SpikeDetector::setElectrodeName (int index, String newName)
-{
-    electrodes[index - 1]->name = newName;
-}
-
-
-void SpikeDetector::setChannel (int electrodeIndex, int channelNum, int newChannel)
-{
-    std::cout << "Setting electrode " << electrodeIndex << " channel " << channelNum
-                << " to " << newChannel << std::endl;
-
-    *(electrodes[electrodeIndex]->channels + channelNum) = newChannel;
-}
-
-
-int SpikeDetector::getNumChannels (int index) const
-{
-    if (index < electrodes.size())
-        return electrodes[index]->numChannels;
-    else
-        return 0;
-}
-
-
-int SpikeDetector::getChannel (int index, int i) const
-{
-    return *(electrodes[index]->channels + i);
-}
-
-
-void SpikeDetector::getElectrodes (Array<SimpleElectrode*>& electrodeArray)
-{
-    electrodeArray.addArray (electrodes);
-}
-
-
-SimpleElectrode* SpikeDetector::setCurrentElectrodeIndex (int i)
-{
-    jassert (i >= 0 & i < electrodes.size());
-    currentElectrode = i;
-
-    return electrodes[i];
-}
-
-
-SimpleElectrode* SpikeDetector::getActiveElectrode() const
-{
-    if (electrodes.size() == 0)
-        return nullptr;
-
-    return electrodes[currentElectrode];
-}
-
-
-void SpikeDetector::setChannelActive (int electrodeIndex, int subChannel, bool active)
-{
-    currentElectrode = electrodeIndex;
-    currentChannelIndex = subChannel;
-
-    std::cout << "Setting channel active to " << active << std::endl;
-
-    if (active)
-        setParameter (98, 1);
-    else
-        setParameter (98, 0);
-}
-
-
-bool SpikeDetector::isChannelActive (int electrodeIndex, int i)
-{
-    return *(electrodes[electrodeIndex]->isActive + i);
-}
-
-
-void SpikeDetector::setChannelThreshold (int electrodeNum, int channelNum, float thresh)
-{
-    currentElectrode = electrodeNum;
-    currentChannelIndex = channelNum;
-
-    std::cout << "Setting electrode " << electrodeNum << " channel threshold " << channelNum << " to " << thresh << std::endl;
-
-    setParameter (99, thresh);
-}
-
-
-double SpikeDetector::getChannelThreshold(int electrodeNum, int channelNum) const
-{
-    return *(electrodes[electrodeNum]->thresholds + channelNum);
-}
-
-
-void SpikeDetector::setParameter (int parameterIndex, float newValue)
-{
-    //editor->updateParameterButtons(parameterIndex);
-
-    if (parameterIndex == 99 && currentElectrode > -1)
-    {
-        *(electrodes[currentElectrode]->thresholds + currentChannelIndex) = newValue;
-    }
-    else if (parameterIndex == 98 && currentElectrode > -1)
-    {
-        if (newValue == 0.0f)
-            *(electrodes[currentElectrode]->isActive + currentChannelIndex) = false;
-        else
-            *(electrodes[currentElectrode]->isActive + currentChannelIndex) = true;
-    }
-}
-
-
-bool SpikeDetector::enable()
-{
-    sampleRateForElectrode = (uint16_t) getSampleRate();
-
-    useOverflowBuffer.clear();
-
-    for (int i = 0; i < electrodes.size(); ++i)
-        useOverflowBuffer.add (false);
-
-    return true;
-}
-
-
-bool SpikeDetector::disable()
-{
-    for (int n = 0; n < electrodes.size(); ++n)
-    {
-        resetElectrode (electrodes[n]);
-    }
-
-    return true;
-}
-
-
-void SpikeDetector::addWaveformToSpikeObject (SpikeEvent::SpikeBuffer& s,
-                                              int& peakIndex,
-                                              int& electrodeNumber,
-                                              int& currentChannel)
-{
-    int spikeLength = electrodes[electrodeNumber]->prePeakSamples
-                      + electrodes[electrodeNumber]->postPeakSamples;
-
-
-    const int chan = *(electrodes[electrodeNumber]->channels + currentChannel);
-
-    if (isChannelActive (electrodeNumber, currentChannel))
-    {
-		
-        for (int sample = 0; sample < spikeLength; ++sample)
+        for (auto spikeChannel : getSpikeChannelsForStream(currentStream))
         {
-            s.set(currentChannel,sample, getNextSample (*(electrodes[electrodeNumber]->channels+currentChannel)));
-            ++sampleIndex;
-
-            //std::cout << currentIndex << std::endl;
-        }
-    }
-    else
-    {
-        for (int sample = 0; sample < spikeLength; ++sample)
-        {
-            // insert a blank spike if the
-			s.set(currentChannel, sample, 0);
-            ++sampleIndex;
-            //std::cout << currentIndex << std::endl;
-        }
-    }
-
-    sampleIndex -= spikeLength; // reset sample index
-}
-
-
-void SpikeDetector::process (AudioSampleBuffer& buffer)
-{
-    // cycle through electrodes
-    SimpleElectrode* electrode;
-    dataBuffer = &buffer;
-
-    //std::cout << dataBuffer.getMagnitude(0,nSamples) << std::endl;
-
-    for (int i = 0; i < electrodes.size(); ++i)
-    {
-        //  std::cout << "ELECTRODE " << i << std::endl;
-
-        electrode = electrodes[i];
-
-        // refresh buffer index for this electrode
-        sampleIndex = electrode->lastBufferIndex - 1; // subtract 1 to account for
-        // increment at start of getNextSample()
-
-        const int nSamples = getNumSamples (*electrode->channels);
-
-        // cycle through samples
-        while (samplesAvailable (nSamples))
-        {
-            ++sampleIndex;
-
-            // cycle through channels
-            for (int chan = 0; chan < electrode->numChannels; ++chan)
+            if (spikeChannel->getName().equalsIgnoreCase(nameToCheck))
             {
-                // std::cout << "  channel " << chan << std::endl;
-                if (*(electrode->isActive + chan))
+                matchingName = true;
+                append += 1;
+                break;
+            }
+        }
+    }
+
+   // std::cout << "New name: " << nameToCheck;
+
+    nameToCheck.replaceCharacter('|','_');
+
+    return nameToCheck;
+}
+
+
+SpikeChannel* SpikeDetector::addSpikeChannel (SpikeChannel::Type type, 
+                                     uint16 currentStream,
+                                     int startChannel,
+                                     String name)
+{
+    
+    Array<var> selectedChannels;
+    Array<int> localChannels;
+
+    if (startChannel > -1)
+        settings[currentStream]->nextAvailableChannel = startChannel;
+
+    if (currentStream > 0)
+    {
+        int numAvailableInputChannels = getDataStream(currentStream)->getChannelCount();
+        if (settings[currentStream]->nextAvailableChannel >= numAvailableInputChannels - 1)
+        {
+            settings[currentStream]->nextAvailableChannel = numAvailableInputChannels - SpikeChannel::getNumChannels(type);
+            nextAvailableChannel = settings[currentStream]->nextAvailableChannel;
+        }
+    }
+
+    for (int i = 0; i < SpikeChannel::getNumChannels(type); i++)
+    {
+
+        if (currentStream > 0)
+        {
+            localChannels.add(settings[currentStream]->nextAvailableChannel++);
+            nextAvailableChannel++;
+        }
+        else {
+            localChannels.add(nextAvailableChannel++);
+        }
+        
+        selectedChannels.add(localChannels[i]);
+    }
+    
+    if (name.equalsIgnoreCase(""))
+    {
+
+        name = SpikeChannel::getDefaultChannelPrefix(type);
+
+        switch (type)
+        {
+        case SpikeChannel::SINGLE:
+            if (currentStream > 0)
+            {
+                name += String(++settings[currentStream]->singleElectrodeCount);
+                singleElectrodeCount++;
+            }
+            else {
+                name += String(++singleElectrodeCount);
+            }
+            
+            break;
+        case SpikeChannel::STEREOTRODE:
+            if (currentStream > 0)
+            {
+                name += String(++settings[currentStream]->stereotrodeCount);
+                stereotrodeCount++;
+            }
+            else {
+                name += String(++stereotrodeCount);
+            }
+            break;
+        case SpikeChannel::TETRODE:
+            if (currentStream > 0)
+            {
+                name += String(++settings[currentStream]->tetrodeCount);
+                tetrodeCount++;
+            }
+            else {
+                name += String(++tetrodeCount);
+            }
+            break;
+        case SpikeChannel::INVALID:
+                break;
+        }
+    }
+
+    name = ensureUniqueName(name, currentStream);
+
+    SpikeChannel::Settings spikeChannelSettings
+    {
+        type,
+
+        name,
+
+        SpikeChannel::getDefaultChannelPrefix(type)
+            + "from Spike Detector "
+            + String(getNodeId()),
+
+        SpikeChannel::getIdentifierFromType(type),
+
+        localChannels
+
+    };
+    
+    spikeChannels.add(new SpikeChannel(spikeChannelSettings));
+    
+    SpikeChannel* spikeChannel = spikeChannels.getLast();
+    
+    spikeChannel->addProcessor(processorInfo.get());
+
+    if (currentStream > 0)
+        spikeChannel->setDataStream(getDataStream(currentStream), false);
+    
+    spikeChannel->thresholder =
+        std::make_unique<AbsValueThresholder>(
+            SpikeChannel::getNumChannels(type));
+    
+    spikeChannel->addParameter(new StringParameter(this,
+                            Parameter::SPIKE_CHANNEL_SCOPE,
+                            "name",
+                            "The name of a spike channel",
+                            name));
+    
+    spikeChannel->addParameter(new CategoricalParameter(this,
+                            Parameter::SPIKE_CHANNEL_SCOPE,
+                            "waveform_type",
+                            "The type of waveform packaged in each spike object",
+                            {"FULL","PEAK"},
+                            0));
+    
+    spikeChannel->addParameter(new CategoricalParameter(this,
+                              Parameter::SPIKE_CHANNEL_SCOPE,
+                              "thrshlder_type",
+                              "The type of thresholder to use",
+                              {"ABS", "STD", "DYN"},0));
+    
+    for (int ch = 0; ch < SpikeChannel::getNumChannels(type); ch++)
+    {
+        spikeChannel->addParameter(new FloatParameter(this,
+            Parameter::SPIKE_CHANNEL_SCOPE,
+            "abs_threshold" + String(ch+1),
+            "Threshold for one channel when the absolute value thresholder is active",
+            -50.0f, -500.0f, -20.0f, 1.0f));
+        
+        spikeChannel->addParameter(new FloatParameter(this,
+           Parameter::SPIKE_CHANNEL_SCOPE,
+           "std_threshold" + String(ch+1),
+           "Threshold for one channel when the std thresholder is active",
+           4.0f, 1.0f, 10.0f, 0.01f));
+        
+        spikeChannel->addParameter(new FloatParameter(this,
+          Parameter::SPIKE_CHANNEL_SCOPE,
+          "dyn_threshold" + String(ch+1),
+          "Threshold for one channel when the dynamic thresholder is active",
+          4.0f, 1.0f, 10.0f, 0.01f));
+    }
+    
+    spikeChannel->addParameter(new SelectedChannelsParameter(this,
+                     Parameter::SPIKE_CHANNEL_SCOPE,
+                     "local_channels",
+                     "The local channel indices (within a Data Stream) used for spike detection",
+                     selectedChannels,
+                     spikeChannel->getNumChannels()));
+
+    //Whenever a new spike channel is created, we need to update the unique ID
+    //TODO: This should be automatically done in the SpikeChannel constructor next time we change the API
+    // <SOURCE_NODE_ID> | <STREAM_NAME> | <SPIKE_DETECTOR_NODE_ID> | <CHANNEL/ELECTRODE NAME>
+    std::string stream_source = std::to_string(getDataStream(currentStream)->getSourceNodeId());
+    std::string stream_name = getDataStream(currentStream)->getName().toStdString();
+    std::string spike_source = std::to_string(spikeChannel->getSourceNodeId());
+    std::string channel_name = spikeChannel->getName().toStdString();
+
+    std::string cacheKey = stream_source + "|" + stream_name + "|"  + spike_source + "|" + channel_name;
+
+    spikeChannel->setIdentifier(cacheKey);
+    LOGD("Added SpikeChannel w/ identifier: ", cacheKey);
+
+    return spikeChannel;
+
+}
+
+
+void SpikeDetector::removeSpikeChannel (SpikeChannel* spikeChannel)
+{
+
+    LOGD("Removing spike channel: ", spikeChannel->getName(), " from stream ", spikeChannel->getStreamId());
+ 
+    spikeChannels.removeObject(spikeChannel);
+
+    //Reset electrode and channel counters if no more spike channels after this delete
+    if (!spikeChannels.size())
+    {
+
+        nextAvailableChannel = 0;
+        singleElectrodeCount = 0;
+        stereotrodeCount = 0;
+        tetrodeCount = 0;
+
+        for (auto& stream : getDataStreams())
+        {
+            settings[stream->getStreamId()]->singleElectrodeCount = 0;
+            settings[stream->getStreamId()]->stereotrodeCount = 0;
+            settings[stream->getStreamId()]->tetrodeCount = 0;
+
+            settings[stream->getStreamId()]->nextAvailableChannel = 0;
+        }
+
+        //TODO: Can make this smarter by resetting by electrode type
+    }
+    
+}
+
+Array<SpikeChannel*> SpikeDetector::getSpikeChannelsForStream(uint16 streamId)
+{
+    Array<SpikeChannel*> channels;
+
+    for (auto spikeChannel : spikeChannels)
+    {
+        if (spikeChannel->getStreamId() == streamId && spikeChannel->isLocal())
+            channels.add(spikeChannel);
+    }
+
+    return channels;
+}
+
+bool SpikeDetector::startAcquisition()
+{
+    totalCallbacks = 0;
+    spikeCount = 0;
+
+    return true;
+}
+
+bool SpikeDetector::stopAcquisition()
+{
+    // cycle through channels
+    for (auto spikeChannel : spikeChannels)
+    {
+        spikeChannel->reset();
+    }
+
+    //LOGC("SpikeDetector detected ", spikeCount, " spikes in ", totalCallbacks, " callbacks.");
+
+    return true;
+}
+
+
+void SpikeDetector::addWaveformToSpikeBuffer (Spike::Buffer& s,
+                                              int sampleIndex,
+                                              AudioBuffer<float>& buffer)
+{
+    
+    int spikeLength = s.spikeChannel->getTotalSamples();
+    
+    if (spikeLength == 1)
+    {
+        sampleIndex += s.spikeChannel->getPrePeakSamples();
+    }
+    
+    for (int sample = 0; sample < spikeLength; ++sample)
+    {
+        for (int ch = 0; ch < s.spikeChannel->getNumChannels(); ch++)
+        {
+            if (s.spikeChannel->detectSpikesOnChannel(ch))
+            {
+                s.set(ch, sample, getSample(s.spikeChannel->globalChannelIndexes[ch],
+                                            sampleIndex,
+                                            buffer));
+            } else {
+                s.set(ch, sample, 0);
+            }
+        }
+        ++sampleIndex;
+    }
+}
+
+
+void SpikeDetector::process (AudioBuffer<float>& buffer)
+{
+    totalCallbacks++;
+
+    // cycle through streams
+    for (auto spikeChannel : spikeChannels)
+    {
+
+        if (spikeChannel->isLocal() && spikeChannel->isValid())
+        {
+
+            const uint16 streamId = spikeChannel->getStreamId();
+
+            const int nSamples = getNumSamplesInBlock(streamId);
+
+            int sampleIndex = spikeChannel->currentSampleIndex - 1;
+
+            // cycle through samples
+            while (sampleIndex < nSamples - OVERFLOW_BUFFER_SAMPLES / 2)
+            {
+                ++sampleIndex;
+
+                // cycle through channels
+                for (int ch = 0; ch < spikeChannel->getNumChannels(); ch++)
                 {
-                    int currentChannel = *(electrode->channels + chan);
-
-                    if (-getNextSample (currentChannel) > *(electrode->thresholds + chan)) // trigger spike
+                    // check whether spike detection is active
+                    if (spikeChannel->detectSpikesOnChannel(ch))
                     {
-                        //std::cout << "Spike detected on electrode " << i << std::endl;
-                        // find the peak
-                        int peakIndex = sampleIndex;
 
-                        while (-getCurrentSample(currentChannel) < -getNextSample(currentChannel)
-                               && sampleIndex < peakIndex + electrode->postPeakSamples)
+                        int currentChannel = spikeChannel->globalChannelIndexes[ch];
+
+                        float currentSample = getSample(currentChannel, sampleIndex, buffer);
+
+                        if (spikeChannel->thresholder->checkSample(ch, currentSample))
                         {
-                            ++sampleIndex;
+
+                            // find the peak
+                            int peakIndex = sampleIndex;
+
+                            while (getSample(currentChannel, sampleIndex, buffer) >
+                                getSample(currentChannel, sampleIndex + 1, buffer)
+                                && sampleIndex < peakIndex + spikeChannel->getPostPeakSamples())
+                            {
+                                ++sampleIndex;
+                            }
+
+                            peakIndex = sampleIndex;
+
+                            sampleIndex -= (spikeChannel->getPrePeakSamples() + 1);
+
+                            // create a buffer to hold the spike data
+                            Spike::Buffer spikeBuffer(spikeChannel);
+
+                            // add the waveform
+                            addWaveformToSpikeBuffer(spikeBuffer,
+                                sampleIndex,
+                                buffer);
+
+                            // get the spike timestamp (aligned to the peak index)
+                            int64 sampleNumber = getFirstSampleNumberForBlock(streamId) + peakIndex;
+
+                            // create a spike object
+                            SpikePtr newSpike = Spike::createSpike(spikeChannel,
+                                                                   sampleNumber,
+                                                                   spikeChannel->thresholder->getThresholds(),
+                                                                   spikeBuffer);
+
+                            spikeCount++;
+
+                            // add spike to the outgoing EventBuffer
+                            addSpike(newSpike);
+
+                            // advance the sample index
+                            sampleIndex = peakIndex + spikeChannel->getPostPeakSamples();
+
+                            break; // quit channels "for" loop
                         }
 
-                        peakIndex = sampleIndex;
-                        sampleIndex -= (electrode->prePeakSamples + 1);
+                    } // if detectSpikesOnChannel
 
-						const SpikeChannel* spikeChan = getSpikeChannel(i);
-						SpikeEvent::SpikeBuffer spikeData(spikeChan);
-						Array<float> thresholds;
-						for (int channel = 0; channel < electrode->numChannels; ++channel)
-						{
-							addWaveformToSpikeObject(spikeData,
-								peakIndex,
-								i,
-								channel);
-							thresholds.add((int)*(electrode->thresholds + channel));
-						}
-						int64 timestamp = getTimestamp(electrode->channels[0]) + peakIndex;
-						SpikeEventPtr newSpike = SpikeEvent::createSpikeEvent(spikeChan, timestamp, thresholds, spikeData, 0);
+                } // cycle through channels
 
-                        // package spikes;
-                        
-						addSpike(spikeChan, newSpike, peakIndex);
+            } // while (sampleIndex < nSamples - OVERFLOW_BUFFER_SAMPLES)
 
+            spikeChannel->currentSampleIndex = sampleIndex - nSamples; // should be negative
 
-                        // advance the sample index
-                        sampleIndex = peakIndex + electrode->postPeakSamples;
+            //std::cout << spikeChannel->currentSampleIndex << std::endl;
 
-                        // quit spike "for" loop
-                        break;
-
-                    // end spike trigger
-                    }
-
-                // end if channel is active
+            if (nSamples > OVERFLOW_BUFFER_SAMPLES)
+            {
+                for (int j = 0; j < spikeChannel->getNumChannels(); ++j)
+                {
+                    overflowBuffer.copyFrom(spikeChannel->globalChannelIndexes[j],
+                        0,
+                        buffer,
+                        spikeChannel->globalChannelIndexes[j],
+                        nSamples - OVERFLOW_BUFFER_SAMPLES,
+                        OVERFLOW_BUFFER_SAMPLES);
                 }
 
-            // end cycle through channels on electrode
+                spikeChannel->useOverflowBuffer = true;
+                //spikeChannel->currentSampleIndex = -OVERFLOW_BUFFER_SAMPLES / 2;
             }
-
-        // end cycle through samples
-        }
-
-        electrode->lastBufferIndex = sampleIndex - nSamples; // should be negative
-
-        if (nSamples > overflowBufferSize)
-        {
-            for (int j = 0; j < electrode->numChannels; ++j)
+            else
             {
-                overflowBuffer.copyFrom (*electrode->channels+j,
-                                         0,
-                                         buffer,
-                                         *electrode->channels + j,
-                                         nSamples-overflowBufferSize,
-                                         overflowBufferSize);
+                spikeChannel->useOverflowBuffer = false;
+                //spikeChannel->currentSampleIndex = 0;
             }
 
-            useOverflowBuffer.set (i, true);
-        }
-        else
-        {
-            useOverflowBuffer.set (i, false);
-        }
-
-    // end cycle through electrodes
-    }
+        } // local channels
+    
+    } // spikeChannel loop
+    
 }
 
-
-float SpikeDetector::getNextSample (int& chan)
+float SpikeDetector::getSample (int globalChannelIndex, int sampleIndex, AudioBuffer<float>& buffer)
 {
     if (sampleIndex < 0)
     {
-        const int ind = overflowBufferSize + sampleIndex;
-
-        if (ind < overflowBuffer.getNumSamples())
-            return *overflowBuffer.getWritePointer (chan, ind);
-        else
-            return 0;
-
+        return *overflowBuffer.getReadPointer(
+            globalChannelIndex,
+            OVERFLOW_BUFFER_SAMPLES + sampleIndex);
     }
     else
     {
-        if (sampleIndex < getNumSamples(chan))
-            return *dataBuffer->getWritePointer (chan, sampleIndex);
-        else
-            return 0;
+        return  *buffer.getReadPointer(
+            globalChannelIndex,
+            sampleIndex);
     }
 }
 
 
-float SpikeDetector::getCurrentSample (int& chan)
+void SpikeDetector::saveCustomParametersToXml (XmlElement* xml)
 {
-    if (sampleIndex < 1)
-    {
-        return *overflowBuffer.getWritePointer (chan, overflowBufferSize + sampleIndex - 1);
-    }
-    else
-    {
-        return *dataBuffer->getWritePointer (chan, sampleIndex - 1);
-    }
-}
 
-
-bool SpikeDetector::samplesAvailable (int nSamples)
-{
-    if (sampleIndex > nSamples - overflowBufferSize/2)
+    for (auto spikeChannel : spikeChannels)
     {
-        return false;
-    }
-    else
-    {
-        return true;
-    }
-}
 
-
-void SpikeDetector::saveCustomParametersToXml (XmlElement* parentElement)
-{
-    for (int i = 0; i < electrodes.size(); ++i)
-    {
-        XmlElement* electrodeNode = parentElement->createNewChildElement ("ELECTRODE");
-        electrodeNode->setAttribute ("name",             electrodes[i]->name);
-        electrodeNode->setAttribute ("numChannels",      electrodes[i]->numChannels);
-        electrodeNode->setAttribute ("prePeakSamples",   electrodes[i]->prePeakSamples);
-        electrodeNode->setAttribute ("postPeakSamples",  electrodes[i]->postPeakSamples);
-        electrodeNode->setAttribute ("electrodeID",      electrodes[i]->electrodeID);
-
-        for (int j = 0; j < electrodes[i]->numChannels; ++j)
+        if (spikeChannel->isLocal())
         {
-            XmlElement* channelNode = electrodeNode->createNewChildElement ("SUBCHANNEL");
-            channelNode->setAttribute ("ch",        *(electrodes[i]->channels + j));
-            channelNode->setAttribute ("thresh",    *(electrodes[i]->thresholds + j));
-            channelNode->setAttribute ("isActive",  *(electrodes[i]->isActive + j));
+            const uint16 streamId = spikeChannel->getStreamId();
+
+            XmlElement* spikeParamsXml = xml->createNewChildElement("SPIKE_CHANNEL");
+
+            // general settings
+            spikeParamsXml->setAttribute("name", spikeChannel->getName());
+            spikeParamsXml->setAttribute("description", spikeChannel->getDescription());
+            spikeParamsXml->setAttribute("num_channels", (int)spikeChannel->getNumChannels());
+
+            // stream info
+
+            if (streamId > 0)
+            {
+                spikeParamsXml->setAttribute("sample_rate", spikeChannel->getSampleRate());
+                spikeParamsXml->setAttribute("stream_name", getDataStream(streamId)->getName());
+                spikeParamsXml->setAttribute("stream_source", getDataStream(streamId)->getSourceNodeId());
+            }
+            else {
+                spikeParamsXml->setAttribute("sample_rate", 0);
+                spikeParamsXml->setAttribute("stream_name", "");
+                spikeParamsXml->setAttribute("stream_source", 0);
+            }
+
+            // parameters
+            spikeChannel->getParameter("local_channels")->toXml(spikeParamsXml);
+            spikeChannel->getParameter("thrshlder_type")->toXml(spikeParamsXml);
+            
+            for (int ch = 0; ch < (int)spikeChannel->getNumChannels(); ch++)
+            {
+                spikeChannel->getParameter("abs_threshold" + String(ch+1))->toXml(spikeParamsXml);
+                spikeChannel->getParameter("std_threshold" + String(ch+1))->toXml(spikeParamsXml);
+                spikeChannel->getParameter("dyn_threshold" + String(ch+1))->toXml(spikeParamsXml);
+            }
+            
+            spikeChannel->getParameter("waveform_type")->toXml(spikeParamsXml);
         }
     }
+
 }
 
 
-void SpikeDetector::loadCustomParametersFromXml()
+void SpikeDetector::loadCustomParametersFromXml(XmlElement* xml)
 {
-    if (parametersAsXml != nullptr) // prevent double-loading
+
+    //std::cout << "Spike detector loading params" << std::endl;
+
+    Array<const DataStream*> availableStreams = getDataStreams();
+
+    for (auto* spikeParamsXml : xml->getChildIterator())
     {
-        // use parametersAsXml to restore state
+        //std::cout << spikeParamsXml->getTagName() << std::endl;
 
-        SpikeDetectorEditor* sde = (SpikeDetectorEditor*) getEditor();
-
-        int electrodeIndex = -1;
-
-        forEachXmlChildElement (*parametersAsXml, xmlNode)
+        if (spikeParamsXml->hasTagName("SPIKE_CHANNEL"))
         {
-            if (xmlNode->hasTagName ("ELECTRODE"))
+            String name = spikeParamsXml->getStringAttribute("name", "");
+
+            //std::cout << "SPIKE CHANNEL NAME: " << name << std::endl;
+
+            double sample_rate = spikeParamsXml->getDoubleAttribute("sample_rate", 0.0f);
+            String stream_name = spikeParamsXml->getStringAttribute("stream_name", "");
+            int stream_source = spikeParamsXml->getIntAttribute("stream_source", 0);
+
+            SpikeChannel::Type type = SpikeChannel::typeFromNumChannels(spikeParamsXml->getIntAttribute("num_channels", 1));
+
+            if (!alreadyLoaded(name, type, stream_source, stream_name))
             {
-                ++electrodeIndex;
+                uint16 streamId = findSimilarStream(stream_source, stream_name, sample_rate, true);
 
-                std::cout << "ELECTRODE>>>" << std::endl;
-
-                const int channelsPerElectrode = xmlNode->getIntAttribute ("numChannels");
-                const int electrodeID          = xmlNode->getIntAttribute ("electrodeID");
-
-                sde->addElectrode (channelsPerElectrode, electrodeID);
-
-                setElectrodeName (electrodeIndex + 1, xmlNode->getStringAttribute ("name"));
-                sde->refreshElectrodeList();
-
-                int channelIndex = -1;
-
-                forEachXmlChildElement (*xmlNode, channelNode)
+                if (streamId > 0)
                 {
-                    if (channelNode->hasTagName ("SUBCHANNEL"))
+                    //std::cout << "STREAM ID: " << streamId << std::endl;
+
+                    SpikeChannel* spikeChannel = addSpikeChannel(type, streamId, -1, name);
+
+                    spikeChannel->getParameter("local_channels")->fromXml(spikeParamsXml);
+
+                    SelectedChannelsParameter* param = (SelectedChannelsParameter*)spikeChannel->getParameter("local_channels");
+                    param->getSpikeChannel()->localChannelIndexes = param->getArrayValue();
+                    
+                    spikeChannel->getParameter("thrshlder_type")->fromXml(spikeParamsXml);
+                    
+                    for (int ch = 0; ch < SpikeChannel::getNumChannels(type); ch++)
                     {
-                        ++channelIndex;
-
-                        std::cout << "Subchannel " << channelIndex << std::endl;
-
-                        setChannel          (electrodeIndex, channelIndex, channelNode->getIntAttribute ("ch"));
-                        setChannelThreshold (electrodeIndex, channelIndex, channelNode->getDoubleAttribute ("thresh"));
-                        setChannelActive    (electrodeIndex, channelIndex, channelNode->getBoolAttribute ("isActive"));
+                        spikeChannel->getParameter("abs_threshold" + String(ch+1))->fromXml(spikeParamsXml);
+                        spikeChannel->getParameter("std_threshold" + String(ch+1))->fromXml(spikeParamsXml);
+                        spikeChannel->getParameter("dyn_threshold" + String(ch+1))->fromXml(spikeParamsXml);
                     }
+                    
+                    spikeChannel->getParameter("waveform_type")->fromXml(spikeParamsXml);
                 }
             }
         }
-
-        sde->checkSettings();
     }
+}
+
+bool SpikeDetector::alreadyLoaded(String name, SpikeChannel::Type type, int stream_source, String stream_name)
+{
+    //std::cout << "Next channel: " << name << ", " << (int) type << ", " << stream_source << std::endl;
+
+    for (auto ch : spikeChannels)
+    {
+        //std::cout << "Existing channel: " << ch->getName() << ", " << (int)ch->getChannelType() << ", " << getDataStream(ch->getStreamId())->getSourceNodeId() << std::endl;
+
+        if (ch->isLocal())
+        {
+            
+            //std::cout << "LOCAL" << std::endl;
+
+            if (ch->getName() == name && ch->getChannelType() == type
+                && getDataStream(ch->getStreamId())->getSourceNodeId() == stream_source
+                && getDataStream(ch->getStreamId())->getName() == stream_name)
+            {
+                //std::cout << "found match." << std::endl;
+                return true;
+            }
+                
+        }
+       else {
+            //std::cout << "Not local" << std::endl;
+        }
+    }
+
+    return false;
 }
 

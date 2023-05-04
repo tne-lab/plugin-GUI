@@ -28,6 +28,10 @@
 #include "UI/UIComponent.h"
 #include "Audio/AudioComponent.h"
 #include "Processors/ProcessorGraph/ProcessorGraph.h"
+#include "UI/DefaultConfig.h"
+#include "Utils/OpenEphysHttpServer.h"
+
+class OpenEphysHttpServer;
 
 /**
   The main window for the GUI application.
@@ -38,7 +42,6 @@
   @see AudioComponent, ProcessorGraph, UIComponent
 
 */
-
 
 class MainWindow   : public DocumentWindow
 {
@@ -62,7 +65,22 @@ public:
     /** Determines whether the last used configuration reloads upon startup. */
     bool shouldReloadOnStartup;
 
+    /** Determines whether the ProcessorGraph http server is enabled. */
+    bool shouldEnableHttpServer;
+
+    bool openDefaultConfigWindow;
+
+    /** Ends the process() callbacks and disables all processors.*/
 	void shutDownGUI();
+
+    /** Called when the GUI crashes unexpectedly.*/
+    static void handleCrash(void *);
+
+    /** Start thread which listens to remote commands to control the GUI */
+    void enableHttpServer();
+
+    /** Stop thread which listens to remote commands to control the GUI */
+    void disableHttpServer();
 
 private:
 
@@ -74,13 +92,24 @@ private:
         from which the GUI is run. */
     void loadWindowBounds();
 
+    /** Checks whether the signal chains of both the config files (lastConfig.xml & recoveryConfig.xml) 
+     *  match or not. */
+    bool compareConfigFiles(File file1, File file2);
+
+    /** API respective configs directory */
+    File configsDir;
+
     /** A pointer to the application's AudioComponent (owned by the MainWindow). */
-    ScopedPointer<AudioComponent> audioComponent;
+    std::unique_ptr<AudioComponent> audioComponent;
 
     /** A pointer to the application's ProcessorGraph (owned by the MainWindow). */
-    ScopedPointer<ProcessorGraph> processorGraph;
+    std::unique_ptr<ProcessorGraph> processorGraph;
 
+    /** A weak reference to default config window. */
+    std::unique_ptr<DefaultConfigWindow> defaultConfigWindow;
 
+    /** A pointer to the application's HttpServer (owned by the MainWindow). */
+    std::unique_ptr<OpenEphysHttpServer> http_server_thread;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainWindow)
 

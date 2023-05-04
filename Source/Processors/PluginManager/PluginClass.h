@@ -23,24 +23,45 @@
 
 #ifndef PLUGINCLASS_H_INCLUDED
 #define PLUGINCLASS_H_INCLUDED
+
 #include "OpenEphysPlugin.h"
 
+/**
+ Retrieves information about available plugins
+ */
 class PLUGIN_API PluginClass
 {
 public:
+    
+    /** Constructor */
 	PluginClass();
+    
+    /** Destructor*/
 	~PluginClass();
-	void setPluginData(Plugin::PluginType type, int index);
+    
+    /** Sets the pluginType*/
+	void setPluginData(Plugin::Type type, int index);
+    
+    /** Returns the library name of this plugin*/
 	String getLibName() const;
+    
+    /** Returns the name of this plugin*/
 	String getPluginName() const;
-	int getLibVersion() const;
-	Plugin::PluginType getPluginType() const;
+    
+    /** Returns the library version*/
+	String getLibVersion() const;
+    
+    /** Returns the type of this plugin*/
+	Plugin::Type getPluginType() const;
+    
+    /** Returns the index of this plugin*/
 	int getIndex() const;
+    
 private:
 	String libName;
 	String pluginName;
-	Plugin::PluginType pluginType;
-	int libVersion;
+	Plugin::Type pluginType;
+	String libVersion;
 	int pluginIndex;
 };
 

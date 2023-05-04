@@ -22,669 +22,555 @@
 
 #include "ParameterEditor.h"
 
+#include "../GenericProcessor/GenericProcessor.h"
+#include "../Editors/GenericEditor.h"
 
-static const int FONT_SIZE = 10;
-
-
-ParameterEditor::ParameterEditor (GenericProcessor* processor, Parameter* parameter, Font labelFont)
-    : m_activationState     (true)
-    , m_parameter           (parameter)
-    , m_processor           (processor)
+TextBoxParameterEditor::TextBoxParameterEditor(Parameter* param) : ParameterEditor(param)
 {
-    shouldDeactivateDuringAcquisition = parameter->shouldDeactivateDuringAcquisition;
+    jassert(param->getType() == Parameter::FLOAT_PARAM
+        || param->getType() == Parameter::INT_PARAM
+        || param->getType() == Parameter::STRING_PARAM);
 
-    const bool isParameterHasCustomBounds = parameter->hasCustomEditorBounds();
+    parameterNameLabel = std::make_unique<Label>("Parameter name", param->getName());
+    Font labelFont = Font("Silkscreen", "Regular", 12);
+    int labelWidth = labelFont.getStringWidth(param->getName());
+    parameterNameLabel->setFont(labelFont);
+    parameterNameLabel->setColour(Label::textColourId, Colours::darkgrey);
+    addAndMakeVisible(parameterNameLabel.get());
 
-    // Create label for parameter
-    Label* label = new Label (parameter->getName(), parameter->getName());
-    labelFont.setHeight (FONT_SIZE);
-    label->setColour (Label::textColourId, Colours::darkgrey);
-    label->setFont (labelFont);
-    m_labelsArray.add (label);
-    addAndMakeVisible (label);
-
-    if (parameter->isBoolean())
-    {
-        std::cout << "Boolean parameter-> Creating checkbox." << std::endl;
-
-        // create checkbox
-        ParameterCheckbox* pc = new ParameterCheckbox ((bool) parameter->getDefaultValue());
-        pc->setComponentID (String (parameter->getID()));
-        pc->setName (parameter->getName());
-        pc->addListener (this);
-        m_checkboxArray.add (pc);
-        addAndMakeVisible (pc);
-
-        if (isParameterHasCustomBounds)
-        {
-            const auto desiredBounds = getDesiredBounds();
-            const int checkBoxSize = desiredBounds.getHeight();
-            pc->setBounds       (0, 0, checkBoxSize, checkBoxSize);
-            label->setBounds    (checkBoxSize, 0, desiredBounds.getWidth() - checkBoxSize, checkBoxSize);
-        }
-        else
-        {
-            pc->setBounds       (0, 0, 12, 12);
-            label->setBounds    (10, 1, 100, FONT_SIZE);
-            desiredWidth = 120;
-            desiredHeight = 25;
-        }
-    }
-    else if (parameter->isContinuous())
-    {
-        std::cout << "Continuous parameter-> Creating slider." << std::endl;
-
-        // create slider
-        Array<var> possibleValues = parameter->getPossibleValues();
-        ParameterSlider* ps = new ParameterSlider ((float) possibleValues[0],
-                                                   (float) possibleValues[1],
-                                                   (float) parameter->getDefaultValue(),
-                                                   labelFont);
-
-        ps->setComponentID (String (parameter->getID()));
-        ps->setName (parameter->getName());
-        ps->addListener (this);
-        addAndMakeVisible (ps);
-        m_sliderArray.add (ps);
-
-        const int labelWidth = labelFont.getStringWidth (parameter->getName());
-        if (isParameterHasCustomBounds)
-        {
-            const auto desiredBounds = getDesiredBounds();
-            ps->setBounds       (0, 0, desiredBounds.getWidth(), desiredBounds.getHeight());
-            label->setBounds    ( (desiredBounds.getWidth() - labelWidth) / 2, desiredBounds.getHeight() - FONT_SIZE,
-                                  labelWidth, FONT_SIZE);
-        }
-        else
-        {
-            ps->setBounds (0, 0, 80, 80);
-
-            label->setBounds ((80 - labelWidth) / 2 - 5, 70, 100, FONT_SIZE);
-
-            desiredWidth = 80;
-            desiredHeight = 80;
-        }
-    }
-    else if (parameter->isDiscrete())
-    {
-        std::cout << "Discrete parameter-> Creating buttons." << std::endl;
-
-
-        Array<var> possibleValues = parameter->getPossibleValues();
-
-        const int numButtons  = possibleValues.size();
-        const int buttonWidth = isParameterHasCustomBounds ? (m_parameter->getEditorDesiredBounds().getWidth() / numButtons)
-                                                           : 35;
-
-        std::cout << "Button width: " << buttonWidth << std::endl;
-        std::cout << "Default value: " << (int) parameter->getDefaultValue() << std::endl;
-
-        for (int i = 0; i < numButtons; ++i)
-        {
-            std::cout << "Creating button " << i << std::endl;
-
-            int buttonType = MIDDLE;
-            if (i == 0)
-                buttonType = LEFT;
-            else if (i == possibleValues.size() - 1)
-                buttonType = RIGHT;
-
-            // create buttons
-            ParameterButton* pb = new ParameterButton (possibleValues[i], buttonType, labelFont);
-            pb->setComponentID (String (parameter->getID()));
-            pb->setName (parameter->getName());
-            pb->addListener (this);
-            m_buttonArray.add (pb);
-
-            if (isParameterHasCustomBounds)
-            {
-                pb->setBounds (buttonWidth * i, 12, buttonWidth, getDesiredBounds().getHeight() - FONT_SIZE);
-            }
-            else
-            {
-                pb->setBounds (buttonWidth * i, 12, buttonWidth, 18);
-            }
-
-            if (i == (int) parameter->getDefaultValue())
-                pb->setToggleState (true, dontSendNotification);
-
-            addAndMakeVisible (pb);
-        }
-
-        if (isParameterHasCustomBounds)
-        {
-            label->setBounds (0, 0, getDesiredBounds().getWidth(), FONT_SIZE);
-        }
-        else
-        {
-            label->setBounds (0, 0, 100, FONT_SIZE);
-
-            desiredWidth = buttonWidth * numButtons;
-            desiredHeight = 30;
-        }
-    }
-    else if (parameter->isNumerical())
-    {
-        std::cout << "Numerical parameter-> Creating slider." << std::endl;
-
-        // create slider
-        Array<var> possibleValues = parameter->getPossibleValues();
-        ParameterLabel* pl = new ParameterLabel (parameter->getName(),
-                                                 (double) possibleValues[0],
-                                                 (double) possibleValues[1],
-                                                 (double) parameter->getDefaultValue());
-
-        pl->setComponentID (String (parameter->getID()));
-        pl->setName (parameter->getName());
-        pl->addListener (this);
-        addAndMakeVisible (pl);
-        m_parameterLabelsArray.add (pl);
-
-        //const int labelWidth = labelFont.getStringWidth (parameter->getName());
-        if (isParameterHasCustomBounds)
-        {
-            const auto desiredBounds = getDesiredBounds();
-            pl->setBounds       (0, 0, desiredBounds.getWidth(), desiredBounds.getHeight());
-            //label->setBounds    ( (desiredBounds.getWidth() - labelWidth) / 2, desiredBounds.getHeight() - FONT_SIZE,
-            //                      labelWidth, FONT_SIZE);
-        }
-        else
-        {
-            pl->setBounds (5, 10, 60, 40);
-
-            //label->setBounds ((80 - labelWidth) / 2 - 5, 70, 100, FONT_SIZE);
-
-            desiredWidth = 60;
-            desiredHeight = 60;
-        }
-    }
-}
-
-
-void ParameterEditor::parentHierarchyChanged()
-{
-}
-
-
-void ParameterEditor::setChannelSelector (ChannelSelector* channelSelector)
-{
-    m_channelSelector = channelSelector;
-}
-
-
-void ParameterEditor::setEnabled (bool isEnabled)
-{
-    std::cout << "Changing editor state!" << std::endl;
-
-    if (shouldDeactivateDuringAcquisition)
-    {
-        for (int i = 0; i < m_sliderArray.size(); ++i)
-        {
-            m_sliderArray[i]->isEnabled = isEnabled;
-            m_sliderArray[i]->setInterceptsMouseClicks (isEnabled, isEnabled);
-            m_sliderArray[i]->repaint();
-        }
-
-        for (int i = 0; i < m_buttonArray.size(); ++i)
-        {
-            m_buttonArray[i]->isEnabled = isEnabled;
-            m_buttonArray[i]->setInterceptsMouseClicks (isEnabled, isEnabled);
-            m_buttonArray[i]->repaint();
-        }
-
-        for (int i = 0; i < m_checkboxArray.size(); ++i)
-        {
-            m_checkboxArray[i]->isEnabled = isEnabled;
-            m_checkboxArray[i]->setInterceptsMouseClicks (isEnabled, isEnabled);
-            m_checkboxArray[i]->repaint();
-        }
-
-        for (int i = 0; i < m_parameterLabelsArray.size(); ++i)
-        {
-            m_parameterLabelsArray[i]->isEnabled = isEnabled;
-            m_parameterLabelsArray[i]->setInterceptsMouseClicks (isEnabled, isEnabled);
-            m_parameterLabelsArray[i]->repaint();
-        }
-    }
-}
-
-
-void ParameterEditor::buttonClicked (Button* buttonThatWasClicked)
-{
-    std::cout << "Button ID: "      << buttonThatWasClicked->getComponentID()   << std::endl;
-    std::cout << "Button name: "    << buttonThatWasClicked->getName()          << std::endl;
-    std::cout << "Button value: "   << buttonThatWasClicked->getButtonText()    << std::endl;
-
-    ParameterButton* b = (ParameterButton*) buttonThatWasClicked;
-
-    if (b->isEnabled)
-    {
-        Array<int> activeChannels = m_channelSelector->getActiveChannels();
-        {
-            for (int i = 0; i < activeChannels.size(); ++i)
-            {
-                m_processor->setCurrentChannel (activeChannels[i]);
-                m_processor->setParameter (buttonThatWasClicked->getComponentID().getIntValue(),
-                                           buttonThatWasClicked->getButtonText().getFloatValue());
-            }
-        }
-    }
-}
-
-
-void ParameterEditor::sliderValueChanged (Slider* sliderWhichValueHasChanged)
-{
-    ParameterSlider* s = (ParameterSlider*) sliderWhichValueHasChanged;
-
-    if (s->isEnabled)
-    {
-        Array<int> activeChannels = m_channelSelector->getActiveChannels();
-        {
-            for (int i = 0; i < activeChannels.size(); ++i)
-            {
-                m_processor->setCurrentChannel (activeChannels[i]);
-                m_processor->setParameter (sliderWhichValueHasChanged->getComponentID().getIntValue(),
-                                           sliderWhichValueHasChanged->getValue());
-            }
-        }
-    }
-}
-
-
-void ParameterEditor::parameterLabelValueChanged (ParameterLabel* parameterLabelWhichValueHasChanged)
-{
-    if (parameterLabelWhichValueHasChanged->isEnabled)
-    {
-        Array<int> activeChannels = m_channelSelector->getActiveChannels();
-        {
-            for (int i = 0; i < activeChannels.size(); ++i)
-            {
-                m_processor->setCurrentChannel (activeChannels[i]);
-                m_processor->setParameter (parameterLabelWhichValueHasChanged->getComponentID().getIntValue(),
-                                           parameterLabelWhichValueHasChanged->getValue());
-            }
-        }
-    }
-}
-
-
-/// ============= PARAMETER BUTTON ==================
-ParameterButton::ParameterButton (var value, int buttonType, Font labelFont) 
-    : Button        ("parameter")
-    , isEnabled     (true)
-    , type          (buttonType)
-    , valueString   (value.toString())
-    , font          (labelFont)
-{
-    setButtonText (valueString);
-    setRadioGroupId (1999);
-    setClickingTogglesState (true);
-
-    selectedGrad            = ColourGradient (Colour (240, 179, 12),  0.0, 0.0,
-                                              Colour (207, 160, 33),  0.0, 20.0f,
-                                              false);
-    selectedOverGrad        = ColourGradient (Colour (209, 162, 33),  0.0, 5.0f,
-                                              Colour (190, 150, 25),  0.0, 0.0f,
-                                              false);
-    usedByNonActiveGrad     = ColourGradient (Colour (200, 100, 0),   0.0, 0.0,
-                                              Colour (158, 95,  32),  0.0, 20.0f,
-                                              false);
-    usedByNonActiveOverGrad = ColourGradient (Colour (158, 95,  32),  0.0, 5.0f,
-                                              Colour (128, 70,  13),  0.0, 0.0f,
-                                              false);
-    neutralGrad             = ColourGradient (Colour (220, 220, 220), 0.0, 0.0,
-                                              Colour (170, 170, 170), 0.0, 20.0f,
-                                              false);
-    neutralOverGrad         = ColourGradient (Colour (180, 180, 180), 0.0, 5.0f,
-                                              Colour (150, 150, 150), 0.0, 0.0,
-                                              false);
-    deactivatedGrad         = ColourGradient (Colour (120, 120, 120), 0.0, 5.0f,
-                                              Colour (100, 100, 100), 0.0, 0.0,
-                                              false);
-}
-
-
-void ParameterButton::paintButton (Graphics& g, bool isMouseOver, bool isButtonDown)
-{
-    g.setColour (Colours::grey);
-    g.fillPath (outlinePath);
-
-    if (colorState == 1)
-        g.setGradientFill (isMouseOver ? selectedOverGrad : selectedGrad);
-    else if (colorState == 2)
-        g.setGradientFill (isMouseOver ? usedByNonActiveOverGrad : usedByNonActiveGrad);
+    if(param->getType() == Parameter::FLOAT_PARAM)
+        valueTextBox = std::make_unique<Label>("Parameter value", String(float(param->getValue())));
     else
-        g.setGradientFill (isMouseOver ? neutralOverGrad : neutralGrad);
+        valueTextBox = std::make_unique<Label>("Parameter value", param->getValue().toString());
 
-    if (! isEnabled)
-        g.setGradientFill (deactivatedGrad);
+    valueTextBox->setFont(Font("CP Mono", "Plain", 15));
+    valueTextBox->setName(param->getProcessor()->getName() + " (" + String(param->getProcessor()->getNodeId()) + ") - " + param->getName());
+    valueTextBox->setColour(Label::textColourId, Colours::white);
+    valueTextBox->setColour(Label::backgroundColourId, Colours::grey);
+    valueTextBox->setEditable(true);
+    valueTextBox->addListener(this);
+    valueTextBox->setTooltip(param->getDescription());
+    addAndMakeVisible(valueTextBox.get());
+    
+    finalWidth = std::max(labelWidth, 80);
 
-    AffineTransform a = AffineTransform::scale (0.98f, 0.94f, float (getWidth()) / 2.0f,
-                                                float (getHeight()) / 2.0f);
-    g.fillPath (outlinePath, a);
-
-    font.setHeight (12.0f);
-    int stringWidth = font.getStringWidth (valueString);
-
-    g.setFont (font);
-
-    g.setColour (Colours::darkgrey);
-    g.drawSingleLineText (valueString, getWidth() / 2 - stringWidth / 2, 12);
-};
-
-
-void ParameterButton::resized()
-{
-    float radius = 5.0f;
-
-    if (type == LEFT)
-    {
-        outlinePath.startNewSubPath (0, radius);
-        outlinePath.addArc (0, 0, radius * 2, radius * 2, 1.5 * double_Pi, 2.0 * double_Pi);
-
-        outlinePath.lineTo (getWidth(), 0);
-        outlinePath.lineTo (getWidth(), getHeight());
-        outlinePath.lineTo (radius, getHeight());
-
-        outlinePath.addArc (0, getHeight() - radius * 2, radius * 2, radius * 2, double_Pi, 1.5 * double_Pi);
-        outlinePath.closeSubPath();
-    }
-    else if (type == RIGHT)
-    {
-        outlinePath.startNewSubPath (0, 0);
-
-        outlinePath.lineTo (getWidth() - radius, 0);
-
-        outlinePath.addArc (getWidth() - radius * 2, 0, radius * 2, radius * 2, 0, 0.5 * double_Pi);
-
-        outlinePath.lineTo (getWidth(), getHeight() - radius);
-
-        outlinePath.addArc (getWidth() - radius * 2, getHeight() - radius * 2, radius * 2, radius * 2, 0.5 * double_Pi, double_Pi);
-
-        outlinePath.lineTo (0, getHeight());
-        outlinePath.closeSubPath();
-    }
-    else if (type == MIDDLE)
-    {
-        outlinePath.addRectangle (0, 0, getWidth(), getHeight());
-    }
+    setBounds(0, 0, finalWidth, 42);
 }
 
-
-// ==== PARAMETER CHECKBOX =======================
-ParameterCheckbox::ParameterCheckbox (bool defaultState) 
-    : Button    ("name")
-    , isEnabled (true)
+void TextBoxParameterEditor::labelTextChanged(Label* label)
 {
-    setToggleState (defaultState, dontSendNotification);
-    setClickingTogglesState (true);
-
-    selectedGrad        = ColourGradient (Colour (240, 179, 12),  0.0, 0.0,
-                                          Colour (207, 160, 33),  0.0, 20.0f,
-                                          true);
-    selectedOverGrad    = ColourGradient (Colour (209, 162, 33),  0.0, 5.0f,
-                                          Colour (190, 150, 25),  0.0, 0.0f,
-                                          true);
-    neutralGrad         = ColourGradient (Colour (220, 220, 220), 0.0, 0.0,
-                                          Colour (170, 170, 170), 0.0, 20.0f,
-                                          true);
-    neutralOverGrad     = ColourGradient (Colour (180, 180, 180), 0.0, 5.0f,
-                                          Colour (150, 150, 150), 0.0, 0.0,
-                                          true);
-    deactivatedGrad     = ColourGradient (Colour (120, 120, 120), 0.0, 5.0f,
-                                          Colour (100, 100, 100), 0.0, 0.0,
-                                          false);
-}
-
-
-void ParameterCheckbox::paintButton (Graphics& g, bool isMouseOver, bool isButtonDown)
-{
-    g.setColour (Colours::grey);
-    g.fillRoundedRectangle(0, 0, getWidth(), getHeight(), 2.0f);
-
-    if (getToggleState())
-        g.setGradientFill (isMouseOver ? selectedOverGrad : selectedGrad);
+    if(param->getType() == Parameter::FLOAT_PARAM)
+        param->setNextValue(label->getText().getFloatValue());
     else
-        g.setGradientFill (isMouseOver ? neutralOverGrad : neutralGrad);
-
-    if (! isEnabled)
-        g.setGradientFill (deactivatedGrad);
-
-    g.fillRoundedRectangle (1, 1, getWidth() - 2, getHeight() - 2, 2.0f);
+        param->setNextValue(label->getText());
 }
 
-
-void ParameterCheckbox::clicked()
+void TextBoxParameterEditor::updateView()
 {
-    Button::clicked();
-
-    setButtonText (String (getToggleState()));
-}
-
-
-// ========== PARAMETER SLIDER ====================
-ParameterSlider::ParameterSlider (float minValue, float maxValue, float def, Font labelFont) 
-    : Slider    ("name")
-    , isEnabled (true)
-    , font      (labelFont)
-{
-    setSliderStyle (Slider::Rotary);
-    setRange (minValue, maxValue, 1.0f);
-    setValue (def);
-    setTextBoxStyle (Slider::NoTextBox, false, 40, 20);
-
-    setColour (Slider::rotarySliderFillColourId, Colour (240, 179, 12));
-}
-
-
-void ParameterSlider::paint (Graphics& g)
-{
-    ColourGradient grad = ColourGradient (Colour (40, 40, 40), 0.0f, 0.0f,
-                                          Colour (80, 80, 80), 0.0f, 40.0f,
-                                          false);
-
-    Path p;
-    p.addPieSegment (3, 3,
-                     getWidth() - 6, getHeight() - 6,
-                     5 * double_Pi / 4 - 0.2, 5 * double_Pi / 4 + 3 * double_Pi / 2 + 0.2,
-                     0.5);
-
-    g.setGradientFill (grad);
-    g.fillPath (p);
-
-    p = makeRotaryPath (getMinimum(), getMaximum(), getValue());
-
-    if (isEnabled)
-        g.setColour (findColour (Slider::rotarySliderFillColourId));
-    else
-        g.setColour (Colour (75, 75, 75));
-
-    g.fillPath (p);
-
-    font.setHeight (9.0);
-    g.setFont (font);
-
-    String valueString = String ((int) getValue());
-
-    const int stringWidth = font.getStringWidth (valueString);
-
-    g.setFont (font);
-
-    g.setColour (Colours::darkgrey);
-    g.drawSingleLineText (valueString, getWidth() / 2 - stringWidth / 2, getHeight() / 2 + 3);
-}
-
-
-Path ParameterSlider::makeRotaryPath (double minValue, double maxValue, double value)
-{
-    Path p;
-
-    const double start = 5 * double_Pi / 4 - 0.11;
-    const double range = (value - minValue) / (maxValue - minValue) *1.5 * double_Pi + start + 0.22;
-
-    p.addPieSegment (6, 6,
-                     getWidth() - 12, getHeight() - 12,
-                     start, range,
-                     0.65);
-
-    return p;
-}
-
-
-// ParameterLabel
-// ============================================================================
-ParameterLabel::ParameterLabel (const String& labelName, double minValue, double maxValue, double defaultValue)
-    : isEnabled      (true)
-    , m_minValue     (minValue)
-    , m_maxValue     (maxValue)
-    , m_defaultValue (defaultValue)
-    , m_infoLabel    ("Info label", labelName)
-    , m_valueLabel   ("Value label", String (defaultValue))
-    , m_infoFont     ("Arial", 13, Font::plain)
-    , m_valueFont    ("Arial", 15, Font::plain)
-{
-    m_infoLabel.setColour (Label::textColourId, Colours::darkgrey);
-    m_infoLabel.setFont (m_infoFont);
-    addAndMakeVisible (&m_infoLabel);
-
-    m_valueLabel.setColour (Label::textColourId,        Colours::white);
-    m_valueLabel.setColour (Label::backgroundColourId,  Colours::grey);
-    m_valueLabel.setText (String (defaultValue), dontSendNotification);
-    //m_valueLabel.setJustificationType (Justification::topLeft);
-    m_valueLabel.setJustificationType (Justification::centredLeft);
-    m_valueLabel.setFont (m_valueFont);
-    m_valueLabel.setEditable (true);
-    m_valueLabel.addListener (this);
-    addAndMakeVisible (&m_valueLabel);
-}
-
-
-void ParameterLabel::resized()
-{
-    const int margin = 3;
-    auto localBounds = getLocalBounds();
-
-    m_infoLabel.setBounds  (localBounds.removeFromTop (m_infoFont.getHeight() + margin));
-    m_valueLabel.setBounds (localBounds);
-}
-
-
-void ParameterLabel::labelTextChanged (Label* label)
-{
-    if (label == &m_valueLabel)
+    
+    if (param != nullptr)
     {
-        Value val = label->getTextValue();
-        double requestedValue = double (val.getValue());
-        setValue (requestedValue, sendNotificationAsync);
+        valueTextBox->setEditable(true);
+
+        if(param->getType() == Parameter::FLOAT_PARAM)
+            valueTextBox->setText(String(float(param->getValue())), dontSendNotification);
+        else
+            valueTextBox->setText(param->getValue().toString(), dontSendNotification);
     }
-}
-
-
-double ParameterLabel::getValue() const noexcept
-{
-    return m_valueLabel.getText().getDoubleValue();
-}
-
-
-void ParameterLabel::setValue (double value, NotificationType notificationType)
-{
-    if (value < m_minValue || value > m_maxValue)
-    {
-        CoreServices::sendStatusMessage ("Value out of range.");
-
-        m_valueLabel.setText (String (m_defaultValue), dontSendNotification);
+    else {
+        valueTextBox->setEditable(false);
     }
-    else
-    {
-        m_valueLabel.setText (String (value), notificationType);
 
-        if (notificationType != dontSendNotification)
-            m_listeners.call (&ParameterLabel::Listener::parameterLabelValueChanged, this);
-    }
+}
+
+void TextBoxParameterEditor::resized()
+{
+    parameterNameLabel->setBounds(0, 0, finalWidth, 20);
+    valueTextBox->setBounds(0, 20, getWidth(), 18);
 }
 
 
-void ParameterLabel::setInfoFont (Font font)
+CheckBoxParameterEditor::CheckBoxParameterEditor(Parameter* param) : ParameterEditor(param)
 {
-    m_infoFont = font;
-    m_infoLabel.setFont (font);
+
+    jassert(param->getType() == Parameter::BOOLEAN_PARAM);
+
+    parameterNameLabel = std::make_unique<Label>("Parameter name", param->getName());
+    parameterNameLabel->setFont(Font("Silkscreen", "Regular", 12));
+    parameterNameLabel->setColour(Label::textColourId, Colours::darkgrey);
+    addAndMakeVisible(parameterNameLabel.get());
+
+    valueCheckBox = std::make_unique<ToggleButton>("Parameter value");
+    valueCheckBox->setName(param->getProcessor()->getName() + " (" + String(param->getProcessor()->getNodeId()) + ") - " + param->getName());
+    valueCheckBox->setToggleState(bool(param->getValue()), dontSendNotification);
+    valueCheckBox->addListener(this);
+    valueCheckBox->setTooltip(param->getDescription());
+    addAndMakeVisible(valueCheckBox.get());
+
+    setBounds(0, 0, 80, 42);
+
+}
+
+void CheckBoxParameterEditor::buttonClicked(Button* button)
+{
+    if (param != nullptr)
+        param->setNextValue(button->getToggleState());
+}
+
+void CheckBoxParameterEditor::updateView()
+{
+    if (param != nullptr)
+        valueCheckBox->setToggleState(param->getValue(), dontSendNotification);
+    
+    
+    repaint();
+}
+
+void CheckBoxParameterEditor::resized()
+{
+
+    parameterNameLabel->setBounds(0, 0, 80, 20);
+    valueCheckBox->setBounds(0, 22, 60, 18);
 }
 
 
-void ParameterLabel::setValueFont (Font font)
+ComboBoxParameterEditor::ComboBoxParameterEditor(Parameter* param) : ParameterEditor(param)
 {
-    m_valueFont = font;
-    m_valueLabel.setFont (font);
-}
 
+    jassert(param->getType() == Parameter::CATEGORICAL_PARAM
+        || param->getType() == Parameter::INT_PARAM);
 
-void ParameterLabel::addListener (Listener* listener)
-{
-    m_listeners.add (listener);
-}
+    parameterNameLabel = std::make_unique<Label>("Parameter name", param->getName());
+    parameterNameLabel->setFont(Font("Silkscreen", "Regular", 12));
+    parameterNameLabel->setColour(Label::textColourId, Colours::darkgrey);
+    addAndMakeVisible(parameterNameLabel.get());
 
+    valueComboBox = std::make_unique<ComboBox>();
+    valueComboBox->setName(param->getProcessor()->getName() + " (" + String(param->getProcessor()->getNodeId()) + ") - " + param->getName());
+    valueComboBox->addListener(this);
+    valueComboBox->setTooltip(param->getDescription());
+    addAndMakeVisible(valueComboBox.get());
 
-void ParameterLabel::removeListener (Listener* listener)
-{
-    m_listeners.remove (listener);
-}
-// ============================================================================
-
-
-void ParameterEditor::updateChannelSelectionUI()
-{
-    const int numChannels = m_channelSelector->getNumChannels();
-    if (m_parameter->isBoolean())
+    if (param->getType() == Parameter::CATEGORICAL_PARAM)
     {
-        m_checkboxArray[0]->setToggleState (m_parameter->getValue (m_processor->getCurrentChannel()), dontSendNotification);
-    }
-    else if (m_parameter->isContinuous())
-    {
-        m_sliderArray[0]->setValue (m_parameter->getValue (m_processor->getCurrentChannel()), dontSendNotification);
-    }
-    else if (m_parameter->isNumerical())
-    {
-        m_parameterLabelsArray[0]->setValue (m_parameter->getValue (m_processor->getCurrentChannel()), dontSendNotification);
-    }
-    else if (m_parameter->isDiscrete())
-    {
-        std::cout << "Calculating colors for discrete buttons" << std::endl;
-        Array<var> possibleValues = m_parameter->getPossibleValues();
+        CategoricalParameter* p = (CategoricalParameter*)param;
 
-        for (int i = 0; i < m_buttonArray.size(); ++i)
+        offset = 1;
+
+        const StringArray& categories = p->getCategories();
+
+        for (int i = 0; i < categories.size(); i++)
         {
-            m_buttonArray[i]->colorState = 0;
+            valueComboBox->addItem(categories[i], i + offset);
+        }
 
-            for (int j = 0; j < numChannels; ++j)
+        valueComboBox->setSelectedId(p->getSelectedIndex() + offset, dontSendNotification);
+
+    }
+    else {
+        IntParameter* p = (IntParameter*)param;
+
+        offset = -(p->getMinValue()) + 1;
+
+        for (int i = p->getMinValue(); i <= p->getMaxValue(); i++)
+        {
+            valueComboBox->addItem(String(i), i + offset);
+        }
+
+        valueComboBox->setSelectedId(p->getIntValue() + offset, dontSendNotification);
+    }
+
+    setBounds(0, 0, 80, 42);
+}
+
+
+void ComboBoxParameterEditor::comboBoxChanged(ComboBox* comboBox)
+{
+    if (param != nullptr)
+        param->setNextValue(comboBox->getSelectedId() - offset);
+}
+
+void ComboBoxParameterEditor::updateView()
+{   
+    if (param == nullptr)
+    {
+        for (int i = 0; i < valueComboBox->getNumItems(); i++)
+            valueComboBox->setItemEnabled(valueComboBox->getItemId(i), false);
+
+        return;
+    }
+    else 
+    {
+
+        if (param->getType() == Parameter::CATEGORICAL_PARAM)
+        {
+            CategoricalParameter* p = (CategoricalParameter*)param;
+
+            const StringArray& categories = p->getCategories();
+            valueComboBox->clear(dontSendNotification);
+
+            for (int i = 0; i < categories.size(); i++)
             {
-                if (possibleValues[i] == m_parameter->getValue (j))
-                {
-                    if (m_channelSelector->getParamStatus (j))
-                    {
-                        /* Set button as usedbyactive */
-                        m_buttonArray[i]->colorState = 1;
-                    }
-                    else if (m_buttonArray[i]->colorState == 0)
-                    {
-                        // Set button as used by non-selected
-                        m_buttonArray[i]->colorState = 2;
-                    }
-                }
+                valueComboBox->addItem(categories[i], i + offset);
             }
+        }
 
-            m_buttonArray[i]->repaint();
+        for (int i = 0; i < valueComboBox->getNumItems(); i++)
+            valueComboBox->setItemEnabled(valueComboBox->getItemId(i), true);
+    }
+
+
+    if (param->getType() == Parameter::CATEGORICAL_PARAM)
+    {
+        CategoricalParameter* p = (CategoricalParameter*)param;
+
+        valueComboBox->setSelectedId(p->getSelectedIndex() + offset, dontSendNotification);
+
+    }
+    else {
+        IntParameter* p = (IntParameter*)param;
+
+        valueComboBox->setSelectedId(p->getIntValue() + offset, dontSendNotification);
+    }
+    
+    repaint();
+
+}
+
+void ComboBoxParameterEditor::resized()
+{
+
+    parameterNameLabel->setBounds(0, 0, 80, 20);
+    valueComboBox->setBounds(0, 20, 80, 18);
+}
+
+CustomSlider::CustomSlider() : isEnabled(true)
+{
+    
+    setColour (Slider::textBoxTextColourId, Colours::black);
+    setColour (Slider::textBoxOutlineColourId, Colours::grey);
+    setLookAndFeel (&sliderLookAndFeel);
+    
+    setSliderStyle (Slider::SliderStyle::RotaryVerticalDrag);
+    setRotaryParameters (MathConstants<float>::pi * 1.25f,
+                         MathConstants<float>::pi * 2.75f,
+                         true);
+    setVelocityBasedMode (true);
+    setVelocityModeParameters (0.5, 1, 0.09, false);
+    setRange (0.0, 100.0, 0.01);
+    setValue (50.0);
+    onValueChange = [&]()
+    {
+        if (getValue() < 10)
+            setNumDecimalPlacesToDisplay (1);
+        else if (10 <= getValue() && getValue() < 100)
+            setNumDecimalPlacesToDisplay (0);
+        else
+            setNumDecimalPlacesToDisplay (0);
+    };
+}
+
+void CustomSlider::mouseDown (const MouseEvent& event)
+{
+    if (!isEnabled)
+        return;
+
+    Slider::mouseDown (event);
+
+    setMouseCursor (MouseCursor::NoCursor);
+}
+
+void CustomSlider::mouseDrag(const MouseEvent& event)
+{
+    if (!isEnabled)
+        return;
+
+    Slider::mouseDrag(event);
+}
+
+void CustomSlider::mouseUp (const MouseEvent& event)
+{
+    if (!isEnabled)
+        return;
+
+    Slider::mouseUp (event);
+
+    Desktop::getInstance().getMainMouseSource().setScreenPosition (event.source.getLastMouseDownPosition());
+
+    setMouseCursor (MouseCursor::NormalCursor);
+}
+
+CustomSlider::~CustomSlider()
+{
+    setLookAndFeel(nullptr);
+}
+
+Slider::SliderLayout SliderLookAndFeel::getSliderLayout (juce::Slider& slider)
+{
+    auto localBounds = slider.getLocalBounds();
+
+    Slider::SliderLayout layout;
+
+    layout.textBoxBounds = localBounds;
+    layout.sliderBounds = localBounds;
+
+    return layout;
+}
+
+void SliderLookAndFeel::drawRotarySlider (Graphics& g, int x, int y, int width, int height, float sliderPos,
+                                          const float rotaryStartAngle, const float rotaryEndAngle, Slider& slider)
+{
+    auto fill = slider.findColour (Slider::rotarySliderFillColourId);
+
+    auto bounds = Rectangle<float> (x, y, width, height).reduced (2.0f);
+    auto radius = jmin (bounds.getWidth(), bounds.getHeight()) / 2.0f;
+    auto toAngle = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
+    auto lineW = radius * 0.085f;
+    auto arcRadius = radius - lineW * 1.9f;
+
+    Path backgroundArc;
+    backgroundArc.addCentredArc (bounds.getCentreX(),
+                                 bounds.getCentreY(),
+                                 arcRadius,
+                                 arcRadius,
+                                 0.0f,
+                                 rotaryStartAngle,
+                                 rotaryEndAngle,
+                                 true);
+
+    g.setColour (blackGrey);
+    g.strokePath (backgroundArc, PathStrokeType (lineW, PathStrokeType::curved, PathStrokeType::rounded));
+
+    Path valueArc;
+    valueArc.addCentredArc (bounds.getCentreX(),
+                            bounds.getCentreY(),
+                            arcRadius,
+                            arcRadius,
+                            0.0f,
+                            rotaryStartAngle,
+                            toAngle,
+                            true);
+
+    g.setColour (fill);
+    g.strokePath (valueArc, PathStrokeType (lineW, PathStrokeType::curved, PathStrokeType::rounded));
+
+    auto thumbWidth = radius * 0.085f * 2.0f;
+
+    Path thumb;
+    thumb.addRectangle (-thumbWidth / 2, -thumbWidth / 2, thumbWidth, radius + lineW);
+
+    g.setColour (offWhite);
+    g.fillPath (thumb, AffineTransform::rotation (toAngle + 3.12f).translated (bounds.getCentre()));
+
+    g.fillEllipse (bounds.reduced (radius * 0.28));
+}
+
+Label* SliderLookAndFeel::createSliderTextBox (Slider& slider)
+{
+    auto* l = new Label();
+
+    l->setFont (17.0f);
+    l->setJustificationType (Justification::centred);
+    l->setColour (Label::textColourId, slider.findColour (Slider::textBoxTextColourId));
+    l->setColour (Label::textWhenEditingColourId, slider.findColour (Slider::textBoxTextColourId));
+    l->setColour (Label::outlineWhenEditingColourId, slider.findColour (Slider::textBoxOutlineColourId));
+    l->setInterceptsMouseClicks (false, false);
+
+    return l;
+}
+
+SliderParameterEditor::SliderParameterEditor(Parameter* param) : ParameterEditor(param)
+{
+
+    jassert(param->getType() == Parameter::FLOAT_PARAM
+        || param->getType() == Parameter::INT_PARAM);
+
+    parameterNameLabel = std::make_unique<Label>("Parameter name", param->getName());
+    parameterNameLabel->setFont(Font("Silkscreen", "Regular", 12));
+    parameterNameLabel->setColour(Label::textColourId, Colours::darkgrey);
+    addAndMakeVisible(parameterNameLabel.get());
+
+    slider = std::make_unique<CustomSlider>();
+    slider->setName(param->getProcessor()->getName() + " (" + String(param->getProcessor()->getNodeId()) + ") - " + param->getName());
+    slider->addListener(this);
+    slider->setTooltip(param->getDescription());
+    
+    slider->setColour (Slider::rotarySliderFillColourId,
+                       Colour(0, 174, 239));
+    addAndMakeVisible(slider.get());
+
+    if (param->getType() == Parameter::FLOAT_PARAM)
+    {
+        FloatParameter* p = (FloatParameter*)param;
+
+        slider->setRange(p->getMinValue(), p->getMaxValue(), p->getStepSize());
+        slider->setValue(p->getFloatValue(), dontSendNotification);
+    }
+    else {
+        IntParameter* p = (IntParameter*)param;
+
+        slider->setRange(p->getMinValue(), p->getMaxValue(), 1);
+        slider->setValue(p->getIntValue(), dontSendNotification);
+    }
+
+    setBounds(0, 0, 80, 65);
+
+}
+
+void SliderParameterEditor::sliderValueChanged(Slider* slider)
+{
+
+    if (param != nullptr)
+        param->setNextValue(slider->getValue());
+}
+
+void SliderParameterEditor::updateView()
+{
+    if (param != nullptr)
+    {
+        slider->setColour(Slider::rotarySliderFillColourId,
+            Colour(0, 174, 239));
+
+        if (param->getType() == Parameter::FLOAT_PARAM)
+        {
+            FloatParameter* p = (FloatParameter*)param;
+
+            slider->setValue(p->getFloatValue(), dontSendNotification);
+        }
+        else {
+            IntParameter* p = (IntParameter*)param;
+
+            slider->setValue(p->getIntValue(), dontSendNotification);
         }
     }
+    else {
+        slider->setColour(Slider::rotarySliderFillColourId,
+            Colour(150, 150, 150));
+    }
+        
+    repaint();
+}
+
+void SliderParameterEditor::resized()
+{
+    parameterNameLabel->setBounds(0, 0, 80, 15);
+    slider->setBounds(0, 15, 50, 50);
 }
 
 
-bool ParameterEditor::hasCustomBounds() const noexcept
+SelectedChannelsParameterEditor::SelectedChannelsParameterEditor(Parameter* param) : ParameterEditor(param)
 {
-    return m_parameter->hasCustomEditorBounds();
+
+    button = std::make_unique<UtilityButton>(param->getName(), Font("CP Mono", "Plain", 10));
+    button->setName(param->getProcessor()->getName() + " (" + String(param->getProcessor()->getNodeId()) + ") - " + param->getName());
+    button->addListener(this);
+    button->setClickingTogglesState(false);
+    button->setTooltip(param->getDescription());
+    addAndMakeVisible(button.get());
+
+    setBounds(0, 0, 80, 42);
+}
+
+void SelectedChannelsParameterEditor::channelStateChanged(Array<int> newChannels)
+{
+    Array<var> newArray;
+
+    for (int i = 0; i < newChannels.size(); i++)
+        newArray.add(newChannels[i]);
+    
+    param->setNextValue(newArray);
+
+}
+
+void SelectedChannelsParameterEditor::buttonClicked(Button* button_)
+{
+    if (param == nullptr)
+        return;
+
+    SelectedChannelsParameter* p = (SelectedChannelsParameter*)param;
+
+    auto* channelSelector = new PopupChannelSelector(this, p->getChannelStates());
+
+    channelSelector->setChannelButtonColour(Colour(0, 174, 239));
+    
+    channelSelector->setMaximumSelectableChannels(p->getMaxSelectableChannels());
+
+    CallOutBox& myBox
+        = CallOutBox::launchAsynchronously(std::unique_ptr<Component>(channelSelector),
+            button->getScreenBounds(),
+            nullptr);
+}
+
+void SelectedChannelsParameterEditor::updateView()
+{
+    if (param == nullptr)
+        button->setEnabled(false);
+
+    else
+        button->setEnabled(true);
+}
+
+void SelectedChannelsParameterEditor::resized()
+{
+    button->setBounds(0, 0, 80, 20);
 }
 
 
-const Rectangle<int>& ParameterEditor::getDesiredBounds() const noexcept
+
+MaskChannelsParameterEditor::MaskChannelsParameterEditor(Parameter* param) : ParameterEditor(param)
 {
-    return m_parameter->getEditorDesiredBounds();
+
+    button = std::make_unique<UtilityButton>(param->getName(), Font("CP Mono", "Plain", 10));
+    button->setName(param->getProcessor()->getName() + " (" + String(param->getProcessor()->getNodeId()) + ") - " + param->getName());
+    button->addListener(this);
+    button->setClickingTogglesState(false);
+    button->setTooltip("Mask channels to filter within this stream");
+    addAndMakeVisible(button.get());
+
+    setBounds(0, 0, 80, 42);
+}
+
+void MaskChannelsParameterEditor::channelStateChanged(Array<int> newChannels)
+{
+    Array<var> newArray;
+
+    for (int i = 0; i < newChannels.size(); i++)
+        newArray.add(newChannels[i]);
+    
+    param->setNextValue(newArray);
+
+}
+
+void MaskChannelsParameterEditor::buttonClicked(Button* button_)
+{
+
+    if (param == nullptr)
+        return;
+
+    MaskChannelsParameter* p = (MaskChannelsParameter*)param;
+    
+    std::vector<bool> channelStates = p->getChannelStates();
+
+    auto* channelSelector = new PopupChannelSelector(this, channelStates);
+
+    channelSelector->setChannelButtonColour(Colour(0, 174, 239));
+
+    CallOutBox& myBox
+        = CallOutBox::launchAsynchronously(std::unique_ptr<Component>(channelSelector),
+            button->getScreenBounds(),
+            nullptr);
+}
+
+void MaskChannelsParameterEditor::updateView()
+{
+    if (param == nullptr)
+        button->setEnabled(false);
+
+    else
+        button->setEnabled(true);
+}
+
+void MaskChannelsParameterEditor::resized()
+{
+    button->setBounds(0, 0, 80, 20);
 }

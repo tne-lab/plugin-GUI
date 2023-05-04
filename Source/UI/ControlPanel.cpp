@@ -28,14 +28,23 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "../AccessClass.h"
 #include "../Processors/RecordNode/RecordEngine.h"
 #include "../Processors/PluginManager/PluginManager.h"
+#include "FilenameConfigWindow.h"
 
 
 const int SIZE_AUDIO_EDITOR_MAX_WIDTH = 500;
 //const int SIZE_AUDIO_EDITOR_MIN_WIDTH = 250;
 
+#define defaultButtonColour Colour(180,180,180)
+
+
+FilenameEditorButton::FilenameEditorButton()
+    : TextButton("Filename Editor")
+{
+    setTooltip("Edit the recording filename");
+}
 
 PlayButton::PlayButton()
-    : DrawableButton("PlayButton", DrawableButton::ImageFitted)
+    : DrawableButton("Play Button", DrawableButton::ImageFitted)
 {
 
     DrawablePath normal, over, down;
@@ -43,13 +52,13 @@ PlayButton::PlayButton()
     Path p;
     p.addTriangle(0.0f, 0.0f, 0.0f, 20.0f, 18.0f, 10.0f);
     normal.setPath(p);
-    normal.setFill(Colours::lightgrey);
+    normal.setFill(defaultButtonColour);
     normal.setStrokeThickness(0.0f);
 
     over.setPath(p);
     over.setFill(Colours::black);
+    over.setStrokeThickness(2.0f);
     over.setStrokeFill(Colours::black);
-    over.setStrokeThickness(5.0f);
 
     down.setPath(p);
     down.setFill(Colours::pink);
@@ -57,19 +66,14 @@ PlayButton::PlayButton()
     down.setStrokeThickness(5.0f);
 
     setImages(&normal, &over, &over);
-    // setBackgroundColours(Colours::darkgrey, Colours::yellow);
+    setColour(DrawableButton::backgroundColourId, Colours::darkgrey.withAlpha(0.0f));
+    setColour(DrawableButton::backgroundOnColourId, Colours::darkgrey.withAlpha(0.0f));
     setClickingTogglesState(true);
     setTooltip("Start/stop acquisition");
-
-
-}
-
-PlayButton::~PlayButton()
-{
 }
 
 RecordButton::RecordButton()
-    : DrawableButton("RecordButton", DrawableButton::ImageFitted)
+    : DrawableButton("Record Button", DrawableButton::ImageFitted)
 {
 
     DrawablePath normal, over, down;
@@ -77,7 +81,7 @@ RecordButton::RecordButton()
     Path p;
     p.addEllipse(0.0,0.0,20.0,20.0);
     normal.setPath(p);
-    normal.setFill(Colours::lightgrey);
+    normal.setFill(defaultButtonColour);
     normal.setStrokeThickness(0.0f);
 
     over.setPath(p);
@@ -86,37 +90,26 @@ RecordButton::RecordButton()
     over.setStrokeThickness(5.0f);
 
     setImages(&normal, &over, &over);
-    //setBackgroundColours(Colours::darkgrey, Colours::red);
+    setColour(DrawableButton::backgroundColourId, Colours::darkgrey.withAlpha(0.0f));
+    setColour(DrawableButton::backgroundOnColourId, Colours::darkgrey.withAlpha(0.0f));
     setClickingTogglesState(true);
     setTooltip("Start/stop writing to disk");
 }
 
-RecordButton::~RecordButton()
-{
-}
 
-
-CPUMeter::CPUMeter() : Label("CPU Meter","0.0"), cpu(0.0f), lastCpu(0.0f)
+CPUMeter::CPUMeter() : Label("CPU Meter","0.0"), cpu(0.0f)
 {
 
-    font = Font("Small Text", 12, Font::plain);
-
-    // MemoryInputStream mis(BinaryData::silkscreenserialized, BinaryData::silkscreenserializedSize, false);
-    // Typeface::Ptr typeface = new CustomTypeface(mis);
-    // font = Font(typeface);
-    // font.setHeight(12);
-
+    font = Font("Silkscreen", "Regular", 12);
+    
     setTooltip("CPU usage");
-}
-
-CPUMeter::~CPUMeter()
-{
 }
 
 void CPUMeter::updateCPU(float usage)
 {
-    lastCpu = cpu;
     cpu = usage;
+
+    repaint();
 }
 
 void CPUMeter::paint(Graphics& g)
@@ -124,7 +117,7 @@ void CPUMeter::paint(Graphics& g)
     g.fillAll(Colours::grey);
 
     g.setColour(Colours::yellow);
-    g.fillRect(0.0f,0.0f,getWidth()*cpu,float(getHeight()));
+    g.fillRect(0.0f, 0.0f, getWidth() * cpu, float(getHeight()));
 
     g.setColour(Colours::black);
     g.drawRect(0,0,getWidth(),getHeight(),1);
@@ -139,24 +132,16 @@ DiskSpaceMeter::DiskSpaceMeter()
 
 {
 
-    font = Font("Small Text", 12, Font::plain);
-
-    // MemoryInputStream mis(BinaryData::silkscreenserialized, BinaryData::silkscreenserializedSize, false);
-    // Typeface::Ptr typeface = new CustomTypeface(mis);
-    // font = Font(typeface);
-    // font.setHeight(12);
-
+    font = Font("Silkscreen", "Regular", 12);
+    
     setTooltip("Disk space available");
-}
-
-
-DiskSpaceMeter::~DiskSpaceMeter()
-{
 }
 
 void DiskSpaceMeter::updateDiskSpace(float percent)
 {
     diskFree = percent;
+
+    repaint();
 }
 
 void DiskSpaceMeter::paint(Graphics& g)
@@ -166,35 +151,32 @@ void DiskSpaceMeter::paint(Graphics& g)
 
     g.setColour(Colours::lightgrey);
     if (diskFree > 0)
-        g.fillRect(0.0f,0.0f,getWidth()*diskFree,float(getHeight()));
+    {
+        if (diskFree > 1.0)
+            diskFree = 1.0; 
+        g.fillRect(0.0f, 0.0f, getWidth() * diskFree, float(getHeight()));
+    }
 
     g.setColour(Colours::black);
-    g.drawRect(0,0,getWidth(),getHeight(),1);
+    g.drawRect(0, 0, getWidth(), getHeight(), 1);
 
     g.setFont(font);
     g.drawSingleLineText("DF",75,12);
 
 }
 
-Clock::Clock() : isRunning(false), isRecording(false)
+Clock::Clock() : isRunning(false),
+                 isRecording(false),
+                 mode(DEFAULT)
 {
 
-    clockFont = Font("Default Light", 30, Font::plain);
-
-    // MemoryInputStream mis(BinaryData::cpmonolightserialized, BinaryData::cpmonolightserializedSize, false);
-    // Typeface::Ptr typeface = new CustomTypeface(mis);
-    // clockFont = Font(typeface);
-    // clockFont.setHeight(30);
+    clockFont = Font("CP Mono", "Light", 30);
+    clockFont.setHorizontalScale(0.95f);
 
     totalTime = 0;
     totalRecordTime = 0;
 
 }
-
-Clock::~Clock()
-{
-}
-
 
 void Clock::paint(Graphics& g)
 {
@@ -229,12 +211,14 @@ void Clock::drawTime(Graphics& g)
 
     int m;
     int s;
+    int h;
 
     if (isRecording)
     {
         g.setColour(Colours::black);
-        m = floor(totalRecordTime/60000.0);
-        s = floor((totalRecordTime - m*60000.0)/1000.0);
+		h = floor(totalRecordTime / 3600000.0f);
+        m = floor(totalRecordTime / 60000.0);
+        s = floor((totalRecordTime - m * 60000.0) / 1000.0);
 
     }
     else
@@ -245,19 +229,35 @@ void Clock::drawTime(Graphics& g)
         else
             g.setColour(Colours::white);
 
-        m = floor(totalTime/60000.0);
-        s = floor((totalTime - m*60000.0)/1000.0);
+        h = floor(totalTime / 3600000.0f);
+        m = floor(totalTime / 60000.0);
+        s = floor((totalTime - m * 60000.0) / 1000.0);
     }
 
     String timeString = "";
 
-    timeString += m;
-    timeString += " min ";
-    timeString += s;
-    timeString += " s";
+    if (mode == DEFAULT)
+    {
+        timeString += m;
+        timeString += " min ";
+        timeString += s;
+        timeString += " s";
+    }
+    else {
+        if (h < 10) timeString += "0";
+        timeString += h;
+        timeString += ":";
+        
+        if (m < 10) timeString += "0";
+        timeString += m;
+        timeString += ":";
+
+        if (s < 10) timeString += "0";
+        timeString += s;
+    }
+    
 
     g.setFont(clockFont);
-    //g.setFont(30);
     g.drawText(timeString, 0, 0, getWidth(), getHeight(), Justification::left, false);
 
 }
@@ -300,50 +300,65 @@ void Clock::stopRecording()
     {
         isRecording = false;
     }
-
 }
 
-
-ControlPanelButton::ControlPanelButton(ControlPanel* cp_) : cp(cp_)
+void Clock::setMode(Mode m)
 {
-    open = false;
+	mode = m;
+
+    repaint();
+}
+
+void Clock::mouseDown(const MouseEvent& e)
+{
+	if (e.mods.isRightButtonDown())
+	{
+		PopupMenu m;
+        
+        m.addItem(1, "Clock mode", false);
+        m.addSeparator();
+		m.addItem(2, "Default", true, mode == DEFAULT);
+		m.addItem(3, "HH:MM:SS", true, mode == HHMMSS);
+
+		int result = m.show();
+
+		if (result == 2)
+		{
+			setMode(DEFAULT);
+		}
+		else if (result == 3)
+		{
+			setMode(HHMMSS);
+		}
+	}
+}
+
+ControlPanelButton::ControlPanelButton(ControlPanel* cp_)
+    : cp(cp_),
+      open(false)
+{
+    openPath.addTriangle(10.f, 14.398f,
+                         4.f, 4.f,
+                         16.f, 4.f);
+    
+    closedPath = Path(openPath);
+    openPath.applyTransform(AffineTransform::translation(4,4));
+    closedPath.applyTransform(AffineTransform::rotation(MathConstants<float>::pi/2, 10.f, 10.f));
 
     setTooltip("Show/hide recording options");
 }
 
-ControlPanelButton::~ControlPanelButton()
-{
-
-}
-
 void ControlPanelButton::paint(Graphics& g)
 {
-    //g.fillAll(Colour(58,58,58));
-
-    g.setColour(Colours::white);
-
-    Path p;
-
-    float h = getHeight();
-    float w = getWidth();
-
-    if (open)
-    {
-        p.addTriangle(0.5f*w, 0.8f*h,
-                      0.2f*w, 0.2f*h,
-                      0.8f*w, 0.2f*h);
-    }
-    else
-    {
-        p.addTriangle(0.8f*w, 0.8f*h,
-                      0.2f*w, 0.5f*h,
-                      0.8f*w, 0.2f*h);
-    }
+    
+    g.setColour(defaultButtonColour);
 
     PathStrokeType pst = PathStrokeType(1.0f, PathStrokeType::curved, PathStrokeType::rounded);
 
-    g.strokePath(p, pst);
-
+    if (open)
+        g.strokePath(openPath, pst);
+    else
+        g.strokePath(closedPath, pst);
 }
 
 
@@ -367,72 +382,54 @@ void ControlPanelButton::setState(bool b)
     repaint();
 }
 
-
-
-
 ControlPanel::ControlPanel(ProcessorGraph* graph_, AudioComponent* audio_)
-    : graph(graph_), audio(audio_), initialize(true), open(false), lastEngineIndex(-1)
+    : graph(graph_), audio(audio_), initialize(true), open(false), lastEngineIndex(-1), forceRecording(false)
 {
 
-    if (1)
-    {
-
-        font = Font("Paragraph", 13, Font::plain);
-
-        // MemoryInputStream mis(BinaryData::misoserialized, BinaryData::misoserializedSize, false);
-        // Typeface::Ptr typeface = new CustomTypeface(mis);
-        // font = Font(typeface);
-        // font.setHeight(15);
-    }
+    font = Font("Miso", "Regular", 13);
 
     audioEditor = (AudioEditor*) graph->getAudioNode()->createEditor();
     addAndMakeVisible(audioEditor);
 
-    playButton = new PlayButton();
+    playButton = std::make_unique<PlayButton>();
     playButton->addListener(this);
-    addAndMakeVisible(playButton);
+    addAndMakeVisible(playButton.get());
 
-    recordButton = new RecordButton();
+    recordButton = std::make_unique<RecordButton>();
     recordButton->addListener(this);
-    addAndMakeVisible(recordButton);
+    addAndMakeVisible(recordButton.get());
 
-    masterClock = new Clock();
-    addAndMakeVisible(masterClock);
+    clock = std::make_unique<Clock>();
+    addAndMakeVisible(clock.get());
 
-    cpuMeter = new CPUMeter();
-    addAndMakeVisible(cpuMeter);
+    cpuMeter = std::make_unique<CPUMeter>();
+    addAndMakeVisible(cpuMeter.get());
 
-    diskMeter = new DiskSpaceMeter();
-    addAndMakeVisible(diskMeter);
+    diskMeter = std::make_unique<DiskSpaceMeter>();
+    addAndMakeVisible(diskMeter.get());
 
-    cpb = new ControlPanelButton(this);
-    addAndMakeVisible(cpb);
+    cpb = std::make_unique<ControlPanelButton>(this);
+    addAndMakeVisible(cpb.get());
 
-    recordSelector = new ComboBox();
+    recordSelector = std::make_unique<ComboBox>("Control Panel Record Engine Selector");
     recordSelector->addListener(this);
-    
-    addChildComponent(recordSelector);
+    addChildComponent(recordSelector.get());
 
-    recordOptionsButton = new UtilityButton("R",Font("Small Text", 15, Font::plain));
+    recordOptionsButton = std::make_unique<UtilityButton>("R", Font("Silkscreen", "Regular", 15));
     recordOptionsButton->setEnabledState(true);
     recordOptionsButton->addListener(this);
     recordOptionsButton->setTooltip("Configure options for selected record engine");
-    addChildComponent(recordOptionsButton);
+    addChildComponent(recordOptionsButton.get());
 
-    newDirectoryButton = new UtilityButton("+", Font("Small Text", 15, Font::plain));
+    newDirectoryButton = std::make_unique<UtilityButton>("+", Font("Silkscreen", "Regular", 15));
     newDirectoryButton->setEnabledState(false);
     newDirectoryButton->addListener(this);
     newDirectoryButton->setTooltip("Start a new data directory");
-    addChildComponent(newDirectoryButton);
+    addChildComponent(newDirectoryButton.get());
 
-
-#if defined(__APPLE__)
     const File dataDirectory = CoreServices::getDefaultUserSaveDirectory();
-#else
-    const File dataDirectory = File::getSpecialLocation(File::currentExecutableFile).getParentDirectory();
-#endif
 
-    filenameComponent = new FilenameComponent("folder selector",
+    filenameComponent = std::make_unique<FilenameComponent>("folder selector",
                                               dataDirectory.getFullPathName(),
                                               true,
                                               true,
@@ -440,32 +437,25 @@ ControlPanel::ControlPanel(ProcessorGraph* graph_, AudioComponent* audio_)
                                               "*",
                                               "",
                                               "");
-    addChildComponent(filenameComponent);
+    addChildComponent(filenameComponent.get());
 
-    prependText = new Label("Prepend","");
-    prependText->setEditable(true);
-    prependText->addListener(this);
-    prependText->setColour(Label::backgroundColourId, Colours::lightgrey);
-    prependText->setTooltip("Prepend to name of data directory");
+    filenameFields.add(std::make_shared<FilenameFieldComponent>(
+        FilenameFieldComponent::Type::PREPEND, FilenameFieldComponent::State::NONE, ""));
+    filenameFields.add(std::make_shared<FilenameFieldComponent>(
+        FilenameFieldComponent::Type::MAIN, FilenameFieldComponent::State::AUTO,"MM-DD-YYYY_HH-MM-SS"));
+    filenameFields.add(std::make_shared<FilenameFieldComponent>(
+        FilenameFieldComponent::Type::APPEND, FilenameFieldComponent::State::NONE,""));
 
-    addChildComponent(prependText);
+    filenameText = std::make_unique<FilenameEditorButton>();
+    generateFilenameFromFields(true);
+    filenameText->addListener(this);
+    addAndMakeVisible(filenameText.get());
 
-    dateText = new Label("Date","YYYY-MM-DD_HH-MM-SS");
-    dateText->setColour(Label::backgroundColourId, Colours::lightgrey);
-    dateText->setColour(Label::textColourId, Colours::grey);
-    addChildComponent(dateText);
+    filenameConfigWindow = std::make_unique<FilenameConfigWindow>(filenameFields);
 
-    appendText = new Label("Append","");
-    appendText->setEditable(true);
-    appendText->addListener(this);
-    appendText->setColour(Label::backgroundColourId, Colours::lightgrey);
-    addChildComponent(appendText);
-    appendText->setTooltip("Append to name of data directory");
+    refreshMeters();
 
-    //diskMeter->updateDiskSpace(graph->getRecordNode()->getFreeSpace());
-    //diskMeter->repaint();
-    //refreshMeters();
-    startTimer(10);
+    startTimer(60000); // update disk space every minute
 
     setWantsKeyboardFocus(true);
 
@@ -478,29 +468,30 @@ ControlPanel::~ControlPanel()
 
 }
 
-void ControlPanel::setRecordState(bool t)
+void ControlPanel::setRecordingState(bool t, bool force)
 {
 
-    //MessageManager* mm = MessageManager::getInstance();
-
+    forceRecording = force;
+    
     recordButton->setToggleState(t, sendNotification);
 
 }
 
 bool ControlPanel::getRecordingState()
 {
-
 	return recordButton->getToggleState();
 
 }
 
-void ControlPanel::setRecordingDirectory(String path)
+void ControlPanel::setRecordingParentDirectory(String path)
 {
     File newFile(path);
     filenameComponent->setCurrentFile(newFile, true, sendNotificationSync);
+}
 
-    graph->getRecordNode()->newDirectoryNeeded = true;
-    masterClock->resetRecordTime();
+File ControlPanel::getRecordingParentDirectory()
+{
+    return filenameComponent->getCurrentFile();
 }
 
 bool ControlPanel::getAcquisitionState()
@@ -513,40 +504,131 @@ void ControlPanel::setAcquisitionState(bool state)
 	playButton->setToggleState(state, sendNotification);
 }
 
-
-void ControlPanel::updateChildComponents()
+void ControlPanel::startAcquisition(bool recordingShouldAlsoStart)
 {
+    
+    if (!audio->checkForDevice())
+    {
+        String titleMessage = String("No audio device found");
+        String contentMessage = String("An active audio device is required to process data. ") + 
+                                String("Try restarting the GUI to regain control of the system audio.");
+        AlertWindow::showMessageBox(AlertWindow::InfoIcon,
+                                    titleMessage,
+                                    contentMessage);
+        
+        playButton->setToggleState(false, dontSendNotification);
+        
+        return;
+    }
+    
+    if (graph->isReady()) // check that all processors are enabled
+    {
+        if (recordEngines[recordSelector->getSelectedId() - 1]->isWindowOpen())
+            recordEngines[recordSelector->getSelectedId() - 1]->toggleConfigWindow();
 
-    filenameComponent->addListener(AccessClass::getProcessorGraph()->getRecordNode());
-    AccessClass::getProcessorGraph()->getRecordNode()->filenameComponentChanged(filenameComponent);
-	updateRecordEngineList();
+        graph->updateConnections();
+        
+        if (audio->beginCallbacks()) // starts acquisition callbacks
+        {
+            if (recordingShouldAlsoStart)
+            {
+                startRecording();
+                playButton->setToggleState(true, dontSendNotification);
+            }
 
+            playButton->getNormalImage()->replaceColour(defaultButtonColour, Colours::yellow);
+            
+            clock->start(); // starts the clock
+            audioEditor->disable();
+
+            stopTimer();
+            startTimer(250); // refresh every 250 ms
+
+            recordSelector->setEnabled(false); // why is this outside the "if" statement?
+            recordOptionsButton->setEnabled(false);
+            
+            graph->startAcquisition(); // start data flow
+        }
+    }
+}
+
+void ControlPanel::stopAcquisition()
+{
+    if (recordButton->getToggleState())
+    {
+        stopRecording();
+    }
+
+    graph->stopAcquisition();
+
+    audio->endCallbacks();
+    
+    playButton->getNormalImage()->replaceColour(Colours::yellow, defaultButtonColour);
+
+    refreshMeters();
+
+    clock->stop();
+    audioEditor->enable();
+
+    stopTimer();
+    startTimer(60000); // back to refresh every minute
+    
+    recordSelector->setEnabled(true);
+    recordOptionsButton->setEnabled(true);
 }
 
 void ControlPanel::updateRecordEngineList()
 {
+
 	int selectedEngine = recordSelector->getSelectedId();
 	recordSelector->clear(dontSendNotification);
 	recordEngines.clear();
 	int id = 1;
 
+    LOGD("Built-in Record Engine count: ", RecordEngineManager::getNumOfBuiltInEngines());
+
 	for (int i = 0; i < RecordEngineManager::getNumOfBuiltInEngines(); i++)
 	{
 		RecordEngineManager* rem = RecordEngineManager::createBuiltInEngineManager(i);
 		recordSelector->addItem(rem->getName(), id++);
+        LOGD("Adding Record Engine: ", rem->getName());
 		recordEngines.add(rem);
 	}
+    LOGD("Plugin Record Engine count: ", AccessClass::getPluginManager()->getNumRecordEngines());
 	for (int i = 0; i < AccessClass::getPluginManager()->getNumRecordEngines(); i++)
 	{
 		Plugin::RecordEngineInfo info;
 		info = AccessClass::getPluginManager()->getRecordEngineInfo(i);
 		recordSelector->addItem(info.name, id++);
+        LOGD("Adding Record Engine: ", info.name);
 		recordEngines.add(info.creator());
 	}
-	if (selectedEngine < 1)
-		recordSelector->setSelectedId(1, sendNotification);
-	else
-		recordSelector->setSelectedId(selectedEngine, sendNotification);
+
+    if (selectedEngine < 1)
+    {
+        setSelectedRecordEngine(0);
+        recordSelector->setSelectedId(1, dontSendNotification);
+    }
+		
+    else
+    {
+        setSelectedRecordEngine(selectedEngine - 1);
+        recordSelector->setSelectedId(selectedEngine, dontSendNotification);
+    }
+		
+    
+}
+
+std::vector<RecordEngineManager*> ControlPanel::getAvailableRecordEngines()
+{
+    std::vector<RecordEngineManager*> engines;
+
+    for (auto engine : recordEngines)
+    {
+        engines.push_back(engine);
+    }
+
+    return engines;
 }
 
 String ControlPanel::getSelectedRecordEngineId()
@@ -671,26 +753,26 @@ void ControlPanel::resized()
     // ====================================================================
     const int controlButtonWidth    = h - 5;
     const int controlButtonHeight   = h - 10;
-    const int masterClockWidth      = h * 6 - 10;
+    const int clockWidth      = h * 6 - 10;
     const int controlsMargin        = 10;
-    const int totalControlsWidth = controlButtonWidth * 2 + controlsMargin + masterClockWidth;
+    const int totalControlsWidth = controlButtonWidth * 2 + controlsMargin + clockWidth;
     if (currentNumRows != 3)
     {
         playButton->setBounds   (w - h * 8, 5, controlButtonWidth, controlButtonHeight);
         recordButton->setBounds (w - h * 7, 5, controlButtonWidth, controlButtonHeight);
-        masterClock->setBounds  (w - masterClockWidth, 0, masterClockWidth,  h);
+        clock->setBounds  (w - clockWidth, 0, clockWidth,  h);
     }
     else
     {
         const int startX = (w - totalControlsWidth) / 2;
         playButton->setBounds   (startX,     5, controlButtonWidth, controlButtonHeight);
         recordButton->setBounds (startX + h, 5, controlButtonWidth, controlButtonHeight);
-        masterClock->setBounds  (startX + h * 2 + controlsMargin * 2, 0, masterClockWidth, h);
+        clock->setBounds  (startX + h * 2 + controlsMargin * 2, 0, clockWidth, h);
     }
     // ====================================================================
 
 
-    if (audioEditor)
+    if (audioEditor) //if (audioEditor)
     {
         const bool isThereElementOnLeft = diskMeter->getBounds().getY() <= h;
         const bool isSecondRowAvailable = diskMeter->getBounds().getY() >= 2 * h;
@@ -731,11 +813,11 @@ void ControlPanel::resized()
     {
         int topBound = getHeight() - h + 10 - 5;
 
-        recordSelector->setBounds ( (w - 435) > 40 ? 35 : w - 450, topBound, 100, h - 10);
+        recordSelector->setBounds ( (w - 435) > 40 ? 35 : w - 450, topBound, 125, h - 10);
         recordSelector->setVisible (true);
 
         recordOptionsButton->setBounds ( (w - 435) > 40 ? 140 : w - 350, topBound, h - 10, h - 10);
-        recordOptionsButton->setVisible (true);
+        recordOptionsButton->setVisible (false);
 
         filenameComponent->setBounds (165, topBound, w - 500, h - 10);
         filenameComponent->setVisible (true);
@@ -743,23 +825,15 @@ void ControlPanel::resized()
         newDirectoryButton->setBounds (w - h + 4, topBound, h - 10, h - 10);
         newDirectoryButton->setVisible (true);
 
-        prependText->setBounds (165 + w - 490, topBound, 50, h - 10);
-        prependText->setVisible (true);
-
-        dateText->setBounds (165 + w - 435, topBound, 175, h - 10);
-        dateText->setVisible (true);
-
-        appendText->setBounds (165 + w - 255, topBound, 50, h - 10);
-        appendText->setVisible (true);
+        filenameText->setBounds (165 + w - 490, topBound, 280, h - 10);
+        filenameText->setVisible (true);
 
     }
     else
     {
         filenameComponent->setVisible   (false);
         newDirectoryButton->setVisible  (false);
-        prependText->setVisible         (false);
-        dateText->setVisible            (false);
-        appendText->setVisible          (false);
+        filenameText->setVisible            (false);
         recordSelector->setVisible      (false);
         recordOptionsButton->setVisible (false);
     }
@@ -778,21 +852,44 @@ void ControlPanel::openState(bool os)
 
 void ControlPanel::labelTextChanged(Label* label)
 {
-    graph->getRecordNode()->newDirectoryNeeded = true;
+    for (auto* node : AccessClass::getProcessorGraph()->getRecordNodes())
+    {   
+        node->newDirectoryNeeded = true;
+    }
     newDirectoryButton->setEnabledState(false);
-    masterClock->resetRecordTime();
+    clock->resetRecordTime();
 
-    dateText->setColour(Label::textColourId, Colours::grey);
+    filenameText->setColour(Label::textColourId, Colours::grey);
 }
 
 void ControlPanel::startRecording()
 {
 
-    masterClock->startRecording(); // turn on recording
+    clock->startRecording(); // turn on recording
     backgroundColour = Colour(255,0,0);
-    prependText->setEditable(false);
-    appendText->setEditable(false);
-    dateText->setColour(Label::textColourId, Colours::black);
+
+    filenameText->setColour(Label::textColourId, Colours::black);
+    
+    recordButton->getNormalImage()->replaceColour(defaultButtonColour, Colours::yellow);
+
+    if (!newDirectoryButton->getEnabledState()) // new directory is required
+    {
+
+        for (auto& field : filenameFields)
+        {
+            field->incrementDirectoryIndex();
+        }
+
+        recordingDirectoryName = generateFilenameFromFields(false); // generate new name without placeholders
+
+        for (int recordNodeId : CoreServices::getAvailableRecordNodeIds())
+        {
+            CoreServices::RecordNode::createNewRecordingDirectory(recordNodeId);
+        }
+
+        //std::cout << "Recording directory name: " << recordingDirectoryName << std::endl;
+    }
+        
 
     graph->setRecordState(true);
 
@@ -803,106 +900,116 @@ void ControlPanel::stopRecording()
 {
     graph->setRecordState(false); // turn off recording in processor graph
 
-    masterClock->stopRecording();
+    clock->stopRecording();
     newDirectoryButton->setEnabledState(true);
     backgroundColour = Colour (51, 51, 51);
-
-    prependText->setEditable(true);
-    appendText->setEditable(true);
+    
+    recordButton->getNormalImage()->replaceColour(Colours::yellow, defaultButtonColour);
 
     recordButton->setToggleState(false, dontSendNotification);
 
     repaint();
 }
 
-void ControlPanel::buttonClicked(Button* button)
-
+void ControlPanel::componentBeingDeleted(Component &component)
 {
-    if (button == newDirectoryButton && newDirectoryButton->getEnabledState())
-    {
-        graph->getRecordNode()->newDirectoryNeeded = true;
-        newDirectoryButton->setEnabledState(false);
-        masterClock->resetRecordTime();
+	/*Update filename fields as configured in the popup box upon exit. */
+    filenameConfigWindow = std::make_unique<FilenameConfigWindow>(filenameFields);
+    filenameText->setButtonText(generateFilenameFromFields(true));
 
-        dateText->setColour(Label::textColourId, Colours::grey);
+    //TODO: Assumes any change in filename settings should start a new directory next recording
+    if (newDirectoryButton->getEnabledState())
+        buttonClicked(newDirectoryButton.get());
+
+    CoreServices::saveRecoveryConfig();
+
+	component.removeComponentListener(this);
+}
+
+void ControlPanel::buttonClicked(Button* button)
+{
+
+    if (button == filenameText.get() && !getRecordingState())
+    {
+
+        filenameConfigWindow.reset();
+        filenameConfigWindow = std::make_unique<FilenameConfigWindow>(filenameFields);
+
+        CallOutBox& myBox
+            = CallOutBox::launchAsynchronously(std::move(filenameConfigWindow), 
+                button->getScreenBounds(),
+                nullptr);
+        myBox.addComponentListener(this);
+        myBox.setDismissalMouseClicksAreAlwaysConsumed(true);
+        
+        return;
+    }
+
+
+    if (button == newDirectoryButton.get()
+        && newDirectoryButton->getEnabledState())
+    {
+
+        newDirectoryButton->setEnabledState(false);
+        clock->resetRecordTime();
+
+        filenameText->setColour(Label::textColourId, Colours::grey);
 
         return;
     }
 
-    if (button == playButton)
+    if (button == playButton.get())
     {
         if (playButton->getToggleState())
         {
-
-            if (graph->enableProcessors()) // start the processor graph
-            {
-                if (recordEngines[recordSelector->getSelectedId()-1]->isWindowOpen())
-                    recordEngines[recordSelector->getSelectedId()-1]->toggleConfigWindow();
-
-                audio->beginCallbacks();
-                masterClock->start();
-                audioEditor->disable();
-
-                stopTimer();
-                startTimer(250); // refresh every 250 ms
-
-            }
-            recordSelector->setEnabled(false);
-            recordOptionsButton->setEnabled(false);
+            startAcquisition();
         }
         else
         {
-
-            if (recordButton->getToggleState())
-            {
-                stopRecording();
-            }
-
-            audio->endCallbacks();
-            graph->disableProcessors();
-            refreshMeters();
-            masterClock->stop();
-            stopTimer();
-            startTimer(60000); // back to refresh every minute
-            audioEditor->enable();
-            recordSelector->setEnabled(true);
-            recordOptionsButton->setEnabled(true);
-
+            stopAcquisition();
         }
 
         return;
     }
 
-    if (button == recordButton)
+    if (button == recordButton.get())
     {
         if (recordButton->getToggleState())
         {
+            
+            if (!graph->hasRecordNode())
+            {
+                CoreServices::sendStatusMessage("Insert at least one Record Node to start recording.");
+                recordButton->setToggleState(false, dontSendNotification);
+                return;
+            } else {
+                if (!graph->allRecordNodesAreSynchronized() && !forceRecording)
+                {
+                    int response = AlertWindow::showOkCancelBox(AlertWindow::WarningIcon,
+                                                 "Data streams not synchronized",
+                                                 "One or more data streams are not yet synchronized within "
+                                                 "a Record Node. Are you sure want to start recording?",
+                                                 "Yes", "No");
+                    
+                    if (!response)
+                    {
+                        CoreServices::sendStatusMessage("Recording was cancelled.");
+                        recordButton->setToggleState(false, dontSendNotification);
+                        return;
+                    }
+                    
+                    forceRecording = false;
+                    
+                }
+            }
+            
             if (playButton->getToggleState())
             {
                 startRecording();
             }
             else
             {
-                if (graph->enableProcessors()) // start the processor graph
-                {
-                    if (recordEngines[recordSelector->getSelectedId()-1]->isWindowOpen())
-                        recordEngines[recordSelector->getSelectedId()-1]->toggleConfigWindow();
-					
-					startRecording();
-                    masterClock->start();
-					audio->beginCallbacks();
-                    audioEditor->disable();
-
-                    stopTimer();
-                    startTimer(250); // refresh every 250 ms
-
-                    
-
-                    playButton->setToggleState(true, dontSendNotification);
-                    recordSelector->setEnabled(false);
-                    recordOptionsButton->setEnabled(false);
-
-                }
+                startAcquisition(true);
             }
         }
         else
@@ -911,7 +1018,7 @@ void ControlPanel::buttonClicked(Button* button)
         }
     }
 
-    if (button == recordOptionsButton)
+    if (button == recordOptionsButton.get())
     {
         int id = recordSelector->getSelectedId()-1;
         if (id < 0) return;
@@ -923,47 +1030,49 @@ void ControlPanel::buttonClicked(Button* button)
 
 void ControlPanel::comboBoxChanged(ComboBox* combo)
 {
-    if (lastEngineIndex >= 0)
-    {
-        if (recordEngines[lastEngineIndex]->isWindowOpen())
-            recordEngines[lastEngineIndex]->toggleConfigWindow();
-    }
-    RecordEngine* re;
-    AccessClass::getProcessorGraph()->getRecordNode()->clearRecordEngines();
+
+   
     if (combo->getSelectedId() > 0)
     {
-        re = recordEngines[combo->getSelectedId()-1]->instantiateEngine();
+        setSelectedRecordEngine(combo->getSelectedId() - 1);
     }
     else
     {
-        std::cout << "Engine ComboBox: Bad ID" << std::endl;
+        setSelectedRecordEngine(0);
         combo->setSelectedId(1,dontSendNotification);
-        re = recordEngines[0]->instantiateEngine();
     }
-    //re->setUIComponent(getUIComponent());
-    re->registerManager(recordEngines[combo->getSelectedId()-1]);
-    AccessClass::getProcessorGraph()->getRecordNode()->registerRecordEngine(re);
+    
+}
 
-    graph->getRecordNode()->newDirectoryNeeded = true;
+void ControlPanel::setSelectedRecordEngine(int index)
+{
+
+    ScopedPointer<RecordEngine> re;
+
+    re = recordEngines[index]->instantiateEngine();
+    re->registerManager(recordEngines[index]);
+
     newDirectoryButton->setEnabledState(false);
-    masterClock->resetRecordTime();
+    clock->resetRecordTime();
 
-    dateText->setColour(Label::textColourId, Colours::grey);
-    lastEngineIndex=combo->getSelectedId()-1;
+    filenameText->setColour(Label::textColourId, Colours::grey);
+    lastEngineIndex = index;
 }
 
 void ControlPanel::disableCallbacks()
 {
 
-    std::cout << "Control panel received signal to disable callbacks." << std::endl;
+    LOGD("Control panel received signal to disable callbacks.");
 
     if (audio->callbacksAreActive())
     {
-        std::cout << "Stopping audio." << std::endl;
+        graph->stopAcquisition();
+
+        LOGD("Stopping audio.");
         audio->endCallbacks();
-        std::cout << "Disabling processors." << std::endl;
-        graph->disableProcessors();
-        std::cout << "Updating control panel." << std::endl;
+        LOGD("Disabling processors.");
+        
+        LOGD("Updating control panel.");
         refreshMeters();
         stopTimer();
         startTimer(60000); // back to refresh every 10 seconds
@@ -973,31 +1082,14 @@ void ControlPanel::disableCallbacks()
     playButton->setToggleState(false, dontSendNotification);
     recordButton->setToggleState(false, dontSendNotification);
     recordSelector->setEnabled(true);
-    masterClock->stopRecording();
-    masterClock->stop();
+    clock->stopRecording();
+    clock->stop();
 
 }
 
-// void ControlPanel::actionListenerCallback(const String & msg)
-// {
-// 	//std::cout << "Message Received." << std::endl;
-// 	if (playButton->getToggleState()) {
-// 		cpuMeter->updateCPU(audio->deviceManager.getCpuUsage());
-// 	}
-
-// 	cpuMeter->repaint();
-
-// 	diskMeter->updateDiskSpace(graph->getRecordNode()->getFreeSpace());
-// 	diskMeter->repaint();
-
-
-// }
-
 void ControlPanel::timerCallback()
 {
-    //std::cout << "Message Received." << std::endl;
     refreshMeters();
-
 }
 
 void ControlPanel::refreshMeters()
@@ -1011,12 +1103,11 @@ void ControlPanel::refreshMeters()
         cpuMeter->updateCPU(0.0f);
     }
 
-    cpuMeter->repaint();
+    clock->repaint();
 
-    masterClock->repaint();
+    File currentDirectory = filenameComponent->getCurrentFile();
 
-    diskMeter->updateDiskSpace(graph->getRecordNode()->getFreeSpace());
-    diskMeter->repaint();
+    diskMeter->updateDiskSpace(1.0f - float(currentDirectory.getBytesFreeOnVolume()) / float(currentDirectory.getVolumeTotalSize()));
 
     if (initialize)
     {
@@ -1028,7 +1119,7 @@ void ControlPanel::refreshMeters()
 
 bool ControlPanel::keyPressed(const KeyPress& key)
 {
-    std::cout << "Control panel received" << key.getKeyCode() << std::endl;
+    LOGD("Control panel received", key.getKeyCode());
 
     return false;
 
@@ -1042,87 +1133,36 @@ void ControlPanel::toggleState()
     AccessClass::getUIComponent()->childComponentChanged();
 }
 
-String ControlPanel::getTextToAppend()
-{
-    String t = appendText->getText();
-
-    if (t.length() > 0)
-    {
-        return "_" + t;
-    }
-    else
-    {
-        return t;
-    }
-}
-
-String ControlPanel::getTextToPrepend()
-{
-    String t = prependText->getText();
-
-    if (t.length() > 0)
-    {
-        return t + "_";
-    }
-    else
-    {
-        return t;
-    }
-}
-
-void ControlPanel::setPrependText(String t)
-{
-    prependText->setText(t, sendNotificationSync);
-}
-
-void ControlPanel::setAppendText(String t)
-{
-    appendText->setText(t, sendNotificationSync);
-}
-
-void ControlPanel::setDateText(String t)
-{
-    dateText->setText(t, dontSendNotification);
-}
-
-
 void ControlPanel::saveStateToXml(XmlElement* xml)
 {
 
     XmlElement* controlPanelState = xml->createNewChildElement("CONTROLPANEL");
     controlPanelState->setAttribute("isOpen",open);
 	controlPanelState->setAttribute("recordPath", filenameComponent->getCurrentFile().getFullPathName());
-    controlPanelState->setAttribute("prependText",prependText->getText());
-    controlPanelState->setAttribute("appendText",appendText->getText());
-    controlPanelState->setAttribute("recordEngine",recordEngines[recordSelector->getSelectedId()-1]->getID());
+    controlPanelState->setAttribute("recordEngine", recordEngines[recordSelector->getSelectedId()-1]->getID());
+    controlPanelState->setAttribute("clockMode", (int) clock->getMode());
 
     audioEditor->saveStateToXml(xml);
 
-    XmlElement* recordEnginesState = xml->createNewChildElement("RECORDENGINES");
-    for (int i=0; i < recordEngines.size(); i++)
-    {
-        XmlElement* reState = recordEnginesState->createNewChildElement("ENGINE");
-        reState->setAttribute("id",recordEngines[i]->getID());
-        reState->setAttribute("name",recordEngines[i]->getName());
-        recordEngines[i]->saveParametersToXml(reState);
-    }
+    filenameConfigWindow->saveStateToXml(xml);
 
 }
 
 void ControlPanel::loadStateFromXml(XmlElement* xml)
 {
 
-    forEachXmlChildElement(*xml, xmlNode)
+    for (auto* xmlNode : xml->getChildIterator())
     {
         if (xmlNode->hasTagName("CONTROLPANEL"))
         {
-			String recordPath = xmlNode->getStringAttribute("recordPath", String::empty);
-			if (!recordPath.isEmpty())
+			String recordPath = xmlNode->getStringAttribute("recordPath", String());
+			if (!recordPath.isEmpty() && !recordPath.equalsIgnoreCase("default"))
 			{
+                if (!File(recordPath).exists())
+                    recordPath = CoreServices::getRecordingParentDirectory().getFullPathName();
 				filenameComponent->setCurrentFile(File(recordPath), true, sendNotificationAsync);
 			}
-            appendText->setText(xmlNode->getStringAttribute("appendText", ""), dontSendNotification);
-            prependText->setText(xmlNode->getStringAttribute("prependText", ""), dontSendNotification);
+
 			String selectedEngine = xmlNode->getStringAttribute("recordEngine");
 			for (int i = 0; i < recordEngines.size(); i++)
 			{
@@ -1132,6 +1172,8 @@ void ControlPanel::loadStateFromXml(XmlElement* xml)
 				}
 			}
 
+            clock->setMode((Clock::Mode) xmlNode->getIntAttribute("clockMode", Clock::Mode::DEFAULT));
+
             bool isOpen = xmlNode->getBoolAttribute("isOpen");
             openState(isOpen);
 
@@ -1140,7 +1182,7 @@ void ControlPanel::loadStateFromXml(XmlElement* xml)
         {
             for (int i = 0; i < recordEngines.size(); i++)
             {
-                forEachXmlChildElementWithTagName(*xmlNode,xmlEngine,"ENGINE")
+                for (auto* xmlEngine : xmlNode->getChildWithTagNameIterator("ENGINE"))
                 {
                     if (xmlEngine->getStringAttribute("id") == recordEngines[i]->getID())
                         recordEngines[i]->loadParametersFromXml(xmlEngine);
@@ -1150,6 +1192,9 @@ void ControlPanel::loadStateFromXml(XmlElement* xml)
     }
 
     audioEditor->loadStateFromXml(xml);
+
+    filenameConfigWindow->loadStateFromXml(xml);
+    generateFilenameFromFields(true);
 
 }
 
@@ -1163,4 +1208,375 @@ StringArray ControlPanel::getRecentlyUsedFilenames()
 void ControlPanel::setRecentlyUsedFilenames(const StringArray& filenames)
 {
     filenameComponent->setRecentlyUsedFilenames(filenames);
+}
+
+static void forceFilenameEditor (int result, ControlPanel* panel)
+{
+    CallOutBox& myBox
+        = CallOutBox::launchAsynchronously(std::move(panel->filenameConfigWindow), 
+            panel->filenameText->getScreenBounds(),
+            nullptr);
+    myBox.addComponentListener(panel);
+    myBox.setDismissalMouseClicksAreAlwaysConsumed(true);
+
+    return;
+}
+
+String ControlPanel::getRecordingDirectoryName()
+{
+    return recordingDirectoryName;
+}
+
+void ControlPanel::createNewRecordingDirectory()
+{
+    buttonClicked(newDirectoryButton.get());
+}
+
+String ControlPanel::getRecordingDirectoryPrependText()
+{
+    for (auto& field : filenameFields) //loops in order through prepend, main, append 
+    {
+        if (field->type == FilenameFieldComponent::Type::PREPEND)
+        {
+            return field->value;
+        }
+    }
+    return "";
+}
+
+void ControlPanel::setRecordingDirectoryPrependText(String text)
+{
+    for (auto& field : filenameFields) //loops in order through prepend, main, append 
+    {
+        if (field->type == FilenameFieldComponent::Type::PREPEND)
+        {
+            if (field->value != text)
+            {
+
+                field->newDirectoryNeeded = true;
+
+                if (text.length() == 0)
+                    field->state = FilenameFieldComponent::State::NONE;
+                else if (text == "auto")
+                    field->state = FilenameFieldComponent::State::AUTO;
+                else
+                {
+                    String errString = field->validate(text);
+                    if (errString.length())
+                        return; //TODO: Notify user of error via HTTPServer
+                    field->state = FilenameFieldComponent::State::CUSTOM;
+                    field->value = text;
+                }
+                createNewRecordingDirectory();
+
+                generateFilenameFromFields(true);
+            }
+        }
+    }
+}
+
+String ControlPanel::getRecordingDirectoryAppendText()
+{
+    for (auto& field : filenameFields) //loops in order through prepend, main, append 
+    {
+        if (field->type == FilenameFieldComponent::Type::APPEND)
+        {
+            return field->value;
+        }
+    }
+    return "";
+}
+
+void ControlPanel::setRecordingDirectoryAppendText(String text)
+{
+    for (auto& field : filenameFields) //loops in order through prepend, main, append 
+    {
+        if (field->type == FilenameFieldComponent::Type::APPEND)
+        {
+            if (field->value != text)
+            {
+
+                field->newDirectoryNeeded = true;
+
+                if (text.length() == 0)
+                    field->state = FilenameFieldComponent::State::NONE;
+                else if (text == "auto")
+                    field->state = FilenameFieldComponent::State::AUTO;
+                else
+                {
+                    String errString = field->validate(text);
+                    if (errString.length())
+                        return; //TODO: Notify user of error via HTTPServer
+                    field->state = FilenameFieldComponent::State::CUSTOM;
+                    field->value = text;
+                }
+                createNewRecordingDirectory();
+
+                generateFilenameFromFields(true);
+            }
+        }
+    }
+}
+
+String ControlPanel::getRecordingDirectoryBaseText()
+{
+    for (auto& field : filenameFields) //loops in order through prepend, main, append 
+    {
+        if (field->type == FilenameFieldComponent::Type::MAIN)
+        {
+            return field->value;
+        }
+    }
+    return "";
+}
+
+void ControlPanel::setRecordingDirectoryBaseText(String text)
+{
+    for (auto& field : filenameFields) //loops in order through prepend, main, append 
+    {
+        if (field->type == FilenameFieldComponent::Type::MAIN)
+        {
+            if (field->value != text)
+            {
+
+                field->newDirectoryNeeded = true;
+
+                if (text == "auto")
+                {
+                    field->state = FilenameFieldComponent::State::AUTO;
+                }
+                    
+                else if ( text.length() > 0 )
+                {
+                    String errString = field->validate(text);
+                    if (errString.length())
+                        return; //TODO: Notify user of error via HTTPServer
+                    field->state = FilenameFieldComponent::State::CUSTOM;
+                    field->value = text;
+                }
+
+                createNewRecordingDirectory();
+
+                generateFilenameFromFields(true);
+            }
+        }
+    }
+}
+
+String ControlPanel::generateFilenameFromFields(bool usePlaceholderText)
+{
+
+    //bool checkForExistingFilename = false;
+
+    String filename = "";
+
+    for (auto& field : filenameFields) //loops in order through prepend, main, append 
+    {
+
+        filename += field->getNextValue(usePlaceholderText);
+
+    }
+
+    filenameText->setButtonText(filename);
+
+    return filename;
+
+
+        /*if (field->state == FilenameFieldComponent::State::NONE)
+
+            continue; //don't add to the filename
+
+        else if (field->state == FilenameFieldComponent::State::CUSTOM)
+        {
+            filename += field->value; //Add filename field exactly as entered in popup window
+            //checkForExistingFilename = true; 
+        }
+        else //FilenameFieldComponent::State::AUTO
+        {
+
+            if (usePlaceholderText)
+            {
+                filename += field->get
+                continue;
+            }
+
+            switch (field->type)
+            {
+
+                case FilenameFieldComponent::Type::PREPEND:
+
+                    filename += generatePrepend(field->value);
+                    break;
+
+                case FilenameFieldComponent::Type::MAIN:
+
+                    filename += generateDatetimeFromFormat(field->value);
+                    break;
+
+                case FilenameFieldComponent::Type::APPEND:
+
+                    filename += generateAppend(field->value);
+                    break;       
+                
+                default:
+                    break;
+
+            }
+
+        }
+
+    }*/
+
+    // Disallow overwrite of an existing data directory
+    /*if (!usePlaceholderText && checkForExistingFilename && getRecordingParentDirectory().getChildFile(filename).exists())
+    {
+
+        AlertWindow::showMessageBoxAsync (AlertWindow::WarningIcon,
+            TRANS("Recording Directory Name Conflict"),
+            TRANS("The current custom recording directory name already exists and "
+                    "would overwrite existing data. ")
+                + newLine
+                + TRANS ("Please change the directory name: \"XYZ\"")
+                .replace ("XYZ", filename),
+            TRANS ("OK"),
+            filenameText.get(),
+            ModalCallbackFunction::create (forceFilenameEditor, this));
+
+        return filename;
+    }
+
+    // Disallow both Prepend and Append fields to have state AUTO
+    if (filenameFields[0]->state == FilenameFieldComponent::State::AUTO &&  filenameFields[2]->state == FilenameFieldComponent::State::AUTO)
+    {
+
+        AlertWindow::showMessageBoxAsync (AlertWindow::WarningIcon,
+            TRANS("Recording Directory Name Conflict"),
+            TRANS("Auto mode cannot be enabled for both Prepend and Append fields simultaneously")
+                + newLine
+                + TRANS ("Please fix to continue"),
+            TRANS ("OK"),
+            filenameText.get(),
+            ModalCallbackFunction::create (forceFilenameEditor, this));
+
+        return filename;
+    }*/
+
+    //if (updateControlPanel)
+    
+}
+
+String ControlPanel::generateDatetimeFromFormat(String format)
+{
+
+    //TODO: Parse format and generate the proper date string
+    //For now use default format: "YYYY-MM-DD_HH-MM-SS"
+
+    //Generate current datetime in default format
+    Time calendar = Time::getCurrentTime();
+
+    Array<int> t;
+    t.add(calendar.getYear());
+    t.add(calendar.getMonth() + 1); // January = 0 
+    t.add(calendar.getDayOfMonth());
+    t.add(calendar.getHours());
+    t.add(calendar.getMinutes());
+    t.add(calendar.getSeconds());
+
+    String datestring = "";
+
+    for (int n = 0; n < t.size(); n++)
+    {
+        if (t[n] < 10)
+            datestring += "0";
+
+        datestring += t[n];
+
+        if (n == 2)
+            datestring += "_";
+        else if (n < 5)
+            datestring += "-";
+    }
+
+    return datestring;
+
+}
+
+String ControlPanel::generatePrepend(String format)
+{
+
+    if (filenameFields[1]->state == FilenameFieldComponent::State::CUSTOM)
+    {
+        int maxIdx = 0;
+
+        for (DirectoryEntry entry : RangedDirectoryIterator (getRecordingDirectoryName(), false, "*", 1))
+        {
+            if (entry.getFile().getFileName().contains(filenameFields[1]->value) > 0)
+            {
+                int idx;
+                try
+                {
+                    idx = std::stoi(entry.getFile().getFileName().substring(0,3).toStdString());
+                    if (idx > maxIdx)
+                        maxIdx = idx;
+                }
+                catch(const std::exception& e)
+                {
+                    idx = 999;
+                }
+
+            }
+        }
+
+        if (!maxIdx) return format;
+
+        String prependText = String(maxIdx + 1);
+        for (int i = 0; i < 4 - prependText.length(); i++)
+            prependText = "0" + prependText;
+
+        return prependText + "_";
+        
+    }
+
+    return format;
+
+}
+
+String ControlPanel::generateAppend(String format)
+{
+    
+    if (filenameFields[1]->state == FilenameFieldComponent::State::CUSTOM)
+    {
+        int maxIdx = 0;
+        for (DirectoryEntry entry : RangedDirectoryIterator (getRecordingDirectoryName(), false, "*", 1))
+        {
+            if (entry.getFile().getFileName().indexOfWholeWordIgnoreCase(filenameFields[1]->value) == 0)
+            {
+                int idx;
+                try
+                {
+                    String fn = entry.getFile().getFileName();
+                    idx = std::stoi(entry.getFile().getFileName().substring(fn.length()-3,fn.length()).toStdString());
+                    if (idx > maxIdx)
+                        maxIdx = idx;
+                }
+                catch(const std::exception& e)
+                {
+                    idx = 999;
+                }
+
+            }
+        }
+
+        if (!maxIdx) return format;
+
+        String appendText = String(maxIdx + 1);
+        for (int i = 0; i < 4 - appendText.length(); i++)
+            appendText = "0" + appendText;
+
+        return "_" + appendText;
+        
+    }
+
+    return format;
+
 }

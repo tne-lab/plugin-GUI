@@ -27,36 +27,35 @@
 #include "../../AccessClass.h"
 #include "../PluginManager/OpenEphysPlugin.h"
 
+#include "../../Utils/Utils.h"
 
-SourceNode::SourceNode (const String& name_, DataThreadCreator dt)
+#include "../Events/Event.h"
+#include "../Settings/DataStream.h"
+
+SourceNode::SourceNode (const String& name_, DataThreadCreator dataThreadCreator)
     : GenericProcessor      (name_)
-    , sourceCheckInterval   (2000)
-    , wasDisabled           (true)
-    , dataThread            (nullptr)
-    , ttlState              (0)
 {
-    setProcessorType (PROCESSOR_TYPE_SOURCE);
 
-    dataThread = dt (this);
+    setProcessorType(Plugin::Processor::SOURCE);
+
+    dataThread = dataThreadCreator (this);
 
     if (dataThread != nullptr)
     {
         if (! dataThread->foundInputSource())
         {
-            setEnabledState (false);
+            isEnabled = false;
         }
 		resizeBuffers();
     }
     else
     {
-        setEnabledState (false);
-        //   eventChannelState = 0;
+        isEnabled = false;
     }
 
     // check for input source every few seconds
     startTimer (sourceCheckInterval);
 
-    timestamp = 0;
 }
 
 
@@ -64,17 +63,12 @@ SourceNode::~SourceNode()
 {
     if (dataThread->isThreadRunning())
     {
-        std::cout << "Forcing thread to stop." << std::endl;
+        LOGD(getName(), "forcing DataThread to stop.");
         dataThread->stopThread (500);
     }
 }
 
-bool SourceNode::hasEditor() const
-{
-	return true;
-}
-
-bool SourceNode::isGeneratesTimestamps() const
+bool SourceNode::generatesTimestamps() const
 {
 	return true;
 }
@@ -84,23 +78,19 @@ DataThread* SourceNode::getThread() const
 	return dataThread;
 }
 
-int SourceNode::getTTLState() const
-{
-	return ttlState;
-}
-
-//This is going to be quite slow, since is reallocating everything, but it's the 
+//This is going to be quite slow, since is reallocating everything, but it's the
 //safest way to handle a possible varying number of subprocessors
 void SourceNode::resizeBuffers()
 {
 	inputBuffers.clear();
 	eventCodeBuffers.clear();
 	eventStates.clear();
+
 	if (dataThread != nullptr)
 	{
 		dataThread->resizeBuffers();
-		int numSubProcs = dataThread->getNumSubProcessors();
-		for (int i = 0; i < numSubProcs; i++)
+
+		for (int i = 0; i < dataStreams.size(); i++)
 		{
 			inputBuffers.add(dataThread->getBufferAddress(i));
 			eventCodeBuffers.add(new MemoryBlock(10000*sizeof(uint64)));
@@ -109,17 +99,15 @@ void SourceNode::resizeBuffers()
 	}
 }
 
-
-void SourceNode::requestChainUpdate()
+void SourceNode::initialize(bool signalChainIsLoading)
 {
-    CoreServices::updateSignalChain (getEditor());
+    dataThread->initialize(signalChainIsLoading);
 }
 
 
-void SourceNode::getEventChannelNames (StringArray& names)
+void SourceNode::requestSignalChainUpdate()
 {
-    if (dataThread != 0)
-        dataThread->getEventChannelNames(names);
+    CoreServices::updateSignalChain (getEditor());
 }
 
 
@@ -127,123 +115,56 @@ void SourceNode::updateSettings()
 {
 	if (dataThread)
 	{
-		dataThread->updateChannels();
-		resizeBuffers();
-		int nChans = dataChannelArray.size();
-		for (int i = 0; i < nChans; i++)
-		{
-			String unit = dataThread->getChannelUnits(i);
-			if (unit.isNotEmpty())
-				dataChannelArray[i]->setDataUnits(unit);
-		}
+		dataThread->updateSettings(&continuousChannels,
+            &eventChannels, // must return 1 for every stream
+            &spikeChannels,
+            &dataStreams,
+            &devices,
+            &configurationObjects);
+
+        resizeBuffers();
+
+        //std::cout << " Source node num continuous channels: " << continuousChannels.size() << std::endl;
+
+        for (int i = 0; i < continuousChannels.size(); i++)
+            continuousChannels[i]->addProcessor(processorInfo.get());
+
+        for (int i = 0; i < eventChannels.size(); i++)
+            eventChannels[i]->addProcessor(processorInfo.get());
+
+        for (int i = 0; i < spikeChannels.size(); i++)
+            spikeChannels[i]->addProcessor(processorInfo.get());
+
+        for (int i = 0; i < dataStreams.size(); i++)
+            dataStreams[i]->addProcessor(processorInfo.get());
+
+        
+        isEnabled = dataThread->foundInputSource();
+
+        LOGD(getName(), " isEnabled = ", isEnabled, " (updateSettings)");
+
 	}
 }
 
 
-void SourceNode::actionListenerCallback (const String& msg)
-{
-    //std::cout << msg << std::endl;
-
-    if (msg.equalsIgnoreCase ("HI"))
-    {
-        // std::cout << "HI." << std::endl;
-        // dataThread->setOutputHigh();
-        ttlState = 1;
-    }
-    else if (msg.equalsIgnoreCase ("LO"))
-    {
-        // std::cout << "LO." << std::endl;
-        // dataThread->setOutputLow();
-        ttlState = 0;
-    }
-}
-
-
-float SourceNode::getSampleRate(int sub) const
+float SourceNode::getSampleRate(int streamId) const
 {
     if (dataThread != nullptr)
-        return dataThread->getSampleRate(sub);
-    else
-        return 44100.0;
+    {
+        for (auto& stream : dataStreams)
+            if (stream->getStreamId() == streamId)
+                return stream->getSampleRate();
+    }
+    return 44100.0;
 }
 
 
 float SourceNode::getDefaultSampleRate() const
 {
     if (dataThread != nullptr)
-        return dataThread->getSampleRate(0);
+        return dataStreams[0]->getSampleRate();
     else
         return 44100.0;
-}
-
-int SourceNode::getDefaultNumDataOutputs(DataChannel::DataChannelTypes type, int sub) const
-{
-	if (dataThread)
-		return dataThread->getNumDataOutputs(type, sub);
-	else return 0;
-}
-
-float SourceNode::getBitVolts (const DataChannel* chan) const
-{
-    if (dataThread != 0)
-        return dataThread->getBitVolts (chan);
-    else
-        return 1.0f;
-}
-
-void SourceNode::setChannelInfo(int channel, String name, float bitVolts)
-{
-	dataChannelArray[channel]->setName(name);
-	dataChannelArray[channel]->setBitVolts(bitVolts);
-}
-
-void SourceNode::createEventChannels()
-{
-	ttlChannels.clear();
-	if (dataThread)
-	{
-		//Create base TTL event channels
-		int nSubs = dataThread->getNumSubProcessors();
-		for (int i = 0; i < nSubs; i++)
-		{
-			int nChans = dataThread->getNumTTLOutputs(i);
-			nChans = jmin(nChans, 64); //Just 64 TTL channels per source for now
-			if (nChans > 0)
-			{
-				EventChannel* chan = new EventChannel(EventChannel::TTL, nChans, 0, dataThread->getSampleRate(i), this, i);
-				chan->setName(getName() + " source TTL events input");
-				chan->setDescription("TTL Events coming from the hardware source processor \"" + getName() + "\"");
-				chan->setIdentifier("sourceevent");
-				eventChannelArray.add(chan);
-				ttlChannels.add(chan);
-			}
-			else
-				ttlChannels.add(nullptr);
-		}
-		//Add other events that the source might create
-		Array<EventChannel*> events;
-		dataThread->createExtraEvents(events);
-		eventChannelArray.addArray(events);
-	}
-}
-
-void SourceNode::setEnabledState (bool newState)
-{
-    if (newState && ! dataThread->foundInputSource())
-    {
-        isEnabled = false;
-    }
-    else
-    {
-        isEnabled = newState;
-    }
-}
-
-
-void SourceNode::setParameter (int parameterIndex, float newValue)
-{
-    editor->updateParameterButtons (parameterIndex);
-    //std::cout << "Got parameter change notification";
 }
 
 
@@ -260,10 +181,10 @@ AudioProcessorEditor* SourceNode::createEditor()
 
     if (editor == nullptr)
     {
-        editor = new SourceNodeEditor (this, true);
+        editor = std::make_unique<SourceNodeEditor> (this);
     }
 
-    return editor;
+    return editor.get();
 }
 
 
@@ -271,22 +192,25 @@ bool SourceNode::tryEnablingEditor()
 {
     if (! isSourcePresent())
     {
-        //std::cout << "No input source found." << std::endl;
+        //LOGD("No input source found.");
         return false;
     }
-    else if (isEnabled)
+
+    //LOGD("isEnabled = ", isEnabled, " (tryEnablingEditor)");
+    
+    if (isEnabled)
     {
         // If we're already enabled (e.g. if we're being called again
         // due to timerCallback()), then there's no need to go through
         // the editor again.
+        //LOGD("We're already enabled; returning.");
         return true;
     }
 
-    std::cout << "Input source found." << std::endl;
-    setEnabledState (true);
+    LOGD(getName(), " -- input source found!");
 
-    GenericEditor* ed = getEditor();
-    CoreServices::highlightEditor (ed);
+    CoreServices::updateSignalChain(getEditor());
+
     return true;
 }
 
@@ -295,17 +219,11 @@ void SourceNode::timerCallback()
 {
     if (! tryEnablingEditor() && isEnabled)
     {
-        std::cout << "Input source lost." << std::endl;
-        setEnabledState (false);
-        GenericEditor* ed = getEditor();
-        CoreServices::highlightEditor (ed);
+        LOGD("Input source lost.");
+        isEnabled = false;
+
+        CoreServices::updateSignalChain(getEditor());
     }
-}
-
-
-bool SourceNode::isReady()
-{
-    return isSourcePresent() && dataThread->isReady();
 }
 
 
@@ -315,16 +233,13 @@ bool SourceNode::isSourcePresent() const
 }
 
 
-bool SourceNode::enable()
+bool SourceNode::startAcquisition()
 {
-    std::cout << "Source node received enable signal" << std::endl;
 
-    wasDisabled = false;
-
-    stopTimer();
-
-    if (dataThread != nullptr)
+    if (isSourcePresent())
     {
+        stopTimer(); // stop checking for source connection
+
         dataThread->startAcquisition();
         return true;
     }
@@ -335,123 +250,114 @@ bool SourceNode::enable()
 }
 
 
-bool SourceNode::disable()
+bool SourceNode::stopAcquisition()
 {
-    std::cout << "Source node received disable signal" << std::endl;
 
     if (dataThread != nullptr)
         dataThread->stopAcquisition();
 
-    startTimer (2000); // timer to check for connected source
+    eventStates.clear();
 
-    wasDisabled = true;
+    for (int i = 0; i < dataStreams.size(); i++)
+    {
+        eventStates.add(0);
+    }
 
-    std::cout << "SourceNode returning true." << std::endl;
+    startTimer (sourceCheckInterval); // timer to check for connected source
+
 
     return true;
 }
 
 
-void SourceNode::acquisitionStopped()
+void SourceNode::connectionLost()
 {
-    if (! wasDisabled)
-    {
-        std::cout << "Source node sending signal to UI." << std::endl;
 
-        AccessClass::getUIComponent()->disableCallbacks();
-        setEnabledState (false);
+    CoreServices::setAcquisitionStatus(false);
 
-        GenericEditor* ed = (GenericEditor*) getEditor();
-        CoreServices::highlightEditor (ed);
-    }
+    CoreServices::sendStatusMessage("Data acquisition stopped by "+ getName());
+
+    CoreServices::updateSignalChain(getEditor());
+
+    startTimer(sourceCheckInterval); // timer to check for re-established connection
 }
 
-int SourceNode::getNumSubProcessors() const
+String SourceNode::handleConfigMessage(String msg)
 {
-	if (!dataThread) return 0;
-	return dataThread->getNumSubProcessors();
+    return dataThread->handleConfigMessage(msg);
 }
 
-void SourceNode::process(AudioSampleBuffer& buffer)
+void SourceNode::handleBroadcastMessage(String msg)
 {
-	int nSubs = dataThread->getNumSubProcessors();
+    dataThread->handleBroadcastMessage(msg);
+}
+
+
+void SourceNode::broadcastDataThreadMessage(String msg)
+{
+    broadcastMessage(msg);
+}
+
+void SourceNode::process(AudioBuffer<float>& buffer)
+{
 	int copiedChannels = 0;
 
-	for (int sub = 0; sub < nSubs; sub++)
+	for (int streamIdx = 0; streamIdx < inputBuffers.size(); streamIdx++)
 	{
-		int channelsToCopy = getNumOutputs(sub);
-		
-		int nSamples = inputBuffers[sub]->readAllFromBuffer(buffer, &timestamp, static_cast<uint64*>(eventCodeBuffers[sub]->getData()), buffer.getNumSamples(), copiedChannels, channelsToCopy);
+		int channelsToCopy = getNumOutputsForStream(streamIdx);
+
+		int nSamples = inputBuffers[streamIdx]->readAllFromBuffer(buffer,
+            &sampleNumber,
+            &timestamp,
+            static_cast<uint64*>(eventCodeBuffers[streamIdx]->getData()),
+            buffer.getNumSamples(),
+            copiedChannels,
+            channelsToCopy);
+
+        //std::cout << getNodeId() << " " << streamIdx << " " << nSamples << std::endl;
+
 		copiedChannels += channelsToCopy;
 
-		setTimestampAndSamples(timestamp, nSamples, sub); 
+        //if (getFirstSampleNumberForBlock(dataStreams[streamIdx]->getStreamId()) > sampleNumber)
+        //    std::cout << "SET ERROR: " << getNodeId() << " " << dataStreams[streamIdx]->getStreamId() << std::endl;
 
-		if (ttlChannels[sub])
+		setTimestampAndSamples(sampleNumber,
+                               timestamp,
+                               nSamples,
+                               dataStreams[streamIdx]->getStreamId());
+
+		if (eventChannels[streamIdx])
 		{
-			int numEventChannels = ttlChannels[sub]->getNumChannels();
-			// fill event buffer
-			uint64 last = eventStates[sub];
-			for (int i = 0; i < nSamples; ++i)
+            int maxTTLBits = eventChannels[streamIdx]->getMaxTTLBits();
+
+			uint64 lastCode = eventStates[streamIdx];
+
+			for (int sample = 0; sample < nSamples; ++sample)
 			{
-				uint64 current = *(static_cast<uint64*>(eventCodeBuffers[sub]->getData()) + i);
+				uint64 currentCode = *(static_cast<uint64*>(eventCodeBuffers[streamIdx]->getData()) + sample);
+
 				//If there has been no change to the TTL word, avoid doing anything at all here
-				if (last != current)
+				if (lastCode != currentCode)
 				{
 					//Create a TTL event for each bit that has changed
-					for (int c = 0; c < numEventChannels; ++c)
+					for (uint8 c = 0; c < maxTTLBits; ++c)
 					{
-						if (((current >> c) & 0x01) != ((last >> c) & 0x01))
+						if (((currentCode >> c) & 0x01) != ((lastCode >> c) & 0x01))
 						{
-							TTLEventPtr event = TTLEvent::createTTLEvent(ttlChannels[sub], timestamp + i, &current, sizeof(uint64), c);
-							addEvent(ttlChannels[sub], event, i);
+							TTLEventPtr event = TTLEvent::createTTLEvent(eventChannels[streamIdx],
+                                sampleNumber + sample,
+                                c,
+                                (currentCode >> c) & 0x01,
+                                currentCode);
+
+							addEvent(event, sample);
 						}
 					}
-					last = current;
+
+                    lastCode = currentCode;
 				}
 			}
-			eventStates.set(sub, last);
+			eventStates.set(streamIdx, lastCode);
 		}
 	}
-}
-
-
-void SourceNode::saveCustomParametersToXml (XmlElement* parentElement)
-{
-    XmlElement* channelXml = parentElement->createNewChildElement ("CHANNEL_INFO");
-    if (dataThread->usesCustomNames())
-    {
-        Array<ChannelCustomInfo> channelInfo;
-        dataThread->getChannelInfo (channelInfo);
-        for (int i = 0; i < channelInfo.size(); ++i)
-        {
-            XmlElement* chan = channelXml->createNewChildElement ("CHANNEL");
-            chan->setAttribute ("name",     channelInfo[i].name);
-            chan->setAttribute ("number",   i);
-            chan->setAttribute ("gain",     channelInfo[i].gain);
-        }
-    }
-}
-
-
-void SourceNode::loadCustomParametersFromXml()
-{
-    if (parametersAsXml != nullptr)
-    {
-        // use parametersAsXml to restore state
-        forEachXmlChildElement (*parametersAsXml, xmlNode)
-        {
-            if (xmlNode->hasTagName ("CHANNEL_INFO"))
-            {
-                forEachXmlChildElementWithTagName (*xmlNode, chan, "CHANNEL")
-                {
-                    const int number = chan->getIntAttribute ("number");
-                    const float gain = chan->getDoubleAttribute ("gain");
-                    String name = chan->getStringAttribute ("name");
-
-                    dataThread->modifyChannelGain (number, gain);
-                    dataThread->modifyChannelName (number, name);
-                }
-            }
-        }
-    }
 }

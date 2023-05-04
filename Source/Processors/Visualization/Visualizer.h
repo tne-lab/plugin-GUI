@@ -29,59 +29,85 @@
 
 /**
 
-  Abstract base class for displaying data.
+  Abstract base class for displaying data in a tab or window.
+
+  Can also be used to create a larger settings interface 
+  than is possible inside a plugin's editor.
 
   @see LfpDisplayCanvas, SpikeDisplayCanvas
 
 */
 
 class PLUGIN_API Visualizer : public Component,
-    public Timer
+                              public Timer
 
 {
 public:
-	Visualizer();
-	~Visualizer();
 
-    /** Called when the component's tab becomes visible again.*/
-    virtual void refreshState() = 0;
+    /** Constructor */
+	Visualizer() { }
 
-    /** Called when parameters of underlying data processor are changed.*/
+    /** Destructor */
+	virtual ~Visualizer() { }
+
+    // ------------------------------------------------------------
+    //                  CRITICAL CLASS MEMBER
+    // ------------------------------------------------------------
+
+    /** Refresh rate in Hz. Update this value to change the refresh rate
+        of your visualizer. */
+    float refreshRate = 50;
+
+    // ------------------------------------------------------------
+    //                  PURE VIRTUAL METHODS 
+    //       (must be implemented by all Visualizers)
+    // ------------------------------------------------------------
+
+    /** Called when the Visualizer is first created, and optionally when
+        the parameters of the underlying processor are changed. */
     virtual void update() = 0;
 
-    /** Called instead of "repaint" to avoid redrawing underlying components if not necessary.*/
+    /** Renders the Visualizer on each animation callback cycle
+        Called instead of Juce's "repaint()" to avoid redrawing underlying components
+        if not necessary.*/
     virtual void refresh() = 0;
 
-    /** Called when data acquisition is active.*/
-    virtual void beginAnimation() = 0;
+    /** Called when the Visualizer's tab becomes visible after being hidden .*/
+    virtual void refreshState() = 0;
 
-    /** Called when data acquisition ends.*/
-    virtual void endAnimation() = 0;
+    // ------------------------------------------------------------
+    //                   VIRTUAL METHODS 
+    //       (can optionally be overriden by sub-classes)
+    // ------------------------------------------------------------
 
-    /** Called by an editor to initiate a parameter change.*/
-    virtual void setParameter(int, float) = 0;
+    /** Called when data acquisition begins. 
+        If the Visualizer includes live rendering, it should call
+        startCallbacks() within this method. */
+    virtual void beginAnimation() { startCallbacks(); }
 
-    /** Called by an editor to initiate a parameter change.*/
-    virtual void setParameter(int, int, int, float) = 0;
+    /** Called when data acquisition ends.
+       If the Visualizer includes live rendering, it should call
+       stopCallbacks() within this method. */
+    virtual void endAnimation() { stopCallbacks(); }
 
-    /** Starts the timer callbacks. */
+    /** Saves visualizer parameters to XMLoejct */
+    virtual void saveCustomParametersToXml(XmlElement* xml) { }
+
+    /** Loads visualizer parameters from XML object */
+    virtual void loadCustomParametersFromXml(XmlElement* xml) { }
+
+    // ------------------------------------------------------------
+    //                     OTHER METHODS
+    // ------------------------------------------------------------
+
+    /** Starts animation callbacks at refreshRate Hz. */
 	void startCallbacks();
 
-    /** Stops the timer callbacks. */
+    /** Stops animation callbacks. */
 	void stopCallbacks();
 
-    /** Called whenever the timer is triggered. */
+    /** Calls refresh(). */
 	void timerCallback();
-
-    /** Refresh rate in Hz. */
-    float refreshRate;
-
-
-    /** Saves parameters as XML */
-	virtual void saveVisualizerParameters(XmlElement* xml);
-
-    /** Loads parameters from XML */
-	virtual void loadVisualizerParameters(XmlElement* xml);
 
 };
 

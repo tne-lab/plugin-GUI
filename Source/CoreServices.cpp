@@ -30,7 +30,7 @@
 #include "UI/EditorViewport.h"
 #include "UI/ControlPanel.h"
 #include "Processors/MessageCenter/MessageCenterEditor.h"
-#include "Processors/Events/Events.h"
+#include "Processors/Events/Event.h"
 
 
 using namespace AccessClass;
@@ -40,17 +40,26 @@ namespace CoreServices
 {
 	void updateSignalChain(GenericEditor* source)
 	{
-		getEditorViewport()->makeEditorVisible(source, false, true);
+		getProcessorGraph()->updateSettings(source->getProcessor());
 	}
 
-	bool getRecordingStatus()
+	void saveRecoveryConfig()
 	{
-		return getControlPanel()->recordButton->getToggleState();
+		File configsDir = getSavedStateDirectory();
+		if (!configsDir.getFullPathName().contains("plugin-GUI" + File::getSeparatorString() + "Build"))
+			configsDir = configsDir.getChildFile("configs-api" + String(PLUGIN_API_VER));
+
+		EditorViewport* ev = getEditorViewport();
+		File recoveryFile = configsDir.getChildFile("recoveryConfig.xml");
+		ev->saveState(recoveryFile);
 	}
 
-	void setRecordingStatus(bool enable)
+	void loadSignalChain(String path)
 	{
-		getControlPanel()->setRecordState(enable);
+		if (File(path).existsAsFile())
+		{
+			getEditorViewport()->loadState(File(path));
+		}
 	}
 
 	bool getAcquisitionStatus()
@@ -60,16 +69,30 @@ namespace CoreServices
 
 	void setAcquisitionStatus(bool enable)
 	{
+		const MessageManagerLock mml;
 		getControlPanel()->setAcquisitionState(enable);
+	}
+
+	bool getRecordingStatus()
+	{
+		return getControlPanel()->getRecordingState();
+	}
+
+	void setRecordingStatus(bool enable)
+	{
+		const MessageManagerLock mml;
+		getControlPanel()->setRecordingState(enable, true); // starts recording regardless of sync status
 	}
 
 	void sendStatusMessage(const String& text)
 	{
+		LOGD("CoreServices::sendStatusMessage: ", text);
 		getBroadcaster()->sendActionMessage(text);
 	}
 
 	void sendStatusMessage(const char* text)
 	{
+		LOGD("CoreServices::sendStatusMessage: ", String(text));
 		getBroadcaster()->sendActionMessage(text);
 	}
 
@@ -80,114 +103,310 @@ namespace CoreServices
 
 	juce::int64 getGlobalTimestamp()
 	{
-		return getProcessorGraph()->getGlobalTimestamp(false);
+		return getProcessorGraph()->getGlobalTimestamp();
 	}
 
-	juce::uint32 getGlobalTimestampSourceFullId()
+	String getGlobalTimestampSource()
 	{
-		return getProcessorGraph()->getGlobalTimestampSourceFullId();
-	}
-
-	juce::int64 getSoftwareTimestamp()
-	{
-		return getProcessorGraph()->getGlobalTimestamp(true);
+		return getProcessorGraph()->getGlobalTimestampSource();
 	}
 
 	float getGlobalSampleRate()
 	{
-		return getProcessorGraph()->getGlobalSampleRate(false);
+		return getProcessorGraph()->getGlobalSampleRate();
+	}
+
+	juce::int64 getSoftwareTimestamp()
+	{
+		return Time::currentTimeMillis();
 	}
 
 	float getSoftwareSampleRate()
 	{
-		return getProcessorGraph()->getGlobalSampleRate(true);
+		return 1000.0f;
 	}
 
-	void setRecordingDirectory(String dir)
+	void setRecordingParentDirectory(String dir)
 	{
-		getControlPanel()->setRecordingDirectory(dir);
+		if (File(dir).exists())
+		{
+			getControlPanel()->setRecordingParentDirectory(dir);
+		}
+		else {
+			sendStatusMessage(dir + " not found.");
+		}
 	}
 
-	void createNewRecordingDir()
+	File getRecordingParentDirectory()
 	{
-		getControlPanel()->labelTextChanged(NULL);
+		return getControlPanel()->getRecordingParentDirectory();
 	}
 
-	void setPrependTextToRecordingDir(String text)
+	void setRecordingDirectoryBaseText(String text)
 	{
-		getControlPanel()->setPrependText(text);
+		getControlPanel()->setRecordingDirectoryBaseText(text);
 	}
 
-	void setAppendTextToRecordingDir(String text)
+	String getRecordingDirectoryBaseText()
 	{
-		getControlPanel()->setAppendText(text);
+		return getControlPanel()->getRecordingDirectoryBaseText();
 	}
 
-	String getSelectedRecordEngineId()
+	String getRecordingDirectoryName()
+	{
+		return getControlPanel()->getRecordingDirectoryName();
+	}
+
+	void createNewRecordingDirectory()
+	{
+		getControlPanel()->createNewRecordingDirectory();
+	}
+
+	void setRecordingDirectoryPrependText(String text)
+	{
+		getControlPanel()->setRecordingDirectoryPrependText(text);
+	}
+
+	void setRecordingDirectoryAppendText(String text)
+	{
+		getControlPanel()->setRecordingDirectoryAppendText(text);
+	}
+
+	String getRecordingDirectoryPrependText()
+	{
+		return getControlPanel()->getRecordingDirectoryPrependText();
+	}
+
+	String getRecordingDirectoryAppendText()
+	{
+		return getControlPanel()->getRecordingDirectoryAppendText();
+	}
+	
+	std::vector<RecordEngineManager*> getAvailableRecordEngines()
+	{
+		return getControlPanel()->getAvailableRecordEngines();
+	}
+
+	String getDefaultRecordEngineId()
 	{
 		return getControlPanel()->getSelectedRecordEngineId();
 	}
 
-	bool setSelectedRecordEngineId(String id)
+	bool setDefaultRecordEngine(String id)
 	{
 		return getControlPanel()->setSelectedRecordEngineId(id);
 	}
 
+    bool allRecordNodesAreSynchronized()
+    {
+        for (auto node : getProcessorGraph()->getRecordNodes())
+        {
+            if (!node->isSynchronized())
+                return false;
+        }
+        
+        return true;
+    }
+
+	Array<int> getAvailableRecordNodeIds()
+	{
+
+		Array<int> nodeIds;
+
+		for (auto node : getProcessorGraph()->getRecordNodes())
+		{
+			nodeIds.add(node->getNodeId());
+		}
+
+		return nodeIds;
+	}
+
 	namespace RecordNode
 	{
-		void createNewrecordingDir()
+
+		void setRecordingDirectory(String dir, int nodeId, bool applyToAll)
 		{
-			getProcessorGraph()->getRecordNode()->createNewDirectory();
+			for (auto* node : getProcessorGraph()->getRecordNodes())
+			{
+				if (node->getNodeId() == nodeId || applyToAll)
+					static_cast<RecordNodeEditor*>(node->getEditor())->setDataDirectory(dir);
+			}
 		}
 
-		File getRecordingPath()
+		File getRecordingDirectory(int nodeId)
 		{
-			return getProcessorGraph()->getRecordNode()->getDataDirectory();
+
+			File directory;
+
+			for (auto* node : getProcessorGraph()->getRecordNodes())
+			{
+				if (node->getNodeId() == nodeId)
+					directory = node->getDataDirectory();
+			}
+
+			return directory;
 		}
 
-		int getRecordingNumber()
+		float getFreeSpaceAvailable(int nodeId)
 		{
-			return getProcessorGraph()->getRecordNode()->getRecordingNumber();
+
+			float freeSpace = -1.0f;
+
+			for (auto* node : getProcessorGraph()->getRecordNodes())
+			{
+				if (node->getNodeId() == nodeId)
+					freeSpace = node->getFreeSpaceKilobytes();
+			}
+
+			return freeSpace;
 		}
 
-		int getExperimentNumber()
+		String getRecordEngineId(int nodeId)
 		{
-			return getProcessorGraph()->getRecordNode()->getExperimentNumber();
+			for (auto* node : getProcessorGraph()->getRecordNodes())
+			{
+				if (node->getNodeId() == nodeId)
+					return node->getEngineId();
+			}
+			return String("NO_MATCHING_NODE_FOUND");
 		}
 
-		void writeSpike(const SpikeEvent* spike, const SpikeChannel* chan)
+		void setRecordEngine(String id, int nodeId, bool applyToAll)
 		{
-			getProcessorGraph()->getRecordNode()->writeSpike(spike, chan);
+			for (auto* node : getProcessorGraph()->getRecordNodes())
+			{
+				if (node->getNodeId() == nodeId || applyToAll)
+					node->setEngine(id);
+			}
 		}
 
-		void registerSpikeSource(GenericProcessor* processor)
+		int getRecordingNumber(int nodeId)
 		{
-			getProcessorGraph()->getRecordNode()->registerSpikeSource(processor);
+			int lastRecordingNum = -1;
+
+			for (auto* node : getProcessorGraph()->getRecordNodes())
+			{
+				if (node->getNodeId() == nodeId)
+					lastRecordingNum = node->getRecordingNumber();
+			}
+
+			return lastRecordingNum;
 		}
 
-		int addSpikeElectrode(const SpikeChannel* elec)
+		int getExperimentNumber(int nodeId)
 		{
-			return getProcessorGraph()->getRecordNode()->addSpikeElectrode(elec);
+			
+			int experimentNumber = -1;
+
+			for (auto* node : getProcessorGraph()->getRecordNodes())
+			{
+				if (node->getNodeId() == nodeId)
+					experimentNumber = node->getExperimentNumber();
+			}
+
+			return experimentNumber;
 		}
+
+
+		void createNewRecordingDirectory(int nodeId)
+		{
+			for (auto* node : getProcessorGraph()->getRecordNodes())
+			{
+				if (node->getNodeId() == nodeId)
+					node->createNewDirectory();
+			}
+		}
+    
+        bool isSynchronized(int nodeId)
+        {
+			for (auto* node : getProcessorGraph()->getRecordNodes())
+			{
+				if (node->getNodeId() == nodeId)
+					return node->isSynchronized();
+			}
+			return false;
+        }
+
+		/* NOT YET IMPLEMENTED -- these functions are currently global only
+
+		void setRecordingStatus(int nodeId, bool status)
+		{
+			for (auto* node : getProcessorGraph()->getRecordNodes())
+			{
+				if (node->getNodeId() == nodeId)
+				{
+					if (status && !getRecordingStatus(nodeId))
+					{
+						node->startRecording();
+						return;
+					}
+
+					if (!status && getRecordingStatus(nodeId))
+					{
+						node->stopRecording();
+						return;
+					}
+				}
+			}
+		}
+
+		bool getRecordingStatus(int nodeId)
+		{
+			bool status = false;
+
+			for (auto* node : getProcessorGraph()->getRecordNodes())
+			{
+				if (node->getNodeId() == nodeId)
+					status = node->getRecordingStatus();
+			}
+
+			return status;
+		}*/
 
 	};
 
-	const char* getApplicationResource(const char* name, int& size)
-	{
-		return BinaryData::getNamedResource(name, size);
-	}
+	//const char* getApplicationResource(const char* name, int& size)
+	//{
+	//	return BinaryData::getNamedResource(name, size);
+	//}
 
 	File getDefaultUserSaveDirectory()
 	{
 #if defined(__APPLE__)
-		File dir = File::getSpecialLocation(File::userDocumentsDirectory).getChildFile("open-ephys");
+    	const File dir = File::getSpecialLocation(File::userDocumentsDirectory).getChildFile("Open Ephys");
+#elif _WIN32
+    	const File dir = File::getSpecialLocation(File::userDocumentsDirectory).getChildFile("Open Ephys");
+#else
+    	const File dir = File::getSpecialLocation(File::userHomeDirectory).getChildFile("open-ephys");
+#endif
 		if (!dir.isDirectory()) {
 			dir.createDirectory();
 		}
 		return std::move(dir);
+	}
+
+	File getSavedStateDirectory() {
+#if defined(__APPLE__)
+    	File dir = File::getSpecialLocation(File::userApplicationDataDirectory).getChildFile("Application Support/open-ephys");
+#elif _WIN32
+    	String appDir = File::getSpecialLocation(File::currentApplicationFile).getFullPathName();
+		File dir;
+		if(appDir.contains("plugin-GUI\\Build\\"))
+			dir = File::getSpecialLocation(File::currentApplicationFile).getParentDirectory();
+		else
+			dir = File::getSpecialLocation(File::commonApplicationDataDirectory).getChildFile("Open Ephys");
 #else
-		return File::getCurrentWorkingDirectory();
+		String appDir = File::getSpecialLocation(File::currentApplicationFile).getFullPathName();
+		File dir;
+		if(appDir.contains("plugin-GUI/Build/"))
+			dir = File::getSpecialLocation(File::currentApplicationFile).getParentDirectory();
+		else
+			dir = File::getSpecialLocation(File::userApplicationDataDirectory).getChildFile("open-ephys");
 #endif
+		if (!dir.isDirectory()) {
+			dir.createDirectory();
+		}
+    	return std::move(dir);
 	}
 
 	String getGUIVersion()
@@ -196,4 +415,16 @@ namespace CoreServices
 #define STR_DEF(s) XSTR_DEF(s)
 		return STR_DEF(JUCE_APP_VERSION);
 	}
+
+
+	namespace PluginInstaller
+	{
+		bool installPlugin(String plugin, String version)
+		{
+			getUIComponent()->getPluginInstaller()->installPluginAndDependency(plugin, version);
+
+			return true;
+		}
+	}
+
 };

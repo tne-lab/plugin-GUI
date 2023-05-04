@@ -22,44 +22,22 @@
 */
 
 #include "SplitterEditor.h"
-#include "Splitter.h"
+
 #include "../../AccessClass.h"
 #include "../../UI/EditorViewport.h"
 
-// PipelineSelectorButton::PipelineSelectorButton()
-// 	: DrawableButton ("Selector", DrawableButton::ImageFitted)
-// {
-// 	DrawablePath normal, over, down;
+#include "../Editors/StreamSelector.h"
+#include "../Settings/DataStream.h"
 
-// 	    Path p;
-//         p.addTriangle (0.0f, 0.0f, 0.0f, 20.0f, 18.0f, 10.0f);
-//         normal.setPath (p);
-//         normal.setFill (Colours::lightgrey);
-//         normal.setStrokeThickness (0.0f);
 
-//         over.setPath (p);
-//         over.setFill (Colours::black);
-//         over.setStrokeFill (Colours::black);
-//         over.setStrokeThickness (5.0f);
-
-//         setImages (&normal, &over, &over);
-//         setBackgroundColours(Colours::darkgrey, Colours::purple);
-//         setClickingTogglesState (true);
-//         setTooltip ("Toggle a state.");
-
-// }
-
-// PipelineSelectorButton::~PipelineSelectorButton()
-// {
-// }
-
-SplitterEditor::SplitterEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors=true)
-    : GenericEditor(parentNode, useDefaultParameterEditors)
+SplitterEditor::SplitterEditor(GenericProcessor* parentNode)
+    : GenericEditor(parentNode)
 
 {
-    desiredWidth = 85;
+    desiredWidth = 90;
 
-    pipelineSelectorA = new ImageButton("Pipeline A");
+
+    pipelineSelectorA = std::make_unique<ImageButton>("Pipeline A");
 
     Image normalImageA = ImageCache::getFromMemory(BinaryData::PipelineB01_png, BinaryData::PipelineB01_pngSize);
     Image downImageA = ImageCache::getFromMemory(BinaryData::PipelineA01_png, BinaryData::PipelineA01_pngSize);
@@ -75,9 +53,9 @@ SplitterEditor::SplitterEditor(GenericProcessor* parentNode, bool useDefaultPara
     pipelineSelectorA->addListener(this);
     pipelineSelectorA->setBounds(-10,25,95,50);
     pipelineSelectorA->setToggleState(true, dontSendNotification);
-    addAndMakeVisible(pipelineSelectorA);
+    addAndMakeVisible(pipelineSelectorA.get());
 
-    pipelineSelectorB = new ImageButton("Pipeline B");
+    pipelineSelectorB = std::make_unique<ImageButton>("Pipeline B");
 
     pipelineSelectorB->setImages(true, true, true,
                                  normalImageB, 1.0f, Colours::white.withAlpha(0.0f),
@@ -87,36 +65,35 @@ SplitterEditor::SplitterEditor(GenericProcessor* parentNode, bool useDefaultPara
     pipelineSelectorB->addListener(this);
     pipelineSelectorB->setBounds(-10,75,95,50);
     pipelineSelectorB->setToggleState(false, dontSendNotification);
-    addAndMakeVisible(pipelineSelectorB);
+    addAndMakeVisible(pipelineSelectorB.get());
 
+    streamSelectorA = std::make_unique<StreamSelector>(this);
+    streamSelectorA->setBounds(100, 25, streamSelectorA->getDesiredWidth(), 95);
+    addAndMakeVisible(streamSelectorA.get());
+
+    streamSelectorB = std::make_unique<StreamSelector>(this);
+    streamSelectorB->setBounds(100, 25, streamSelectorB->getDesiredWidth(), 95);
+    addChildComponent(streamSelectorB.get());
+    streamSelectorB->setVisible(false);
+
+    drawerWidth = streamSelectorA->getDesiredWidth() + 20;
+
+    
 }
 
 SplitterEditor::~SplitterEditor()
 {
-    deleteAllChildren();
 }
 
-void SplitterEditor::buttonEvent(Button* button)
+void SplitterEditor::buttonClicked(Button* button)
 {
-    if (button == pipelineSelectorA)
+    if (button == pipelineSelectorA.get())
     {
-        pipelineSelectorA->setToggleState(true, dontSendNotification);
-        pipelineSelectorB->setToggleState(false, dontSendNotification);
-        Splitter* processor = (Splitter*) getProcessor();
-        processor->switchIO(0);
-
-		AccessClass::getEditorViewport()->makeEditorVisible(this, false);
-
+        AccessClass::getEditorViewport()->switchIO(getProcessor(), 0);
     }
-    else if (button == pipelineSelectorB)
+    else if (button == pipelineSelectorB.get())
     {
-        pipelineSelectorB->setToggleState(true, dontSendNotification);
-        pipelineSelectorA->setToggleState(false, dontSendNotification);
-        Splitter* processor = (Splitter*) getProcessor();
-        processor->switchIO(1);
-
-		AccessClass::getEditorViewport()->makeEditorVisible(this, false);
-
+        AccessClass::getEditorViewport()->switchIO(getProcessor(), 1);
     }
 }
 
@@ -126,6 +103,10 @@ void SplitterEditor::switchDest(int dest)
     {
         pipelineSelectorA->setToggleState(true, dontSendNotification);
         pipelineSelectorB->setToggleState(false, dontSendNotification);
+        
+        streamSelectorA->setVisible(true);
+        streamSelectorB->setVisible(false);
+
         Splitter* processor = (Splitter*) getProcessor();
         processor->switchIO(0);
 
@@ -134,12 +115,16 @@ void SplitterEditor::switchDest(int dest)
     {
         pipelineSelectorB->setToggleState(true, dontSendNotification);
         pipelineSelectorA->setToggleState(false, dontSendNotification);
+
+        streamSelectorB->setVisible(true);
+        streamSelectorA->setVisible(false);
+
         Splitter* processor = (Splitter*) getProcessor();
         processor->switchIO(1);
 
     }
 
-	AccessClass::getEditorViewport()->makeEditorVisible(this, false);
+	
 }
 
 void SplitterEditor::switchIO(int dest)
@@ -155,12 +140,16 @@ int SplitterEditor::getPathForEditor(GenericEditor* editor)
 
     for (int pathNum = 0; pathNum < 2; pathNum++)
     {
-        processor->switchIO();
-
-        if (processor->getDestNode() != nullptr)
+        if (processor->getDestNode(pathNum) != nullptr)
         {
-            if (processor->getDestNode()->getEditor() == editor)
-                return processor->getPath();
+            LOGDD(" PATH ", pathNum, " editor: ", processor->getDestNode(pathNum)->getEditor()->getName());
+
+            if (processor->getDestNode(pathNum)->getEditor() == editor)
+            {
+                LOGDD(" MATCHING PATH: ", pathNum);
+                return pathNum;
+            }
+                
         }
     }
 
@@ -178,10 +167,8 @@ Array<GenericEditor*> SplitterEditor::getConnectedEditors()
 
     for (int pathNum = 0; pathNum < 2; pathNum++)
     {
-        processor->switchIO();
-
-        if (processor->getDestNode() != nullptr)
-            editors.add(processor->getDestNode()->getEditor());
+        if (processor->getDestNode(pathNum) != nullptr)
+            editors.add(processor->getDestNode(pathNum)->getEditor());
         else
             editors.add(nullptr);
     }
@@ -202,11 +189,67 @@ void SplitterEditor::switchDest()
         pipelineSelectorA->setToggleState(true, dontSendNotification);
         pipelineSelectorB->setToggleState(false, dontSendNotification);
 
+        streamSelectorA->setVisible(true);
+        streamSelectorB->setVisible(false);
+
     }
     else if (path == 1)
     {
         pipelineSelectorB->setToggleState(true,dontSendNotification);
         pipelineSelectorA->setToggleState(false, dontSendNotification);
 
+        streamSelectorA->setVisible(false);
+        streamSelectorB->setVisible(true);
+
     }
+    
+}
+
+
+bool SplitterEditor::checkStream(const DataStream* stream, Splitter::Output output)
+{
+
+    std::cout << "Splitter checking stream " << stream->getStreamId() << " for output " << output << std::endl;
+
+    // buttons already exist:
+    if (output == Splitter::Output::OUTPUT_A)
+    {
+        return streamSelectorA->checkStream(stream);
+    }
+    else {
+        return streamSelectorB->checkStream(stream);
+    }
+
+}
+
+
+void SplitterEditor::streamEnabledStateChanged(uint16 streamId, bool isEnabled, bool isLoading)
+{
+
+    if (streamSelectorA->isVisible())
+        streamSelectorA->setStreamEnabledState(streamId, isEnabled);
+    else
+        streamSelectorB->setStreamEnabledState(streamId, isEnabled);
+
+    if (!isLoading)
+        CoreServices::updateSignalChain(this);
+}
+
+void SplitterEditor::updateSettings()
+{
+
+    std::cout << "Splitter editor updating settings" << std::endl;
+
+    streamSelectorA->beginUpdate();
+    streamSelectorB->beginUpdate();
+
+    for (auto stream : getProcessor()->getDataStreams())
+    {
+        streamSelectorA->add(stream);
+        streamSelectorB->add(stream);
+    }
+
+    streamSelectorA->finishedUpdate();
+    streamSelectorB->finishedUpdate();
+
 }

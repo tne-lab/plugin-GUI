@@ -25,50 +25,67 @@
 #include "../CustomArrowButton.h"
 
 CustomLookAndFeel::CustomLookAndFeel() :
-    // third argument to MIS means don't copy the binary data to make a new stream
-    cpmonoExtraLightStream(BinaryData::cpmonoextralightserialized,
-                           BinaryData::cpmonoextralightserializedSize,
-                           false),
-    cpmonoLightStream(BinaryData::cpmonolightserialized,
-                      BinaryData::cpmonolightserializedSize,
-                      false),
-    cpmonoPlainStream(BinaryData::cpmonoplainserialized,
-                      BinaryData::cpmonoplainserializedSize,
-                      false),
-    cpmonoBoldStream(BinaryData::cpmonoboldserialized,
-                     BinaryData::cpmonoboldserializedSize,
-                     false),
-    cpmonoBlackStream(BinaryData::cpmonoblackserialized,
-                      BinaryData::cpmonoblackserializedSize,
-                      false),
-    misoRegularStream(BinaryData::misoserialized,
-                      BinaryData::misoserializedSize,
-                      false),
-    silkscreenStream(BinaryData::silkscreenserialized,
-                     BinaryData::silkscreenserializedSize,
-                     false),
+
     // heap allocation is necessary here, because otherwise the typefaces are
     // deleted too soon (there's a singleton typefacecache that holds references
     // to them whenever they're used).
-    cpmonoExtraLight(new CustomTypeface(cpmonoExtraLightStream)),
-    cpmonoLight(new CustomTypeface(cpmonoLightStream)),
-    cpmonoPlain(new CustomTypeface(cpmonoPlainStream)),
-    cpmonoBold(new CustomTypeface(cpmonoBoldStream)),
-    cpmonoBlack(new CustomTypeface(cpmonoBlackStream)),
-    misoRegular(new CustomTypeface(misoRegularStream)),
-    silkscreen(new CustomTypeface(silkscreenStream))
+
+    silkscreenStream(BinaryData::silkscreenserialized,
+        BinaryData::silkscreenserializedSize,
+        false),
+
+    cpmonoExtraLight(Typeface::createSystemTypefaceFor(BinaryData::CPMonoExtraLight_otf,
+        BinaryData::CPMonoExtraLight_otfSize)),
+    cpmonoLight(Typeface::createSystemTypefaceFor(BinaryData::CPMonoLight_otf,
+        BinaryData::CPMonoLight_otfSize)),
+    cpmonoPlain(Typeface::createSystemTypefaceFor(BinaryData::CPMonoPlain_otf,
+        BinaryData::CPMonoPlain_otfSize)),
+    cpmonoBold(Typeface::createSystemTypefaceFor(BinaryData::CPMonoBold_otf,
+        BinaryData::CPMonoBold_otfSize)),
+
+    firaCodeLight(Typeface::createSystemTypefaceFor(BinaryData::FiraCodeLight_ttf,
+        BinaryData::FiraCodeLight_ttfSize)),
+    firaCodeMedium(Typeface::createSystemTypefaceFor(BinaryData::FiraCodeMedium_ttf,
+        BinaryData::FiraCodeMedium_ttfSize)),
+    firaCodeRetina(Typeface::createSystemTypefaceFor(BinaryData::FiraCodeRetina_ttf,
+        BinaryData::FiraCodeRetina_ttfSize)),
+    firaCodeRegular(Typeface::createSystemTypefaceFor(BinaryData::FiraCodeRegular_ttf,
+        BinaryData::FiraCodeRegular_ttfSize)),
+    firaCodeSemiBold(Typeface::createSystemTypefaceFor(BinaryData::FiraCodeSemiBold_ttf,
+        BinaryData::FiraCodeSemiBold_ttfSize)),
+    firaCodeBold(Typeface::createSystemTypefaceFor(BinaryData::FiraCodeBold_ttf,
+        BinaryData::FiraCodeBold_ttfSize)),
+
+    firaSansExtraLight(Typeface::createSystemTypefaceFor(BinaryData::FiraSansExtraLight_ttf,
+        BinaryData::FiraSansExtraLight_ttfSize)),
+    firaSansRegular(Typeface::createSystemTypefaceFor(BinaryData::FiraSansRegular_ttf,
+        BinaryData::FiraSansRegular_ttfSize)),
+    firaSansSemiBold(Typeface::createSystemTypefaceFor(BinaryData::FiraSansSemiBold_ttf,
+        BinaryData::FiraSansSemiBold_ttfSize)),
+    firaSansExtraBold(Typeface::createSystemTypefaceFor(BinaryData::FiraSansExtraBold_ttf,
+        BinaryData::FiraSansExtraBold_ttfSize)),
+
+    misoRegular(Typeface::createSystemTypefaceFor(BinaryData::MisoRegular_ttf,
+        BinaryData::MisoRegular_ttfSize)),
+    misoLight(Typeface::createSystemTypefaceFor(BinaryData::MisoLight_ttf,
+        BinaryData::MisoLight_ttfSize)),
+    misoBold(Typeface::createSystemTypefaceFor(BinaryData::MisoBold_ttf,
+        BinaryData::MisoBold_ttfSize)),
+
+    nimbusSans(Typeface::createSystemTypefaceFor(BinaryData::NimbusSans_otf,
+        BinaryData::NimbusSans_otfSize)),
+    nordic(Typeface::createSystemTypefaceFor(BinaryData::Nordic_ttf,
+        BinaryData::Nordic_ttfSize)),
+    ostrich(Typeface::createSystemTypefaceFor(BinaryData::Ostrich_ttf,
+        BinaryData::Ostrich_ttfSize)),
+    bebasNeue(Typeface::createSystemTypefaceFor(BinaryData::BebasNeue_otf,
+        BinaryData::BebasNeue_otfSize))
+
 
 {
 
-    // UNCOMMENT AFTER UPDATE
-    // typefaceMap.set(String("Default Extra Light"), cpmonoExtraLight);
-    // typefaceMap.set(String("Default Light"), cpmonoLight);
-    // typefaceMap.set(String("Default"), cpmonoPlain);
-    // typefaceMap.set(String("Default Bold"), cpmonoBold);
-    // typefaceMap.set(String("Default Black"), cpmonoBlack);
-    // typefaceMap.set(String("Paragraph"), misoRegular);
-    // typefaceMap.set(String("Silkscreen"), silkscreen);
-
+    silkscreen = new CustomTypeface(silkscreenStream);
+    
     enum
     {
         PROCESSOR_COLOR = 0x801,
@@ -100,47 +117,125 @@ CustomLookAndFeel::~CustomLookAndFeel() {}
 Typeface::Ptr CustomLookAndFeel::getTypefaceForFont(const Font& font)
 {
     String typefaceName = font.getTypefaceName();
+    String typefaceStyle = font.getTypefaceStyle();
 
-    // some of these names might be unnecessary, and there may be good ones
-    // missing.  adjust as needed
-    if (typefaceName.equalsIgnoreCase("Default Extra Light"))
+    if (typefaceName.equalsIgnoreCase("CP Mono"))
     {
-        return cpmonoExtraLight;
+        if (typefaceStyle.equalsIgnoreCase("Plain"))
+        {
+            return cpmonoPlain;
+        }
+        else if (typefaceStyle.equalsIgnoreCase("Extra Light"))
+        {
+            return cpmonoExtraLight;
+        } 
+        else if (typefaceStyle.equalsIgnoreCase("Light"))
+        {
+            return cpmonoLight;
+        }
+        else if (typefaceStyle.equalsIgnoreCase("Bold"))
+        {
+            return cpmonoBold;
+        }
+        else {
+            return cpmonoPlain; // default weight
+        }
     }
-    else if (typefaceName.equalsIgnoreCase("Default Light"))
+    else if (typefaceName.equalsIgnoreCase("Fira Code"))
     {
-        return cpmonoLight;
+        if (typefaceStyle.equalsIgnoreCase("Light"))
+        {
+            return firaCodeLight;
+        }
+        else if (typefaceStyle.equalsIgnoreCase("Medium"))
+        {
+            return firaCodeMedium;
+        }
+        else if (typefaceStyle.equalsIgnoreCase("Regular"))
+        {
+            return firaCodeRegular;
+        }
+        else if (typefaceStyle.equalsIgnoreCase("Retina"))
+        {
+            return firaCodeRetina;
+        }
+        else if (typefaceStyle.equalsIgnoreCase("SemiBold"))
+        {
+            return firaCodeSemiBold;
+        }
+        else if (typefaceStyle.equalsIgnoreCase("Bold"))
+        {
+            return firaCodeBold;
+        }
+        else {
+            return firaCodeRegular; // default weight
+        }
     }
-    else if (typefaceName.equalsIgnoreCase("Default"))
+    else if (typefaceName.equalsIgnoreCase("Fira Sans"))
     {
-        return cpmonoPlain;
+        if (typefaceStyle.equalsIgnoreCase("Extra Light"))
+        {
+            return firaSansExtraLight;
+        }
+        else if (typefaceStyle.equalsIgnoreCase("Regular"))
+        {
+            return firaSansRegular;
+        }
+        else if (typefaceStyle.equalsIgnoreCase("SemiBold"))
+        {
+            return firaSansSemiBold;
+        }
+        else if (typefaceStyle.equalsIgnoreCase("Extra Bold"))
+        {
+            return firaSansExtraBold;
+        }
+        else {
+            return firaSansSemiBold; // default weight
+        }
     }
-    else if (typefaceName.equalsIgnoreCase("Default Bold"))
+    else if (typefaceName.equalsIgnoreCase("Miso"))
     {
-        return cpmonoBold;
+        if (typefaceStyle.equalsIgnoreCase("Regular"))
+        {
+            return misoRegular;
+        }
+        else if (typefaceStyle.equalsIgnoreCase("Bold"))
+        {
+            return misoBold;
+        }
+        else if (typefaceStyle.equalsIgnoreCase("Light"))
+        {
+            return misoLight;
+        }
+        else {
+            return misoRegular; // default weight
+        }
     }
-    else if (typefaceName.equalsIgnoreCase("Default Black"))
+    else if (typefaceName.equalsIgnoreCase("Nimbus Sans"))
     {
-        return cpmonoBlack;
+        return nimbusSans;
     }
-    else if (typefaceName.equalsIgnoreCase("Paragraph"))
-    {
-        return misoRegular;
-    }
-    else if (typefaceName.equalsIgnoreCase("Small Text"))
+    else if (typefaceName.equalsIgnoreCase("Silkscreen"))
     {
         return silkscreen;
     }
+    else if (typefaceName.equalsIgnoreCase("Ostrich"))
+    {
+        return ostrich;
+    }
+    else if (typefaceName.equalsIgnoreCase("Bebas Neue"))
+    {
+        return bebasNeue;
+    }
+    else if (typefaceName.equalsIgnoreCase("Nordic"))
+    {
+        return nordic;
+    }
     else   // default
     {
-        return LookAndFeel::getTypefaceForFont(font);
+        return firaCodeRetina;
     }
 
-    // UNCOMMENT AFTER UPDATE
-    // if (typefaceMap.contains(typefaceName))
-    //     return typefaceMap[typefaceName];
-    // else
-    //     return LookAndFeel::getTypefaceForFont(font);
 }
 
 //==================================================================
@@ -345,13 +440,6 @@ void CustomLookAndFeel::drawLinearSliderBackground(Graphics& g,
         indent.addRoundedRectangle(x - sliderRadius * 0.5f, iy,
                                    width + sliderRadius, ih,
                                    5.0f);
-
-        //   backgroundPath.addRoundedRectangle (x - sliderRadius * 0.5f, iy,
-        //                              (width + sliderRadius)*minSliderPos, ih,
-        //                              5.0f);
-
-        //  g.setColour(Colours::orange);
-        //  g.fillPath (backgroundPath);
     }
     else
     {
@@ -360,14 +448,6 @@ void CustomLookAndFeel::drawLinearSliderBackground(Graphics& g,
         indent.addRoundedRectangle(ix, y - sliderRadius * 0.5f,
                                    iw, height + sliderRadius,
                                    5.0f);
-
-        //   backgroundPath.addRoundedRectangle (ix, y - sliderRadius * 0.5f,
-        //                              iw, (height + sliderRadius)*sliderPos,
-        //                              5.0f);
-
-        //  g.setColour(Colours::orange);
-        //  g.fillPath (backgroundPath);
-        //g.fillPath (indent);
     }
 
     g.setColour(Colours::darkgrey);
@@ -444,7 +524,7 @@ void CustomLookAndFeel::drawGlassPointer(Graphics& g,
 
 Button* CustomLookAndFeel::createSliderButton(Slider& s, bool isIncrement)
 {
-    return new CustomArrowButton(String::empty, isIncrement ? 0 : 0.5);
+    return new CustomArrowButton(String(), isIncrement ? 0 : 0.5);
 }
 
 
@@ -457,50 +537,409 @@ void CustomLookAndFeel::drawComboBox(Graphics& g, int width, int height,
                                      int buttonW, int buttonH,
                                      ComboBox& box)
 {
+    auto cornerSize = box.findParentComponentOfClass<ChoicePropertyComponent>() != nullptr ? 0.0f : 3.0f;
+    Rectangle<int> boxBounds (0, 0, width, height);
 
-    g.fillAll(Colours::lightgrey); //box.findColour (ComboBox::backgroundColourId));
+    g.setColour (Colours::lightgrey);
+    g.fillRoundedRectangle (boxBounds.toFloat(), cornerSize);
 
-    if (box.isEnabled() && box.hasKeyboardFocus(false))
+    if (box.isPopupActive() || box.hasKeyboardFocus(false))
     {
-        g.setColour(Colours::lightgrey); //box.findColour (TextButton::buttonColourId));
-        g.drawRect(0, 0, width, height, 2);
-    }
-    else
-    {
-        g.setColour(box.findColour(ComboBox::outlineColourId));
-        g.drawRect(0, 0, width, height);
+        g.setColour(Colours::darkgrey);
+        g.drawRoundedRectangle(boxBounds.toFloat().reduced(0.5f, 0.5f), cornerSize, 1.5f);
     }
 
     const float outlineThickness = box.isEnabled() ? (isButtonDown ? 1.2f : 0.5f) : 0.3f;
 
-    const Colour baseColour(Colours::orange);/*LookAndFeelHelpers::createBaseColour (box.findColour (ComboBox::buttonColourId),
-                                                                   box.hasKeyboardFocus (true),
-                                                                   false, isButtonDown)
-                                .withMultipliedAlpha (box.isEnabled() ? 1.0f : 0.5f));*/
+    Rectangle<int> arrowZone (buttonX + outlineThickness, buttonY + outlineThickness,  
+                              buttonW - outlineThickness, buttonH - outlineThickness);
+                                
+    Path path;
+    path.addTriangle(arrowZone.getCentreX() - 5.0f, arrowZone.getCentreY() - 2.0f,
+                     arrowZone.getCentreX(), arrowZone.getCentreY() + 5.0f,
+                     arrowZone.getCentreX() + 5.0f, arrowZone.getCentreY() - 2.0f);
 
-    juce::LookAndFeel_V1::drawGlassLozenge(g,
-                                           buttonX + outlineThickness, buttonY + outlineThickness,
-                                           buttonW - outlineThickness * 2.0f, buttonH - outlineThickness * 2.0f,
-                                           baseColour, outlineThickness, -1.0f,
-                                           true, true, true, true);
+    g.setColour (box.findColour (ComboBox::arrowColourId).withAlpha ((box.isEnabled() ? 0.9f : 0.2f)));
+    g.fillPath(path);
+}
 
-    if (box.isEnabled())
+Font CustomLookAndFeel::getComboBoxFont (ComboBox& box)
+{
+    return Font("Fira Sans", "Regular", box.getHeight() * 0.75f);
+}
+
+
+// ========= Popup Menu Background: ===========================
+
+void CustomLookAndFeel::drawPopupMenuBackground (Graphics& g, int width, int height)
+{
+    const Colour background (findColour (PopupMenu::backgroundColourId));
+
+    g.fillAll (background);
+    g.setColour (background.overlaidWith (Colour (0x2badd8e6)));
+
+   #if ! JUCE_MAC
+    g.setColour (findColour (PopupMenu::textColourId).withAlpha (0.6f));
+    g.drawRect (0, 0, width, height);
+   #endif
+}
+
+Font CustomLookAndFeel::getPopupMenuFont()
+{
+    return getCommonMenuFont();
+}
+
+void CustomLookAndFeel::drawMenuBarBackground (Graphics& g, int width, int height,
+                                            bool, MenuBarComponent& menuBar)
+{
+    const Colour colour (58, 58, 58);
+
+    Rectangle<int> r (width, height);
+
+    g.setColour (colour.contrasting (0.15f));
+    g.fillRect  (r.removeFromTop (1));
+    g.fillRect  (r.removeFromBottom (1));
+
+    g.setGradientFill (ColourGradient (colour, 0, 0, colour.darker (0.08f), 0, (float) height, false));
+    g.fillRect (r);
+
+    if(menuBar.getName().equalsIgnoreCase("MainMenu"))
     {
-        const float arrowX = 0.3f;
-        const float arrowH = 0.2f;
+        g.setColour(Colours::lightgrey);
+        String ver = "v" + String(ProjectInfo::versionString);
+        g.setFont(getCommonMenuFont());
+        int verStrWidth = getCommonMenuFont().getStringWidth(ver);
+        g.drawText(ver, width - verStrWidth - 10, 0, verStrWidth, height, Justification::centred);
+    }
+}
 
-        Path p;
-        p.addTriangle(buttonX + buttonW * 0.5f,            buttonY + buttonH * (0.45f - arrowH),
-                      buttonX + buttonW * (1.0f - arrowX), buttonY + buttonH * 0.45f,
-                      buttonX + buttonW * arrowX,          buttonY + buttonH * 0.45f);
+Font CustomLookAndFeel::getMenuBarFont (MenuBarComponent& menuBar, int /*itemIndex*/, const String& /*itemText*/)
+{
+    return Font(getCommonMenuFont().getTypefaceName(), "SemiBold", menuBar.getHeight() * 0.7f);
+}
 
-        p.addTriangle(buttonX + buttonW * 0.5f,            buttonY + buttonH * (0.55f + arrowH),
-                      buttonX + buttonW * (1.0f - arrowX), buttonY + buttonH * 0.55f,
-                      buttonX + buttonW * arrowX,          buttonY + buttonH * 0.55f);
+//==================================================================
+// BUTTON METHODS :
+//==================================================================
 
-        g.setColour(box.findColour(ComboBox::arrowColourId));
-        g.fillPath(p);
+
+void CustomLookAndFeel::drawButtonBackground (Graphics& g,
+                                              Button& button,
+                                              const Colour& backgroundColour,
+                                              bool isMouseOverButton, bool isButtonDown)
+{
+    auto cornerSize = 3.0f;
+    auto bounds = button.getLocalBounds().toFloat();
+
+    auto baseColour = backgroundColour.withMultipliedSaturation (button.hasKeyboardFocus (true) ? 1.3f : 0.9f)
+                                      .withMultipliedAlpha (button.isEnabled() ? 1.0f : 0.35f);
+
+    if (isButtonDown || isMouseOverButton)
+        baseColour = baseColour.contrasting (isButtonDown ? 0.35f : 0.05f);
+
+    g.setColour (baseColour);
+
+    auto flatOnLeft   = button.isConnectedOnLeft();
+    auto flatOnRight  = button.isConnectedOnRight();
+    auto flatOnTop    = button.isConnectedOnTop();
+    auto flatOnBottom = button.isConnectedOnBottom();
+
+    if (flatOnLeft || flatOnRight || flatOnTop || flatOnBottom)
+    {
+        Path path;
+        path.addRoundedRectangle (bounds.getX(), bounds.getY(),
+                                  bounds.getWidth(), bounds.getHeight(),
+                                  cornerSize, cornerSize,
+                                  ! (flatOnLeft  || flatOnTop),
+                                  ! (flatOnRight || flatOnTop),
+                                  ! (flatOnLeft  || flatOnBottom),
+                                  ! (flatOnRight || flatOnBottom));
+
+        g.fillPath (path);
+        g.setColour(findColour(ComboBox::outlineColourId));
+        g.strokePath (path, PathStrokeType (1.0f));
+    }
+    else
+    {
+        g.fillRoundedRectangle (bounds, cornerSize);
     }
 
-
+    if (button.hasKeyboardFocus(false))
+    {
+        g.setColour(Colours::darkgrey);
+        g.drawRoundedRectangle(bounds.reduced(0.5f, 0.5f), cornerSize, 1.5f);
+    }
 }
+
+
+void CustomLookAndFeel::drawButtonText (Graphics& g,
+                                        TextButton& button,
+                                        bool isMouseOverButton, bool isButtonDown)
+{
+    auto textColour = button.getToggleState()
+                        ? button.findColour (TextButton::textColourOnId)
+                        : button.findColour (TextButton::textColourOffId);
+
+    g.setColour (textColour.withMultipliedAlpha(button.isEnabled() ? 1.0f : 0.5f));
+
+    auto font = getTextButtonFont(button, button.getHeight());
+    g.setFont(font);
+
+    const int yIndent = jmin (4, button.proportionOfHeight (0.3f));
+    const int cornerSize = jmin (button.getHeight(), button.getWidth()) / 2;
+
+    const int fontHeight = roundToInt (font.getHeight() * 0.6f);
+    const int leftIndent  = jmin (fontHeight, 2 + cornerSize / 2);
+    const int rightIndent = jmin (fontHeight, 2 + cornerSize / 2);
+    const int textWidth = button.getWidth() - leftIndent - rightIndent;
+
+    if (textWidth > 0)
+        g.drawFittedText (button.getButtonText(),
+                          leftIndent, yIndent, textWidth, button.getHeight() - yIndent * 2,
+                          Justification::centred, 1);
+}
+
+Font CustomLookAndFeel::getTextButtonFont (TextButton&, int buttonHeight)
+{
+    return Font(getCommonMenuFont().getTypefaceName(), "Regular", buttonHeight * 0.65f);
+}
+
+// ============ Common Font for Menus ================
+
+Font CustomLookAndFeel::getCommonMenuFont()
+{
+    return Font ("Fira Sans", "Regular", 20.f);
+}
+
+//==================================================================
+// TOGGLE BUTTON METHODS :
+//==================================================================
+
+void CustomLookAndFeel::drawToggleButton (Graphics& g, ToggleButton& button,
+                                          bool shouldDrawButtonAsHighlighted, 
+                                          bool shouldDrawButtonAsDown)
+{
+    auto fontSize = jmin (18.0f, button.getHeight() * 0.75f);
+    auto tickWidth = fontSize;
+
+    drawTickBox (g, button, 4.0f, (button.getHeight() - tickWidth) * 0.5f,
+                 tickWidth, tickWidth,
+                 button.getToggleState(),
+                 button.isEnabled(),
+                 shouldDrawButtonAsHighlighted,
+                 shouldDrawButtonAsDown);
+
+    g.setColour (button.findColour (ToggleButton::textColourId));
+    g.setFont (fontSize);
+
+    if (! button.isEnabled())
+        g.setOpacity (0.5f);
+
+    g.drawFittedText (button.getButtonText(),
+                      button.getLocalBounds().withTrimmedLeft (roundToInt (tickWidth) + 10)
+                                             .withTrimmedRight (2),
+                      Justification::centredLeft, 10);
+}
+
+void CustomLookAndFeel::drawTickBox (Graphics& g, Component& component,
+                                     float x, float y, float w, float h,
+                                     const bool ticked,
+                                     const bool isEnabled,
+                                     const bool shouldDrawButtonAsHighlighted,
+                                     const bool shouldDrawButtonAsDown)
+{
+    ignoreUnused (isEnabled, shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
+
+    Rectangle<float> tickBounds (x, y, w, h);
+
+    g.setColour (component.findColour (ToggleButton::tickDisabledColourId));
+    g.fillRoundedRectangle (tickBounds.reduced(0.5f, 0.5f), 3.0f);
+
+    if (ticked)
+    {
+        g.setColour (component.findColour (ToggleButton::tickColourId));
+        auto tick = getTickShape (0.75f);
+        g.fillPath (tick, tick.getTransformToScaleToFit (tickBounds.reduced (4, 5).toFloat(), false));
+    }
+}
+
+Path CustomLookAndFeel::getTickShape (float height)
+{
+    static const unsigned char pathData[] = { 110,109,32,210,202,64,126,183,148,64,108,39,244,247,64,245,76,124,64,108,178,131,27,65,246,76,252,64,108,175,242,4,65,246,76,252,
+        64,108,236,5,68,65,0,0,160,180,108,240,150,90,65,21,136,52,63,108,48,59,16,65,0,0,32,65,108,32,210,202,64,126,183,148,64, 99,101,0,0 };
+
+    Path path;
+    path.loadPathFromData (pathData, sizeof (pathData));
+    path.scaleToFit (0, 0, height * 2.0f, height, true);
+
+    return path;
+}
+
+void CustomLookAndFeel::drawProgressBar (Graphics& g, ProgressBar& progressBar, 
+                                         int width, int height, 
+                                         double progress, const String& textToShow)
+{
+    auto background = Colour(Colours::lightgrey);
+    auto foreground = Colour(Colours::yellow);
+
+    auto barBounds = progressBar.getLocalBounds().toFloat();
+
+    g.setColour (background);
+    g.fillRoundedRectangle (barBounds, progressBar.getHeight() * 0.15f);
+
+    Path p;
+    p.addRoundedRectangle (barBounds, progressBar.getHeight() * 0.15f);
+    g.reduceClipRegion (p);
+
+    barBounds.setWidth (barBounds.getWidth() * (float) progress);
+    g.setColour (foreground);
+    g.fillRoundedRectangle (barBounds, progressBar.getHeight() * 0.15f);
+
+    if (textToShow.isNotEmpty())
+    {
+        g.setColour (Colours::black);
+        g.setFont (height * 0.7f);
+
+        g.drawText (textToShow, 0, 0, width, height, Justification::centred, false);
+    }
+}
+
+//==================================================================
+// DOCUMENT WINDOW METHODS :
+//==================================================================
+
+class CustomDocumentWindowButton   : public Button
+{
+public:
+    CustomDocumentWindowButton (const String& name, Colour c, const Path& normal, const Path& toggled)
+        : Button (name), colour (c), normalShape (normal), toggledShape (toggled)
+    {
+    }
+
+    void paintButton (Graphics& g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override
+    {
+        auto background = Colours::darkgrey;
+
+        g.fillAll (background);
+
+        g.setColour ((! isEnabled() || shouldDrawButtonAsDown) ? colour.withAlpha (0.6f)
+                                                     : colour);
+
+        if (shouldDrawButtonAsHighlighted)
+        {
+            g.fillAll();
+            g.setColour (background);
+        }
+
+        auto& p = getToggleState() ? toggledShape : normalShape;
+
+        auto reducedRect = Justification (Justification::centred)
+                              .appliedToRectangle (Rectangle<int> (getHeight(), getHeight()), getLocalBounds())
+                              .toFloat()
+                              .reduced ((float) getHeight() * 0.3f);
+
+        g.fillPath (p, p.getTransformToScaleToFit (reducedRect, true));
+    }
+
+private:
+    Colour colour;
+    Path normalShape, toggledShape;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustomDocumentWindowButton)
+};
+
+Button* CustomLookAndFeel::createDocumentWindowButton (int buttonType)
+{
+    Path shape;
+    auto crossThickness = 0.15f;
+
+    if (buttonType == DocumentWindow::closeButton)
+    {
+        shape.addLineSegment ({ 0.0f, 0.0f, 1.0f, 1.0f }, crossThickness);
+        shape.addLineSegment ({ 1.0f, 0.0f, 0.0f, 1.0f }, crossThickness);
+
+        return new CustomDocumentWindowButton ("close", Colours::white, shape, shape);
+    }
+
+    if (buttonType == DocumentWindow::minimiseButton)
+    {
+        shape.addLineSegment ({ 0.0f, 0.5f, 1.0f, 0.5f }, crossThickness);
+
+        return new CustomDocumentWindowButton ("minimise", Colour (0xffaa8811), shape, shape);
+    }
+
+    if (buttonType == DocumentWindow::maximiseButton)
+    {
+        shape.addLineSegment ({ 0.5f, 0.0f, 0.5f, 1.0f }, crossThickness);
+        shape.addLineSegment ({ 0.0f, 0.5f, 1.0f, 0.5f }, crossThickness);
+
+        Path fullscreenShape;
+        fullscreenShape.startNewSubPath (45.0f, 100.0f);
+        fullscreenShape.lineTo (0.0f, 100.0f);
+        fullscreenShape.lineTo (0.0f, 0.0f);
+        fullscreenShape.lineTo (100.0f, 0.0f);
+        fullscreenShape.lineTo (100.0f, 45.0f);
+        fullscreenShape.addRectangle (45.0f, 45.0f, 100.0f, 100.0f);
+        PathStrokeType (30.0f).createStrokedPath (fullscreenShape, fullscreenShape);
+
+        return new CustomDocumentWindowButton ("maximise", Colour (0xff0A830A), shape, fullscreenShape);
+    }
+
+    jassertfalse;
+    return nullptr;
+}
+
+
+void CustomLookAndFeel::drawDocumentWindowTitleBar (DocumentWindow& window, Graphics& g,
+                                                 int w, int h, int titleSpaceX, int titleSpaceW,
+                                                 const Image* icon, bool drawTitleTextOnLeft)
+{
+    if (w * h == 0)
+        return;
+
+    auto isActive = window.isActiveWindow();
+
+    g.setColour (Colours::darkgrey);
+    g.fillAll();
+
+    Font font ((float) h * 0.65f, Font::plain);
+    g.setFont (font);
+
+    auto textW = font.getStringWidth (window.getName());
+    auto iconW = 0;
+    auto iconH = 0;
+
+    if (icon != nullptr)
+    {
+        iconH = static_cast<int> (font.getHeight());
+        iconW = icon->getWidth() * iconH / icon->getHeight() + 4;
+    }
+
+    textW = jmin (titleSpaceW, textW + iconW);
+    auto textX = drawTitleTextOnLeft ? titleSpaceX
+                                     : jmax (titleSpaceX, (w - textW) / 2);
+
+    if (textX + textW > titleSpaceX + titleSpaceW)
+        textX = titleSpaceX + titleSpaceW - textW;
+
+    if (icon != nullptr)
+    {
+        g.setOpacity (isActive ? 1.0f : 0.6f);
+        g.drawImageWithin (*icon, textX, (h - iconH) / 2, iconW, iconH,
+                           RectanglePlacement::centred, false);
+        textX += iconW;
+        textW -= iconW;
+    }
+
+    if (window.isColourSpecified (DocumentWindow::textColourId) || isColourSpecified (DocumentWindow::textColourId))
+        g.setColour (window.findColour (DocumentWindow::textColourId));
+    else
+        g.setColour (Colours::whitesmoke);
+
+    g.drawText (window.getName(), textX, 0, textW, h, Justification::centredLeft, true);
+}
+
+Font CustomLookAndFeel::getAlertWindowTitleFont()      { return { "Fira Sans", "SemiBold", 20.f }; }
+Font CustomLookAndFeel::getAlertWindowMessageFont()    { return { "Fira Sans", "Regular", 18.f }; }
+Font CustomLookAndFeel::getAlertWindowFont()           { return { "Fira Sans", "Regular", 16.f }; }
+

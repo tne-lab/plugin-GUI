@@ -24,81 +24,89 @@
 #ifndef __PHASEDETECTOR_H_F411F29D__
 #define __PHASEDETECTOR_H_F411F29D__
 
-
 #include <ProcessorHeaders.h>
 
-#define NUM_INTERVALS 5
+enum PhaseType
+{
+    NO_PHASE = 0, RISING_POS, FALLING_POS, FALLING_NEG, RISING_NEG
+};
 
+enum DetectorType
+{
+    PEAK = 0, FALLING_ZERO, TROUGH, RISING_ZERO
+};
+
+/** Holds settings for one stream's phase detector*/
+class PhaseDetectorSettings
+{
+public:
+    /** Constructor -- sets default values*/
+    PhaseDetectorSettings();
+
+    /** Destructor*/
+    ~PhaseDetectorSettings() { }
+
+    /** Creates an event for a particular stream*/
+    TTLEventPtr createEvent(int64 sample_number, bool state);
+    
+    /** Clears the output bit*/
+    TTLEventPtr clearOutputLine(int64 sample_number);
+
+    int samplesSinceTrigger;
+
+    float lastSample;
+
+    bool isActive;
+    bool wasTriggered;
+    
+    bool outputLineChanged;
+    int lastOutputLine;
+
+    PhaseType currentPhase;
+    DetectorType detectorType;
+
+    int triggerChannel;
+    int outputLine;
+    int gateLine;
+
+    EventChannel* eventChannel;
+};
 
 /**
+    Uses peaks, troughs, and zero crossings to estimate 
+    the phase of a continuous signal.
 
-    Uses peaks to estimate the phase of a continuous signal.
+    See Siegle & Wilson (2014) for an example application
+    https://elifesciences.org/articles/03061
 
     @see GenericProcessor, PhaseDetectorEditor
 */
 class PhaseDetector : public GenericProcessor
 {
 public:
+    /** Constructor */
     PhaseDetector();
-    ~PhaseDetector();
 
+    /** Destructor*/
+    ~PhaseDetector() { }
+
+    /** Creates the custom editor for this plugin */
     AudioProcessorEditor* createEditor() override;
-    bool hasEditor() const override { return true; }
 
-    void process (AudioSampleBuffer& buffer) override;
+    /** Emits events at peaks, troughs, or zero-crossings*/
+    void process (AudioBuffer<float>& buffer) override;
 
-    void setParameter (int parameterIndex, float newValue) override;
-
-    bool enable() override;
-
+    /** Called when processor needs to update its settings*/
     void updateSettings() override;
 
-    void addModule();
-    void setActiveModule (int);
-
+    /** Called when a parameter is updated*/
+    void parameterValueChanged(Parameter* param) override;
 
 private:
-    void handleEvent (const EventChannel* channelInfo, const MidiMessage& event, int sampleNum) override;
+    /** Called whenever a new TTL event arrives*/
+    void handleTTLEvent (TTLEventPtr event) override;
 
-    void estimateFrequency();
-
-    enum ModuleType
-    {
-        NONE, PEAK, FALLING_ZERO, TROUGH, RISING_ZERO
-    };
-
-    enum PhaseType
-    {
-        NO_PHASE, RISING_POS, FALLING_POS, FALLING_NEG, RISING_NEG
-    };
-
-    struct DetectorModule
-    {
-        int inputChan;
-        int gateChan;
-        int outputChan;
-        int samplesSinceTrigger;
-
-        float lastSample;
-
-        bool isActive;
-        bool wasTriggered;
-
-        ModuleType type;
-        PhaseType phase;
-    };
-
-    Array<DetectorModule> modules;
-
-    int activeModule;
-
-    bool risingPos;
-    bool risingNeg;
-    bool fallingPos;
-    bool fallingNeg;
-	int lastNumInputs;
-
-	Array<const EventChannel*> moduleEventChannels;
+    StreamSettings<PhaseDetectorSettings> settings;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PhaseDetector);
 };

@@ -1,223 +1,284 @@
-/*
-    ------------------------------------------------------------------
+//This prevents include loops. We recommend changing the macro to a name suitable for your plugin
+#ifndef RECORDNODE_H_DEFINED
+#define RECORDNODE_H_DEFINED
 
-    This file is part of the Open Ephys GUI
-    Copyright (C) 2014 Open Ephys
-
-    ------------------------------------------------------------------
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-*/
-
-#ifndef __RECORDNODE_H_FB9B1CA7__
-#define __RECORDNODE_H_FB9B1CA7__
-#include "../../../JuceLibraryCode/JuceHeader.h"
-#include <stdio.h>
+#include <chrono>
+#include <math.h>
+#include <algorithm>
+#include <memory>
 #include <map>
-#include <atomic>
 
-
+#include "../../../JuceLibraryCode/JuceHeader.h"
 #include "../GenericProcessor/GenericProcessor.h"
-#include "EventQueue.h"
+#include "RecordNodeEditor.h"
+#include "RecordThread.h"
+#include "DataQueue.h"
+#include "Synchronizer.h"
+#include "../../Utils/Utils.h"
 
-#define WRITE_BLOCK_LENGTH 1024
-#define DATA_BUFFER_NBLOCKS 300
-#define EVENT_BUFFER_NEVENTS 512
-#define SPIKE_BUFFER_NSPIKES 512
+#define WRITE_BLOCK_LENGTH		1024
+#define DATA_BUFFER_NBLOCKS		300
+#define EVENT_BUFFER_NEVENTS	200000
+#define SPIKE_BUFFER_NSPIKES	200000
 
-class RecordEngine;
-class RecordThread;
-class DataQueue;
+#define NIDAQ_BIT_VOLTS			0.001221f
+#define NPX_BIT_VOLTS			0.195f
+#define MAX_BUFFER_SIZE			40960
+#define CHANNELS_PER_THREAD		384
+
 
 /**
-
-  Receives inputs from all processors that want to save their data.
-  Writes data to disk using fwrite.
-
-  Receives a signal from the ControlPanel to begin recording.
-
-  @see GenericProcessor, ControlPanel
-
+	Class used internally by the RecordNode to count the number of incoming events
+	Primarily useful for debugging purposes
 */
-
-class RecordNode : public GenericProcessor,
-    public FilenameComponentListener
+class EventMonitor
 {
 public:
 
-    RecordNode();
+	/* Constructor */
+	EventMonitor();
+
+	/* Destructor */
+	~EventMonitor();
+
+	/* Print information about incoming events.*/
+	void displayStatus();
+
+	/** Reset counts */
+	void reset();
+
+	/* Counts the total number of events received. */
+	int receivedEvents;
+
+	/* Counts the total number of spikes received */
+	int receivedSpikes;
+
+	/* Counts the total of number of events sent to the recording buffer */
+	int bufferedEvents;
+
+	/* Counts the total of number of events sent to the recording buffer */
+	int bufferedSpikes;
+
+};
+
+/**
+	A specialized processor that saves data from the signal chain
+
+	Sends data to RecordEngines, which handle the file creation / disk writing
+
+	@see: RecordThread, RecordEngine
+*/
+class RecordNode :
+    public GenericProcessor,
+    public SynchronizingProcessor,
+    public FilenameComponentListener
+{
+
+public:
+
+    /** Constructor
+      - Creates: DataQueue, EventQueue, SpikeQueue, Synchronizer,
+        RecordThread, EventMonitor
+      - Sets the Record Engine
+      - Gets the Recording Directory from the control panel
+      - Sets a bunch of internal variables
+     */
+	RecordNode();
+
+    /** Destructor */
     ~RecordNode();
 
-    /** Handle incoming data and decide which files and events to write to disk.
-    */
-    void process(AudioSampleBuffer& buffer) override;
+	/** Allow configuration via OpenEphysHttpServer */
+	String handleConfigMessage(String msg) override;
 
+	/** Writes TEXT messages sent from the MessageCenter to disk */
+	void handleBroadcastMessage(String msg) override;
 
-    /** Overrides implementation in GenericProcessor; used to change recording parameters
-        on the fly.
+	/** Update DataQueue block size when Audio Settings buffer size changes */
+	void updateBlockSize(int newBlockSize);
 
-        parameterIndex = 0: stop recording
-        parameterIndex = 1: start recording
-        parameterIndex = 2:
-              newValue = 0: turn off recording for current channel
-              newValue = 1: turn on recording for current channel
-    */
-    void setParameter(int parameterIndex, float newValue) override;
+	/** Creates a custom editor */
+	AudioProcessorEditor* createEditor() override;
 
-	/** returns current experiment number */
+	/* Updates the RecordNode settings*/
+	void updateSettings() override;
+
+	/* Called at start of acquisition; configures the associated RecordEngine*/
+	bool startAcquisition() override;
+
+	/* Called at end of acquisition */
+	bool stopAcquisition() override;
+
+	/* Called at start of recording; launches the RecordThread*/
+	void startRecording() override;
+
+	/* Called at end of recording; stops the RecordThread*/
+	void stopRecording() override;
+
+	/* Generates the name for the new recording directory*/
+	String generateDirectoryName();
+
+	/* Creates a new recording directory*/
+	void createNewDirectory();
+
+	/* Callback for responding to changes in data-directory-related settings*/
+	void filenameComponentChanged(FilenameComponent*);
+
+	/* Generates a date string to be used in the directory name*/
+	String generateDateString() const;
+
+	/* Returns the "experiment" count (number of times that acquisition was stopped and re-started)*/
 	int getExperimentNumber() const;
-	/** returns current recording number */
+
+	/* Returns the "recording" count (number of times that recording was stopped and re-started)*/
 	int getRecordingNumber() const;
 
-    /** Called by the processor graph for each processor that could record data
-    */
-    void registerProcessor(const GenericProcessor* sourceNode);
-    /** Called by the processor graph for each recordable channel
-    */
-    void addInputChannel(const GenericProcessor* sourceNode, int chan);
+	/** Updates the channels to record for a given stream */
+	void updateChannelStates(uint16 streamId, std::vector<bool> enabled);
 
-    bool enable();
-    bool disable();
+	/** Copies incoming data to the record buffer, if recording is active*/
+	void process(AudioBuffer<float>& buffer) override;
 
-    /** returns channel names and whether we record them */
-    void getChannelNamesAndRecordingStatus(StringArray& names, Array<bool>& recording);
+	/** Returns a vector of available record engines*/
+	std::vector<RecordEngineManager*> getAvailableRecordEngines();
 
-    /** Called by the ControlPanel to determine the amount of space
-        left in the current dataDirectory.
-    */
-    float getFreeSpace() const;
+	/** Gets the engine ID for this record node*/
+	String getEngineId();
 
-    /** Selects a channel relative to a particular processor with ID = id
-    */
-    void setChannel(const DataChannel* ch);
+	/** Sets the engine ID for this record node */
+	void setEngine(String engineId);
 
-    /** Used to clear all connections prior to the start of acquisition.
-    */
-    void resetConnections();
+	/** Turns event recording on or off*/
+	void setRecordEvents(bool);
 
-    /** Callback to indicate when user has chosen a new data directory.
-    */
-    void filenameComponentChanged(FilenameComponent*);
+	/** Turns spike recording on or off*/
+	void setRecordSpikes(bool);
 
-    /** Creates a new data directory in the location specified by the fileNameComponent.
-    */
-    void createNewDirectory();
+	/** Sets the parent directory for this Record Node (can be different from default directory) */
+	void setDataDirectory(File);
 
+	/** Returns the parent directory for this Record Node (can be different from default directory) */
+	File getDataDirectory();
 
-	File getDataDirectory() const;
+	/** Checks if the current recording directory has sufficient space to record */
+	void checkDiskSpace();
 
-    /** Adds a Record Engine to use
-    */
-    void registerRecordEngine(RecordEngine* engine);
-
-    /** Clears the list of active Record Engines
-    */
-    void clearRecordEngines();
-
-    /** Must be called by a spike recording source on the "enable" method
-    */
-    void registerSpikeSource(const GenericProcessor* processor);
-
-    /** Registers an electrode group for spike recording
-    Must be called by a spike recording source on the "enable" method
-    after the call to registerSpikeSource
-    */
-    int addSpikeElectrode(const SpikeChannel* elec);
-
-    /** Called by a spike recording source to write a spike to file
-    */
-    void writeSpike(const SpikeEvent* spike, const SpikeChannel* spikeElectrode);
-
-    /** Signals when to create a new data directory when recording starts.*/
-    bool newDirectoryNeeded;
-
-    std::atomic<bool> isRecording;
-	std::atomic<bool> shouldRecord;
-
-    /** Generate a Matlab-compatible datestring */
-    String generateDateString() const;
+	/** Returns true if this Record Node is writing data*/
+	bool getRecordingStatus() const;
 
 	/** Get the last settings.xml in string form. Since the string will be large, returns a const ref.*/
-	const String& getLastSettingsXml() const;
+	const String &getLastSettingsXml() const;
 
-	//Called by ProcessorGraph
-	void updateRecordChannelIndexes();
-	void addSpecialProcessorChannels(Array<EventChannel*>& channels);
+  /** Called by handleEvent() */
+  void writeSpike(const Spike *spike, const SpikeChannel *spikeElectrode);
 
-	bool getRecordThreadStatus();
+  /** Called by the ControlPanel to determine the amount of space
+      left in the current dataDirectory.
+  */
+  float getFreeSpace() const;
+
+   /** Called by CoreServices to determine the amount of space
+		in kilobytes in the current dataDirectory.
+	*/
+  float getFreeSpaceKilobytes() const;
+
+  /** Adds a Record Engine to use */
+  void registerRecordEngine(RecordEngine *engine);
+
+  /** Clears the list of active Record Engines*/
+  void clearRecordEngines();
+    
+    /** Returns true if all streams within this Record Node are synchronized*/
+    bool isSynchronized();
+    
+    /** Returns the number of data streams with recorded continuous channels*/
+    int getTotalRecordedStreams();
+
+  /** Variables to track whether or not particular channels are recorded*/
+	bool recordEvents;
+	bool recordSpikes;
+	std::map<uint16, std::vector<bool>> recordContinuousChannels;
+
+	bool newDirectoryNeeded;
+
+    std::unique_ptr<RecordThread> recordThread;
+	std::unique_ptr<RecordEngine> recordEngine;
+	std::vector<RecordEngineManager*> availableEngines;
+
+	int64 samplesWritten;
+	String lastSettingsText;
+
+	int numDataStreams;
+
+	Array<uint16> activeStreamIds;
+
+	std::map<uint16, float> fifoUsage;
+
+	ScopedPointer<EventMonitor> eventMonitor;
+
+	Array<int> channelMap; //Map from record channel index to source channel index
+    Array<int> localChannelMap; // Map from record channel index to recorded index within stream
+	Array<int> timestampChannelMap; // Map from recorded channel index to recorded source processor idx
+
+	bool isSyncReady;
+    
+    OwnedArray<RecordEngine> previousEngines;
+
+	const int getEventChannelIndex(EventChannel*);
+	const int getSpikeChannelIndex(SpikeChannel*);
+    
+    /** Save parameters*/
+    void saveCustomParametersToXml(XmlElement* xml);
+    
+    /** Load parameters*/
+    void loadCustomParametersFromXml(XmlElement* xml);
+
 
 private:
+    
+	/** Handles other types of events (text, sync texts, etc.) */
+	void handleEvent(const EventChannel* channel, const EventPacket& eventPacket);
 
-    /** Keep the RecordNode informed of acquisition and record states.
-    */
+	/** Forwards TTL events to the EventQueue */
+	void handleTTLEvent(TTLEventPtr event) override;
+
+	/** Writes incoming spikes to disk */
+	void handleSpike(SpikePtr spike) override;
+
+	/** Handles incoming timestamp sync messages */
+	virtual void handleTimestampSyncTexts(const EventPacket& packet);
+
+	/**RecordEngines loaded**/
+	OwnedArray<RecordEngine> engineArray;
+
     bool isProcessing;
+	bool isRecording;
+	bool hasRecorded;
+	bool settingsNeeded;
+    bool shouldRecord;
 
-    /** User-selectable directory for saving data files. Currently
-        defaults to the user's home directory.
-    */
-    File dataDirectory;
+	File dataDirectory;
+	File rootFolder;
 
-    /** Automatically generated folder for each recording session.
-    */
-    File rootFolder;
+	int experimentNumber;
+	int recordingNumber;
 
-
-    /** Integer timestamp saved for each buffer.
-    */
-    int64 timestamp;
-
-    /** Integer to keep track of number of recording sessions in the same file */
-    int recordingNumber;
-
-    /** Used to generate timestamps if none are given.
-    */
-    Time timer;
-
-	Array<int> channelMap;
+	std::unique_ptr<DataQueue> dataQueue;
+	std::unique_ptr<EventMsgQueue> eventQueue;
+    std::unique_ptr<SpikeMsgQueue> spikeQueue;
 
     int spikeElectrodeIndex;
 
-    int experimentNumber;
-    bool hasRecorded;
-    bool settingsNeeded;
+    Array<bool> validBlocks;
 	std::atomic<bool> setFirstBlock;
-    /** Generates a default directory name, based on the current date and time */
-    String generateDirectoryName();
 
-    /** Cycle through the event buffer, looking for data to save */
-	void handleEvent(const EventChannel* eventInfo, const MidiMessage& event, int samplePosition) override;
-
-	virtual void handleTimestampSyncTexts(const MidiMessage& event);
-
-    /**RecordEngines loaded**/
-    OwnedArray<RecordEngine> engineArray;
-
-	ScopedPointer<RecordThread> m_recordThread;
-	ScopedPointer<DataQueue> m_dataQueue;
-	ScopedPointer<EventMsgQueue> m_eventQueue;
-	ScopedPointer<SpikeMsgQueue> m_spikeQueue;
-	
-	Array<int> m_recordedChannelMap;
-	Array<bool> m_validBlocks;
-
-	String m_lastSettingsText;
+	//Profiling data structures
+	float scaleFactor;
+	HeapBlock<float> scaledBuffer;
+	HeapBlock<int16> intBuffer;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RecordNode);
 
 };
 
-
-
-#endif  // __RECORDNODE_H_FB9B1CA7__
+#endif

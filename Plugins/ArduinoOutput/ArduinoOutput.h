@@ -26,12 +26,10 @@
 
 #include <SerialLib.h>
 #include <ProcessorHeaders.h>
+
 #include "serial/ofArduino.h"
 
-
-
 /**
-    *UNDER CONSTRUCTION*
 
     Provides a serial interface to an Arduino board.
 
@@ -42,46 +40,45 @@
 class ArduinoOutput : public GenericProcessor
 {
 public:
+
+    /** Constructor */
     ArduinoOutput();
+
+    /** Destructor */
     ~ArduinoOutput();
 
     /** Searches for events and triggers the Arduino output when appropriate. */
-    void process (AudioSampleBuffer& buffer) override;
-
-    /** Currently unused. Future uses may include changing the TTL trigger channel
-    or the output channel of the Arduino. */
-    void setParameter (int parameterIndex, float newValue) override;
+    void process (AudioBuffer<float>& buffer) override;
 
     /** Convenient interface for responding to incoming events. */
-    void handleEvent (const EventChannel* eventInfo, const MidiMessage& event, int sampleNum) override;
+    void handleTTLEvent (TTLEventPtr event) override;
 
-    /** Called immediately prior to the start of data acquisition. */
-    bool enable() override;
+    /** Called when settings need to be updated. */
+    void updateSettings() override;
 
     /** Called immediately after the end of data acquisition. */
-    bool disable() override;
+    bool stopAcquisition() override;
 
     /** Creates the ArduinoOutputEditor. */
     AudioProcessorEditor* createEditor() override;
 
-    void setOutputChannel (int);
-    void setInputChannel  (int);
-    void setGateChannel   (int);
-
+    /** Tries to connect to an Arduino on a given port*/
     void setDevice (String deviceString);
 
-    int outputChannel;
-    int inputChannel;
-    int gateChannel;
+    /** Saves the connected device*/
+    void saveCustomParametersToXml(XmlElement* parentElement) override;
 
+    /** Loads the connected device*/
+    void loadCustomParametersFromXml(XmlElement* xml) override;
 
 private:
     /** An open-frameworks Arduino object. */
     ofArduino arduino;
 
-    bool state;
-    bool acquisitionIsActive;
+    bool gateIsOpen;
     bool deviceSelected;
+
+    String deviceString;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ArduinoOutput);
 };

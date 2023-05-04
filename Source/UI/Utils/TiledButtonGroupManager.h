@@ -39,7 +39,12 @@
 class PLUGIN_API TiledButtonGroupManager : public ButtonGroupManager
 {
 public:
+
+    /** Constructor */
     TiledButtonGroupManager();
+
+    /** Destructor */
+    ~TiledButtonGroupManager();
 
     // Component methods
     // ===========================================================
@@ -76,7 +81,7 @@ public:
 private:
     // Returns the index of button at given position.
     // If nothing found at this position - returns -1.
-    int getIndexOfButtonAtPosition (Point<int> position) const;
+    int getIndexOfButtonAtPosition (juce::Point<int> position) const;
 
     int m_buttonWidth;
     int m_buttonHeight;

@@ -25,15 +25,29 @@
 #define __PROCESSORGRAPH_H_124F8B50__
 
 #include "../../../JuceLibraryCode/JuceHeader.h"
+#include "../PluginManager/OpenEphysPlugin.h"
 
 #include "../../AccessClass.h"
 
 class GenericProcessor;
+class GenericEditor;
 class RecordNode;
 class AudioNode;
 class MessageCenter;
 class SignalChainTabButton;
-class TimestampSourceSelectionWindow;
+
+struct ChannelKey {
+    int inputNodeId;
+    int inputIndex;
+    int outputNodeId;
+    int outputIndex;
+
+    bool operator< (const ChannelKey& key) const
+    {
+        return std::tie(inputNodeId, inputIndex, outputNodeId, outputIndex)
+            < std::tie(key.inputNodeId, key.inputIndex, key.outputNodeId, key.outputIndex);
+    }
+};
 
 /**
   Owns all processors and constructs the signal chain.
@@ -53,76 +67,167 @@ class ProcessorGraph    : public AudioProcessorGraph
                         , public ChangeListener
 {
 public:
-    ProcessorGraph();
-    ~ProcessorGraph();
 
-    void* createNewProcessor(Array<var>& description, int id);
-    GenericProcessor* createProcessorFromDescription(Array<var>& description);
-
-    void removeProcessor(GenericProcessor* processor);
-    Array<GenericProcessor*> getListOfProcessors();
-    void clearSignalChain();
-
-    bool enableProcessors();
-    bool disableProcessors();
-
-    RecordNode* getRecordNode();
-    AudioNode* getAudioNode();
-    MessageCenter* getMessageCenter();
-
-    void updateConnections(Array<SignalChainTabButton*, CriticalSection>);
-
-    bool processorWithSameNameExists(const String& name);
-
-    void changeListenerCallback(ChangeBroadcaster* source);
-
-    /** Loops through processors and restores parameters, if they're available. */
-    void restoreParameters();
-
-    void updatePointers();
-
-    void setRecordState(bool);
-
-    void refreshColors();
-
-    void createDefaultNodes();
-
-	void setTimestampSource(int sourceIndex, int subIdx);
-
-	void getTimestampSources(Array<const GenericProcessor*>& validSources, int& selectedSource, int& selectedSubIdx) const;
-
-	void getTimestampSources(int& selectedSource, int& selectedSubIdx) const;
-
-	int64 getGlobalTimestamp(bool softwareOnly) const;
-
-	float getGlobalSampleRate(bool softwareOnly) const;
-
-	uint32 getGlobalTimestampSourceFullId() const;
-
-	void setTimestampWindow(TimestampSourceSelectionWindow* window);
-
-private:
-    int currentNodeId;
-
+    /* IDs for default processors*/
     enum nodeIds
     {
-        RECORD_NODE_ID = 900,
         AUDIO_NODE_ID = 901,
         OUTPUT_NODE_ID = 902,
         MESSAGE_CENTER_ID = 904
     };
 
+    /* Constructor*/
+    ProcessorGraph();
+
+    /* Destructor */
+    ~ProcessorGraph();
+
+    /* Creates a new processor.*/
+    GenericProcessor* createProcessor(Plugin::Description& description,
+                         GenericProcessor* sourceNode = nullptr,
+                         GenericProcessor* destNode = nullptr,
+                         bool signalChainIsLoading=false);
+
+    /* Determines which processor to create, based on the description provided*/
+    std::unique_ptr<GenericProcessor> createProcessorFromDescription(Plugin::Description& description);
+    
+    /* Checks whether an action has create the need for new 'root' processors (first in signal chain)*/
+    bool checkForNewRootNodes(GenericProcessor* processor,
+                              bool processorBeingAdded = true,
+                              bool processorBeingMoved = false);
+    
+    /* Moves a processor to a new location in the signal chain. */
+    void moveProcessor(GenericProcessor*, GenericProcessor* newSource = nullptr, GenericProcessor* newDest = nullptr,
+                       bool moveDownstream = true);
+
+    /* Remove a processor from the signal chain*/
+    void removeProcessor(GenericProcessor* processor);
+
+    /* Returns pointers to all of the processors in the signal chain*/
+    Array<GenericProcessor*> getListOfProcessors();
+    
+    /* Finds a processor based on its ID*/
+    GenericProcessor* getProcessorWithNodeId(int nodeId);
+    
+    /* Returns all of the 'root nodes' (first processors in signal chain)*/
+    Array<GenericProcessor*> getRootNodes() {return rootNodes;}
+    
+    /* Returns a list of processor editors that are currently visible*/
+    Array<GenericEditor*> getVisibleEditors(GenericProcessor* processor);
+
+    /* Updates the settings of all processors downstream of the specified processor*/
+    void updateSettings(GenericProcessor* processor, bool signalChainIsLoading = false);
+
+    /* Updates the views (EditorViewport and GraphView) of all processors downstream of the specified processor*/
+    void updateViews(GenericProcessor* processor, bool updateGraphViewer = false);
+
+    /* Clears the signal chain.*/
+    void clearSignalChain();
+
+    /* Removes the specified processors.*/
+    void deleteNodes(Array<GenericProcessor*> nodesToDelete);
+
+    /* Checks if all processors are enabled*/
+    bool isReady();
+
+    /* Creates connections in signal chain*/
+    void updateConnections();
+
+    /* Calls startAcquisition() for all processors*/
+    void startAcquisition();
+
+    /* Calls stopAcquisition() for all processors*/
+    void stopAcquisition();
+
+    /* Returns a list of all RecordNodes in the signal chain*/
+    Array<RecordNode*> getRecordNodes();
+
+    /* Returns a pointer to the AudioNode processor*/
+    AudioNode* getAudioNode();
+
+    /* Returns a pointer to the MessageCenter processor*/
+    MessageCenter* getMessageCenter();
+    
+    /* Returns true if the signal chain has ast least one RecordNode*/
+    bool hasRecordNode();
+
+    /* Broadcasts a message to all processors during acquisition*/
+    void broadcastMessage(String msg);
+
+    /* Sends a configuration message to a particular processor, while acquisition is paused*/
+    String sendConfigMessage(GenericProcessor* processor, String msg);
+
+    /* Returns true if there's an equivalent processor in the signal chain*/
+    bool processorWithSameNameExists(const String& name);
+
+    /* Respond to a change event*/
+    void changeListenerCallback(ChangeBroadcaster* source);
+
+    /** Loops through processors and restores parameters, if they're available. */
+    void restoreParameters();
+    
+    /* Updates the buffer size used for the process() callbacks*/
+    void updateBufferSize();
+
+    /* Turns recording on (true) and off (false)*/
+    void setRecordState(bool);
+
+    /* Applies new colors to processors in the signal chain*/
+    void refreshColors();
+
+    /* Creates the nodes that exist in every signal chain (AudioNode, MessageCenter) */
+    void createDefaultNodes();
+
+    /* Makes a particular branch of the signal chain visible, without updating any settings */
+    void viewSignalChain(int index);
+
+    /** Returns software time, independent of any processor timestamps */
+    int64 getGlobalTimestamp() const;
+
+    /** Gets sample rate of software clock (1000 Hz) */
+    float getGlobalSampleRate() const;
+
+    /** Gets the definition of the global timestamp source */
+    String getGlobalTimestampSource() const;
+
+    /** Returns the stream ID for a particular node/channel combination */
+    static int getStreamIdForChannel(Node& node, int channel);
+
+    /** Re-implementation of JUCE AudioProcessorGraph method that allows faster signal chain rendering */
+    static bool isBufferNeededLater(int inputNodeId, int inputIndex, int outputNodeId, int outputIndex, bool* isValid);
+
+    /** Updates the map containing about connections between processors (for isBufferNeededLater) */
+    static void updateBufferMap(int inputNodeId, int inputIndex, int outputNodeId, int outputIndex, bool isNeededLater);
+    
+    /** Stores information about connections between processors */
+    static std::map< ChannelKey, bool> bufferLookupMap;
+    
+    /** Returns true if all record nodes are synchronized */
+    bool allRecordNodesAreSynchronized();
+
+private:
+
+    /* Disconnect all processors*/
     void clearConnections();
 
-    void connectProcessors(GenericProcessor* source, GenericProcessor* dest,
-        bool connectContinuous, bool connectEvents);
-    void connectProcessorToAudioAndRecordNodes(GenericProcessor* source);
+    /* Connect a source processor and a destination processor*/
+    void connectProcessors(GenericProcessor* source, 
+        GenericProcessor* dest,
+        bool connectContinuous, 
+        bool connectEvents);
 
-	int64 m_startSoftTimestamp{ 0 };
-	const GenericProcessor* m_timestampSource{ nullptr };
-	int m_timestampSourceSubIdx;
-	Array<const GenericProcessor*> m_validTimestampSources;
-	WeakReference<TimestampSourceSelectionWindow> m_timestampWindow;
+    /* Connect a processor to the AudioNode*/
+    void connectAudioMonitorToAudioNode(GenericProcessor* source);
+
+    /* Connect a processor to the MessageCenter*/
+    void connectProcessorToMessageCenter(GenericProcessor* source);
+    
+    Array<GenericProcessor*> rootNodes;
+
+    int currentNodeId;
+
+    bool isLoadingSignalChain;
+
 };
 
 

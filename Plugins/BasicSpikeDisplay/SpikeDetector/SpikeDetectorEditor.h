@@ -27,10 +27,7 @@
 
 #include <EditorHeaders.h>
 
-class TriangleButton;
-class UtilityButton;
-
-
+class PopupConfigurationWindow;
 
 /**
 
@@ -46,49 +43,36 @@ class UtilityButton;
 */
 
 class SpikeDetectorEditor : public GenericEditor,
-    public Label::Listener,
-    public ComboBox::Listener
-
+                            public Button::Listener
 {
 public:
-    SpikeDetectorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors);
-    virtual ~SpikeDetectorEditor();
-    void buttonEvent(Button* button);
-    void labelTextChanged(Label* label);
-    void comboBoxChanged(ComboBox* comboBox);
-    void sliderEvent(Slider* slider);
+    
+    /** Constructor*/
+    SpikeDetectorEditor(GenericProcessor* parentNode);
 
-    void channelChanged (int channel, bool newState) override;
+    /** Destructor */
+    virtual ~SpikeDetectorEditor() {}
 
-    bool addElectrode(int nChans, int electrodeID = 0);
-    void removeElectrode(int index);
+    /** Called when configure button is clicked */
+    void buttonClicked(Button* button) override;
 
-    void checkSettings();
-    void refreshElectrodeList();
+    /** Adds spike channels with a given type */
+    void addSpikeChannels(PopupConfigurationWindow* window, SpikeChannel::Type type, int count, Array<int> startChannels = Array<int>());
 
+    /** Removes spike channels based on an array of pointers to SpikeChannel objects*/
+    void removeSpikeChannels(PopupConfigurationWindow* window, Array<SpikeChannel*> spikeChannelsToRemove);
+
+    /** Called when stream is updated */
+    void selectedStreamHasChanged() override;
+
+    /** Called by PopupConfigurationWindow*/
+    int getNumChannelsForCurrentStream();
+    
 private:
 
-    void drawElectrodeButtons(int);
+    std::unique_ptr<UtilityButton> configureButton;
 
-    ComboBox* electrodeTypes;
-    ComboBox* electrodeList;
-    Label* numElectrodes;
-    Label* thresholdLabel;
-    TriangleButton* upButton;
-    TriangleButton* downButton;
-    UtilityButton* plusButton;
-
-    ThresholdSlider* thresholdSlider;
-
-    OwnedArray<ElectrodeButton> electrodeButtons;
-    Array<ElectrodeEditorButton*> electrodeEditorButtons;
-
-    void editElectrode(int index, int chan, int newChan);
-
-    int lastId;
-    bool isPlural;
-
-    Font font;
+    PopupConfigurationWindow* currentConfigWindow;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SpikeDetectorEditor);
 

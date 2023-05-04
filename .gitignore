@@ -1,5 +1,8 @@
 # Files and folders to ignore
 
+# 0. log files
+*.log
+
 # 1. intermediate files
 *.o
 *.d
@@ -33,6 +36,7 @@ PluginGenerator/Builds/VisualStudio2013/*.user
 PluginGenerator/Builds/VisualStudio2013/*.sdf
 PluginGenerator/Builds/VisualStudio2013/*.opensdf
 PluginGenerator/Builds/VisualStudio2013/*.suo
+PluginGenerator/Builds/LinuxMakefile/build
 Projucer/**/build
 
 # 3. extra files
@@ -167,3 +171,7 @@ Resources/Build-files/Info-App.plist
 
 #12. installed commonlibs
 installed_libs
+
+#13. VSCode related
+.vscode/
+build/

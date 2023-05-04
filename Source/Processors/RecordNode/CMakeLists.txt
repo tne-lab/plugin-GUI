@@ -1,4 +1,4 @@
-#Open Ephys GUI direcroty-specific file
+#Open Ephys GUI directory-specific file
 
 #add files in this folder
 add_sources(open-ephys 
@@ -11,11 +11,18 @@ add_sources(open-ephys
 	RecordEngine.h
 	RecordNode.cpp
 	RecordNode.h
+	RecordNodeEditor.cpp
+	RecordNodeEditor.h
 	RecordThread.cpp
 	RecordThread.h
+	SyncChannelSelector.cpp
+	SyncChannelSelector.h
+	SyncControlButton.cpp
+	SyncControlButton.h
+	Synchronizer.cpp
+	Synchronizer.h
 )
 
 #add nested directories
 add_subdirectory(BinaryFormat)
-add_subdirectory(OpenEphysFormat)
-
+add_subdirectory(taskflow)

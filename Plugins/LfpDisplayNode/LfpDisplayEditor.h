@@ -35,6 +35,16 @@ namespace LfpViewer {
 class LfpDisplayNode;
 class LfpDisplayCanvas;
 
+class LayoutButton : public Button
+{
+public:
+    LayoutButton(const String& buttonName);
+    ~LayoutButton();
+
+private:
+    void paintButton (Graphics&, bool isMouseOverButton, bool isButtonDown) override;
+};
+
 /**
 
   User interface for the LfpDisplayNode sink.
@@ -43,55 +53,63 @@ class LfpDisplayCanvas;
 
 */
 
-class LfpDisplayEditor : public VisualizerEditor,
-                         public ComboBox::Listener
+class LfpDisplayEditor : 
+    public VisualizerEditor,
+    public Button::Listener
 {
 public:
-    LfpDisplayEditor(GenericProcessor*, bool useDefaultParameterEditors);
-    ~LfpDisplayEditor();
 
-    /** Override the default VisualizerEditor behavior slightly, only for
-        initialization 
-     */
+    /** Constructor*/
+    LfpDisplayEditor(GenericProcessor*);
+
+    /** Destructor */
+    ~LfpDisplayEditor() { }
+
+    // Override VisualEditor behavior to add support for Layout switching
     void buttonClicked(Button* button) override;
-    // not really being used (yet) ...
-    void buttonEvent(Button* button);
-    /** Respond to user's subprocessor sample rate selection */
-    void comboBoxChanged(ComboBox *cb);
 
     /** Called by the base class VisualizerEditor to display the canvas
         when the user chooses to display one
      
         @see VisualizerEditor::buttonClicked
      */
-    Visualizer* createNewCanvas();
+    Visualizer* createNewCanvas() override;
 
-	void startAcquisition();
-	void stopAcquisition();
+    /** Tells the LFP Viewer whether the signal chain is loading, to prevent unnecessary redraws*/
+    void initialize(bool signalChainIsLoading);
 
-	void saveVisualizerParameters(XmlElement* xml);
-	void loadVisualizerParameters(XmlElement* xml);
-    
-    /** Handle the state and options within the subprocessor sample rate
-        selection combobox 
-     */
-    void updateSubprocessorSelectorOptions();
+    /** Saves layout type */
+    void saveVisualizerEditorParameters(XmlElement* xml) override;
+
+    /** Loads layout type*/
+    void loadVisualizerEditorParameters(XmlElement* xml) override;
+
+    /** Sets button locations*/
+    void resized() override;
+
+    /** Removes buffers for unused streams (called during updateSettings) */
+    void removeBufferForDisplay(int);
 
 private:
-    
-    SortedSet<uint32> inputSubprocessors;
-    
+        
     LfpDisplayNode* lfpProcessor;
 
-    // label and combobox for subprocessor selection
-    ScopedPointer<Label> subprocessorSelectionLabel;
-    ScopedPointer<ComboBox> subprocessorSelection;
-    
-    ScopedPointer<Label> subprocessorSampleRateLabel;
+    std::unique_ptr<UtilityButton> syncButton;
     
     bool hasNoInputs;
 
 	int defaultSubprocessor;
+
+    std::unique_ptr<Label> layoutLabel;
+    std::unique_ptr<LayoutButton> singleDisplay;
+    std::unique_ptr<LayoutButton> twoVertDisplay;
+    std::unique_ptr<LayoutButton> threeVertDisplay;
+    std::unique_ptr<LayoutButton> twoHoriDisplay;
+    std::unique_ptr<LayoutButton> threeHoriDisplay;
+
+    SplitLayouts selectedLayout;
+
+    bool signalChainIsLoading;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LfpDisplayEditor);
 

@@ -53,12 +53,13 @@ EngineParameterComponent::EngineParameterComponent(EngineParameter& param)
     else
     {
         Label* lab = new Label();
-        lab->setFont(Font("Small Text",10,Font::plain));
+        lab->setFont(Font("Silkscreen", "Regular", 10));
 		name = param.name;
+        
         switch (param.type)
         {
             case EngineParameter::BOOL:
-                lab->setText(String(param.boolParam.value),dontSendNotification);
+                lab->setText(String(int(param.boolParam.value)),dontSendNotification);
                 lab->setBounds(120,0,50,20);
                 break;
             case EngineParameter::INT:
@@ -72,6 +73,11 @@ EngineParameterComponent::EngineParameterComponent(EngineParameter& param)
             case EngineParameter::STR:
                 lab->setText(String(param.strParam.value),dontSendNotification);
                 lab->setBounds(120,0,150,20);
+                break;
+            case EngineParameter::MULTI:
+                lab->setText(String(param.multiParam.value),dontSendNotification);
+                lab->setBounds(120,0,150,20);
+                break;
         }
         lab->setEditable(true);
         lab->setColour(Label::ColourIds::backgroundColourId,Colours::lightgrey);
@@ -164,18 +170,6 @@ EngineConfigComponent::EngineConfigComponent(RecordEngineManager* man, int heigh
         parameters.add(par);
     }
 
-	recordThreadToggleButton = new ToggleButton();
-
-	recordThreadToggleButton->setToggleState(AccessClass::getProcessorGraph()->getRecordNode()->getRecordThreadStatus(), dontSendNotification);
-	recordThreadToggleButton->setBounds(10, 10 + 40 * (i + 1), 100, 20);
-	recordThreadToggleButton->addListener(this);
-	addAndMakeVisible(recordThreadToggleButton);
-
-	recordThreadToggleLabel = new Label();
-	recordThreadToggleLabel->setText("Is record thread enabled?", NotificationType::dontSendNotification);
-	recordThreadToggleLabel->setBounds(30, 10 + 40 * (i + 1), 240, 20);
-	addAndMakeVisible(recordThreadToggleLabel);
-
 	height = 10 + 40 * (i + 1) + 30;
 
     if (hasString)
@@ -193,31 +187,6 @@ EngineConfigComponent::~EngineConfigComponent()
 void EngineConfigComponent::buttonClicked(Button* b)
 {
 
-	if (!CoreServices::getRecordingStatus())
-	{
-		if (b->getToggleState() == false)
-		{
-		
-			int response = AlertWindow::showOkCancelBox(AlertWindow::AlertIconType::WarningIcon,
-				"Disable record thread?",
-				"Are you sure you want to disable the record thread? You'll need to have a processor capable of recording data on its own.",
-				"Yes", "No");
-
-			if (response == 1)
-				AccessClass::getProcessorGraph()->getRecordNode()->setParameter(3, 0.0);
-			else
-				b->setToggleState(true, juce::NotificationType::dontSendNotification);
-
-
-		}
-		else {
-			AccessClass::getProcessorGraph()->getRecordNode()->setParameter(3, 1.0);
-		}
-		
-	}
-	else {
-		CoreServices::sendStatusMessage("Cannot toggle record thread status while recording is active.");
-	}
 }
 
 void EngineConfigComponent::saveParameters()

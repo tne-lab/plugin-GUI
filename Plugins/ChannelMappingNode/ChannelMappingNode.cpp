@@ -21,151 +21,291 @@
 */
 
 #include <stdio.h>
+
 #include "ChannelMappingNode.h"
 #include "ChannelMappingEditor.h"
 
+#include "PrbFormat.h"
+
+ChannelMapSettings::ChannelMapSettings()
+{
+
+}
+
+
+void ChannelMapSettings::updateNumChannels(int newChannelCount)
+{
+
+    Array<int> newChannelOrder;
+    Array<bool> newIsEnabled;
+
+    // handle case where channel order is reduced
+    for (int i = 0; i < channelOrder.size(); i++)
+    {
+        if (channelOrder[i] < newChannelCount)
+        {
+            newChannelOrder.add(channelOrder[i]);
+            newIsEnabled.add(isEnabled[i]);
+        }
+    }
+
+    channelOrder = newChannelOrder;
+    isEnabled = newIsEnabled;
+
+    // add more channels if necessary
+    for (int i = channelOrder.size(); i < newChannelCount; i++)
+    {
+        channelOrder.add(i);
+        isEnabled.add(true);
+    }
+
+    numChannels = newChannelCount;
+
+}
+
+void ChannelMapSettings::toXml(XmlElement* xml)
+{
+
+    for (int ch = 0; ch < channelOrder.size(); ch++)
+    {
+        XmlElement* node = xml->createNewChildElement("CH");
+        node->setAttribute("index", channelOrder[ch]);
+        node->setAttribute("enabled", isEnabled[ch]);
+    }
+
+}
+
+void ChannelMapSettings::fromXml(XmlElement* xml)
+{
+    channelOrder.clear();
+    isEnabled.clear();
+
+    int channelIndex = 0;
+
+    for (auto* channelParams : xml->getChildIterator())
+    {
+        if (channelParams->hasTagName("CH"))
+        {
+            
+            //std::cout << "ORDER: " << channelParams->getIntAttribute("index") << ", ENABLED: " << channelParams->getBoolAttribute("enabled") << std::endl;
+            
+            channelOrder.add(channelParams->getIntAttribute("index", channelIndex));
+            isEnabled.add(channelParams->getBoolAttribute("enabled", true));
+            
+            
+            channelIndex++;
+        } else {
+            std::cout << channelParams->getTagName() << std::endl;
+        }
+    }
+}
+
+void ChannelMapSettings::toJson(File filename)
+{
+    PrbFormat::write(filename, this);
+}
+
+void ChannelMapSettings::fromJson(File filename)
+{
+    PrbFormat::read(filename, this);
+}
+
+void ChannelMapSettings::setStream(const DataStream* stream)
+{
+    numChannels = stream->getChannelCount();
+    sampleRate = stream->getSampleRate();
+    streamName = stream->getName();
+    streamId = stream->getStreamId();
+    sourceNodeId = stream->getSourceNodeId();
+}
+
+void ChannelMapSettings::reset()
+{
+    channelOrder.clear();
+    isEnabled.clear();
+
+    for (int i = 0; i < numChannels; i++)
+    {
+        channelOrder.add(i);
+        isEnabled.add(true);
+    }
+}
+
+// =====================================================
 
 ChannelMappingNode::ChannelMappingNode()
     : GenericProcessor  ("Channel Map")
-    , channelBuffer     (1, 10000)
 {
-    setProcessorType (PROCESSOR_TYPE_FILTER);
-
-    referenceArray.resize (1024); // make room for 1024 channels
-    channelArray.resize   (1024);
-
-    for (int i = 0; i < referenceArray.size(); ++i)
-    {
-        channelArray.set        (i, i);
-        referenceArray.set      (i, -1);
-        enabledChannelArray.set (i, true);
-    }
-
-    for (int i = 0; i < NUM_REFERENCES; ++i)
-    {
-        referenceChannels.set (i, -1);
-    }
+    
 }
-
-
-ChannelMappingNode::~ChannelMappingNode()
-{
-}
-
 
 AudioProcessorEditor* ChannelMappingNode::createEditor()
 {
-    editor = new ChannelMappingEditor (this, true);
+    editor = std::make_unique<ChannelMappingEditor> (this);
 
-    //std::cout << "Creating editor." << std::endl;
-
-    return editor;
+    return editor.get();
 }
 
+
+ChannelMapSettings* ChannelMappingNode::findMatchingStreamSettings(ChannelMapSettings* s)
+{
+    for (auto streamId : previousStreamIds)
+    {
+        if ((s->sourceNodeId == settings[streamId]->sourceNodeId) &&
+            (s->streamName == settings[streamId]->streamName))
+        {
+            // perfect match
+            return settings[streamId];
+        }
+
+        if ((s->streamName == settings[streamId]->streamName))
+        {
+            // matching name
+            return settings[streamId];
+        }
+    }
+
+    return nullptr;
+}
 
 void ChannelMappingNode::updateSettings()
 {
-    if (getNumInputs() > 0)
-        channelBuffer.setSize (getNumInputs(), 10000);
 
-    if (editorIsConfigured)
+    settings.update(getDataStreams());
+
+    for (auto stream : getDataStreams())
     {
-        OwnedArray<DataChannel> oldChannels;
-        oldChannels.swapWith (dataChannelArray);
-        dataChannelArray.clear();
-        Array<bool> recordStates;
 
-        settings.numOutputs = 0;
+        const uint16 streamId = stream->getStreamId();
 
-        for (int i = 0; i < getNumInputs(); ++i)
+        if ( settings[streamId]->sourceNodeId == -1) // no stream applied yet
         {
-            if ( (enabledChannelArray[channelArray[i]])
-                 && (channelArray[i] < oldChannels.size()))
+            settings[streamId]->setStream(stream);
+
+            ChannelMapSettings* s = findMatchingStreamSettings(settings[streamId]);
+
+            if (s != nullptr)
             {
-				DataChannel* oldChan = oldChannels[channelArray[i]];
-				oldChannels.set(channelArray[i], nullptr, false);
-                dataChannelArray.add     (oldChan);
-                recordStates.add (oldChan->getRecordState());
-                settings.numOutputs++;
-            }
-        }
-
-        oldChannels.clear();
-        for (int i = 0; i < settings.numOutputs; ++i)
-        {
-            dataChannelArray[i]->setRecordState (recordStates[i]);
-        }
-    }
-}
-
-
-void ChannelMappingNode::setParameter (int parameterIndex, float newValue)
-{
-    if (parameterIndex == 1)
-    {
-        referenceArray.set (currentChannel, (int) newValue);
-    }
-    else if (parameterIndex == 2)
-    {
-        referenceChannels.set ((int)newValue, currentChannel);
-    }
-    else if (parameterIndex == 3)
-    {
-        enabledChannelArray.set (currentChannel, (newValue != 0) ? true : false);
-    }
-    else if (parameterIndex == 4)
-    {
-        editorIsConfigured = (newValue != 0) ? true : false;
-    }
-    else
-    {
-        channelArray.set (currentChannel, (int) newValue);
-    }
-}
-
-
-void ChannelMappingNode::process (AudioSampleBuffer& buffer)
-{
-    int j = 0;
-    int i = 0;
-    int realChan;
-
-    // use copy constructor to set the data to refer to
-    channelBuffer = buffer;
-
-   // buffer.clear();
-
-    while (j < settings.numOutputs)
-    {
-        realChan = channelArray[i];
-        if ((realChan < channelBuffer.getNumChannels())
-            && (enabledChannelArray[realChan]))
-        {
-            // copy it back into the buffer according to the channel mapping
-            buffer.copyFrom (j,                                       // destChannel
-                             0,                                       // destStartSample
-                             channelBuffer.getReadPointer (realChan), // source
-                             getNumSamples (j),                       // numSamples
-                             1.0f); // gain to apply to source (positive for original signal)
-
-            // now do the referencing
-            if ((referenceArray[realChan] > -1)
-                && (referenceChannels[referenceArray[realChan]] > -1)
-                && (referenceChannels[referenceArray[realChan]] < channelBuffer.getNumChannels()))
-            {
-                buffer.addFrom (j,                                                                // destChannel
-                                0,                                                                // destStartSample
-                                channelBuffer,                                                    // source
-                                channelArray[referenceChannels[referenceArray[realChan]]], // sourceChannel
-                                0,                                                                // sourceStartSample
-                                getNumSamples (j),                                                // numSamples
-                                -1.0f); // gain to apply to source (negative for reference)
+                settings[streamId]->channelOrder = s->channelOrder;
+                settings[streamId]->isEnabled = s->isEnabled;
             }
 
-            ++j;
+            previousStreamIds.add(streamId);
+
+        }
+        
+        settings[streamId]->updateNumChannels(stream->getChannelCount());
+
+        if ((*stream)["enable_stream"])
+        {
+            Array<ContinuousChannel*> newChannelOrder;
+
+            for (int ch = 0; ch < stream->getChannelCount(); ch++)
+            {
+
+                int localIndex = settings[streamId]->channelOrder[ch];
+                Array<ContinuousChannel*> channelsForStream = stream->getContinuousChannels();
+
+                int globalIndex = channelsForStream[localIndex]->getGlobalIndex();
+
+                if (settings[streamId]->isEnabled[ch])
+                {
+                    newChannelOrder.add(channelsForStream[localIndex]);
+                }
+
+            }
+
+            DataStream* currentStream = getDataStream(streamId);
+
+            currentStream->clearContinuousChannels();
+
+            for (int i = 0; i < newChannelOrder.size(); i++)
+                currentStream->addChannel(newChannelOrder[i]);
         }
 
-        ++i;
+    }
+
+}
+
+void ChannelMappingNode::setChannelEnabled(uint16 streamId, int channelNum, int isEnabled)
+{
+    settings[streamId]->isEnabled.set(channelNum, isEnabled);
+}
+
+void ChannelMappingNode::setChannelOrder(uint16 streamId, Array<int> order)
+{
+    settings[streamId]->channelOrder = order;
+}
+
+void ChannelMappingNode::resetStream(uint16 streamId)
+{
+    settings[streamId]->reset();
+}
+
+Array<int> ChannelMappingNode::getChannelOrder(uint16 streamId)
+{
+    return settings[streamId]->channelOrder;
+}
+
+String ChannelMappingNode::loadStreamSettings(uint16 streamId, File& file)
+{
+    settings[streamId]->fromJson(file);
+    
+    return ("Loaded Channel Map settings from " + file.getFileName());
+}
+
+String ChannelMappingNode::writeStreamSettings(uint16 streamId, File& file)
+{
+    settings[streamId]->toJson(file);
+    
+    return ("Wrote Channel Map settings to " + file.getFileName());
+}
+
+
+Array<bool> ChannelMappingNode::getChannelEnabledState(uint16 streamId)
+{
+    return settings[streamId]->isEnabled;
+}
+
+
+
+void ChannelMappingNode::process (AudioBuffer<float>& buffer)
+{
+    // nothing needed here, since the mapping takes place at the connection level
+}
+
+
+void ChannelMappingNode::saveCustomParametersToXml(XmlElement* xml)
+{
+    for (auto stream : getDataStreams())
+    {
+
+        XmlElement* streamParams = xml->createNewChildElement("STREAM");
+
+        settings[stream->getStreamId()]->toXml(streamParams);
     }
 }
 
+
+void ChannelMappingNode::loadCustomParametersFromXml(XmlElement* xml)
+{
+
+    int streamIndex = 0;
+    Array<const DataStream*> availableStreams = getDataStreams();
+
+    for (auto* streamParams : xml->getChildIterator())
+    {
+        if (streamParams->hasTagName("STREAM"))
+        {
+            if (availableStreams.size() > streamIndex)
+            {
+                settings[availableStreams[streamIndex]->getStreamId()]->fromXml(streamParams);
+            }
+            else {
+            }
+
+            streamIndex++;
+        }
+    }
+
+}

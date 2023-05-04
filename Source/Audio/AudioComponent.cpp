@@ -23,7 +23,12 @@
 
 
 #include "AudioComponent.h"
+#include "../AccessClass.h"
+#include "../Processors/ProcessorGraph/ProcessorGraph.h"
 #include <stdio.h>
+
+
+#include "../Utils/Utils.h"
 
 AudioComponent::AudioComponent() : isPlaying(false)
 {
@@ -35,10 +40,10 @@ AudioComponent::AudioComponent() : isPlaying(false)
             2,  // numOutputChannelsNeeded
             0,  // *savedState (XmlElement)
             true, // selectDefaultDeviceOnFailure
-            String::empty, // preferred device
+            String(), // preferred device
             0); // preferred device setup options
 
-        if (error == String::empty)
+        if (error == String())
         {
             initialized = true;
         }
@@ -76,12 +81,9 @@ AudioComponent::AudioComponent() : isPlaying(false)
         JUCEApplication::quit();
     }
 
-
-    std::cout << "Got audio device." << std::endl;
-
     String devName = aIOd->getName();
 
-    std::cout << std::endl << "Audio device name: " << devName << std::endl;
+    LOGC("Audio device name: ", devName);
 
     AudioDeviceManager::AudioDeviceSetup setup;
     deviceManager.getAudioDeviceSetup(setup);
@@ -94,24 +96,22 @@ AudioComponent::AudioComponent() : isPlaying(false)
     setup.sampleRate = 44100.0;
 
     String msg = deviceManager.setAudioDeviceSetup(setup, false);
+    std::cout << msg << std::endl;
 
     String devType = deviceManager.getCurrentAudioDeviceType();
-    std::cout << "Audio device type: " << devType << std::endl;
+    LOGC("Audio device type: ", devType);
 
     float sr = setup.sampleRate;
     int buffSize = setup.bufferSize;
     String oDN = setup.outputDeviceName;
     BigInteger oC = setup.outputChannels;
 
-    std::cout << "Audio output channels: " <<  oC.toInteger() << std::endl;
-    std::cout << "Audio device sample rate: " <<  sr << std::endl;
-    std::cout << "Audio device buffer size: " << buffSize << std::endl << std::endl;
+    LOGC("Audio output channels: ", oC.toInteger());
+    LOGC("Audio device sample rate: ", sr);
+    LOGC("Audio device buffer size: ", buffSize);
+    std::cout << std::endl;
 
-    graphPlayer = new AudioProcessorPlayer();
-
-    stopDevice(); // reduces the amount of background processing when
-    // device is not in use
-
+    graphPlayer = std::make_unique<AudioProcessorPlayer>();
 
 }
 
@@ -158,115 +158,84 @@ bool AudioComponent::callbacksAreActive()
     return isPlaying;
 }
 
-void AudioComponent::restartDevice()
+bool AudioComponent::checkForDevice()
 {
-    deviceManager.restartLastAudioDevice();
+    return true;
+    
+    //if (deviceManager.getCurrentAudioDevice() != nullptr)
+    //{
+     //   return true;
+    //} else {
+     //  return false;
+   //}
+   
+}
 
+bool AudioComponent::restartDevice()
+{
+    
+    deviceManager.restartLastAudioDevice();
+    
+    //if (deviceManager.getCurrentAudioDevice() != nullptr)
+    //{
+        
+    //    return true;
+    //} else {
+    //   LOGD("Could not find audio device.");
+    //    return false;
+   // }
+    
+    return true;
+   
 }
 
 void AudioComponent::stopDevice()
 {
 
-    //deviceManager.closeAudioDevice();
+    deviceManager.closeAudioDevice();
 }
 
-void AudioComponent::beginCallbacks()
+bool AudioComponent::beginCallbacks()
 {
 
     if (!isPlaying)
     {
 
-        //const MessageManagerLock mmLock;
-        // MessageManagerLock mml (Thread::getCurrentThread());
-
-        // if (mml.lockWasGained())
-        // {
-        //     std::cout << "AUDIO COMPONENT GOT THAT LOCK!" << std::endl;
-        // } else {
-        //     std::cout << "AUDIO COMPONENT COULDN'T GET THE LOCK...RETURNING." << std::endl;
-        //     return;
-        // }
-
-        //     MessageManager* mm = MessageManager::getInstance();
-
-        //     if (mm->isThisTheMessageThread())
-        //         std::cout << "THIS IS THE MESSAGE THREAD -- AUDIO COMPONENT" << std::endl;
-        //     else
-        //         std::cout << "NOT THE MESSAGE THREAD -- AUDIO COMPONENT" << std::endl;
-
-
-
-        restartDevice();
-
-        int64 ms = Time::getCurrentTime().toMilliseconds();
-
-        while (Time::getCurrentTime().toMilliseconds() - ms < 100)
+        if (restartDevice())
         {
-            // pause to let things finish up
+            int64 ms = Time::getCurrentTime().toMilliseconds();
 
+            while (Time::getCurrentTime().toMilliseconds() - ms < 100)
+            {
+                // pause to let device initialize
+
+            }
+
+            LOGC("Adding audio callback.");
+            deviceManager.addAudioCallback(graphPlayer.get());
+            isPlaying = true;
+            return true;
         }
-
-
-        std::cout << std::endl << "Adding audio callback." << std::endl;
-        deviceManager.addAudioCallback(graphPlayer);
-        isPlaying = true;
     }
     else
     {
-        std::cout << "beginCallbacks was called while acquisition was active." << std::endl;
+        LOGE("beginCallbacks was called while acquisition was active.");
     }
 
-    //int64 ms = Time::getCurrentTime().toMilliseconds();
-
-    //while(Time::getCurrentTime().toMilliseconds() - ms < 100)
-    //{
-    // pause to let things finish up
-
-    // }
-
+    return false;
 }
 
 void AudioComponent::endCallbacks()
 {
-
-    // const MessageManagerLock mmLock; // add a lock to prevent crashes
-
-    // MessageManagerLock mml (Thread::getCurrentThread());
-
-    // if (mml.lockWasGained())
-    // {
-    //     std::cout << "AUDIO COMPONENT GOT THAT LOCK!" << std::endl;
-    // }
-
-    // MessageManager* mm = MessageManager::getInstance();
-
-    // if (mm->isThisTheMessageThread())
-    //     std::cout << "THIS IS THE MESSAGE THREAD -- AUDIO COMPONENT" << std::endl;
-    // else
-    //     std::cout << "NOT THE MESSAGE THREAD -- AUDIO COMPONENT" << std::endl;
-
-
-    std::cout << std::endl << "Removing audio callback." << std::endl;
-    deviceManager.removeAudioCallback(graphPlayer);
+    LOGC("Removing audio callback.");
+    deviceManager.removeAudioCallback(graphPlayer.get());
     isPlaying = false;
-
-    stopDevice();
-
-    int64 ms = Time::getCurrentTime().toMilliseconds();
-
-    while (Time::getCurrentTime().toMilliseconds() - ms < 50)
-    {
-        // pause to let things finish up
-
-    }
-
-
 }
 
 void AudioComponent::saveStateToXml(XmlElement* parent)
 {
     // JUCE's audioState XML format (includes all info)
-    ScopedPointer<XmlElement> audioState = deviceManager.createStateXml();
+    std::unique_ptr<XmlElement> audioState = deviceManager.createStateXml();
 
     if (audioState != nullptr)
     {
@@ -285,7 +254,7 @@ void AudioComponent::saveStateToXml(XmlElement* parent)
 
 void AudioComponent::loadStateFromXml(XmlElement* parent)
 {
-    forEachXmlChildElement(*parent, child)
+    for (auto* child : parent->getChildIterator())
     {
         if (!child->isTextElement())
         {
@@ -296,7 +265,7 @@ void AudioComponent::loadStateFromXml(XmlElement* parent)
                 2,              // numOutputChannelsNeeded
                 child,          // savedState
                 true,           // selectDefaultDeviceOnFailure
-                String::empty,  // preferred device
+                String(),  // preferred device
                 nullptr);       // preferred device setup options
 
             if (error.isEmpty())
@@ -307,7 +276,7 @@ void AudioComponent::loadStateFromXml(XmlElement* parent)
     }
 
     // Now the important parameters separately, as a backup (in case the devices have different names or something)
-    String deviceType = parent->getStringAttribute("deviceType", String::empty);
+    String deviceType = parent->getStringAttribute("deviceType", String());
     if (!deviceType.isEmpty())
     {
         deviceManager.setCurrentAudioDeviceType(deviceType, true);
@@ -329,8 +298,8 @@ void AudioComponent::loadStateFromXml(XmlElement* parent)
     }
     else
     {
-        std::cout << "Buffer size out of range." << std::endl;
+        LOGE("Buffer size out of range.");
     }
 
-    deviceManager.setAudioDeviceSetup(setup, true);
+    std::cout << deviceManager.setAudioDeviceSetup(setup, true) << std::endl;
 }

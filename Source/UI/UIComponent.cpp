@@ -29,6 +29,7 @@
 #include "ControlPanel.h"
 #include "ProcessorList.h"
 #include "EditorViewport.h"
+#include "MessageCenterButton.h"
 #include "DataViewport.h"
 #include "../Processors/MessageCenter/MessageCenterEditor.h"
 #include "GraphViewer.h"
@@ -37,7 +38,7 @@
 #include "../MainWindow.h"
 
 	UIComponent::UIComponent(MainWindow* mainWindow_, ProcessorGraph* pgraph, AudioComponent* audio_)
-: mainWindow(mainWindow_), processorGraph(pgraph), audio(audio_)
+: mainWindow(mainWindow_), processorGraph(pgraph), audio(audio_), messageCenterIsCollapsed(true)
 
 {
 
@@ -45,46 +46,53 @@
 
 	messageCenterEditor = (MessageCenterEditor*) processorGraph->getMessageCenter()->createEditor();
 	addActionListener(messageCenterEditor);
-	addAndMakeVisible(messageCenterEditor);
-	std::cout << "Created message center." << std::endl;
+	
+	LOGD("Created message center.");
 
 	infoLabel = new InfoLabel();
-	std::cout << "Created info label." << std::endl;
+	LOGD("Created info label.");
 
 	graphViewer = new GraphViewer();
-	std::cout << "Created graph viewer." << std::endl;
+	LOGD("Created graph viewer.");
 
 	dataViewport = new DataViewport();
 	addChildComponent(dataViewport);
-	dataViewport->addTabToDataViewport("Info", infoLabel,0);
-	dataViewport->addTabToDataViewport("Graph", graphViewer,0);
+	dataViewport->addTabToDataViewport("Info", infoLabel);
+	dataViewport->addTabToDataViewport("Graph", graphViewer->getGraphViewport());
 
-	std::cout << "Created data viewport." << std::endl;
+	LOGD("Created data viewport.");
 
-	editorViewport = new EditorViewport();
-
-	addAndMakeVisible(editorViewport);
-
-	std::cout << "Created filter viewport." << std::endl;
+    signalChainTabComponent = new SignalChainTabComponent();
+    addAndMakeVisible(signalChainTabComponent);
+    
+	editorViewport = new EditorViewport(signalChainTabComponent);
+	//addAndMakeVisible(editorViewport);
+    
+	LOGD("Created editor viewport.");
 
 	editorViewportButton = new EditorViewportButton(this);
 	addAndMakeVisible(editorViewportButton);
 
 	controlPanel = new ControlPanel(processorGraph, audio);
 	addAndMakeVisible(controlPanel);
+    
+	LOGD("Created control panel.");
 
-	std::cout << "Created control panel." << std::endl;
-
-	processorList = new ProcessorList();
+	processorList = new ProcessorList(&processorListViewport);
 	processorListViewport.setViewedComponent(processorList,false);
-	processorListViewport.setScrollBarsShown(true,false);
+	processorListViewport.setScrollBarsShown(false,false);
 	addAndMakeVisible(&processorListViewport);
+    
+    messageCenterButton.addListener(this);
+    addAndMakeVisible(messageCenterEditor);
+    addAndMakeVisible(&messageCenterButton);
+    
 	processorList->setVisible(true);
 	processorList->setBounds(0,0,195,processorList->getTotalHeight());
-	std::cout << "Created filter list." << std::endl;
+	LOGD("Created filter list.");
 
 	pluginManager = new PluginManager();
-	std::cout << "Created plugin manager" << std::endl;
+	LOGD("Created plugin manager");
 
 	setBounds(0,0,500,400);
 
@@ -93,15 +101,16 @@
 	getPluginManager()->loadAllPlugins();
 
 	getProcessorList()->fillItemList();
-	controlPanel->updateChildComponents();
+	controlPanel->updateRecordEngineList();
 
-	processorGraph->updatePointers(); // needs to happen after processorGraph gets the right pointers
+	processorGraph->updateBufferSize(); // needs to happen after processorGraph gets the right pointers
 
 #if JUCE_MAC
 	MenuBarModel::setMacMainMenu(this);
 	mainWindow->setMenuBar(0);
 #else
 	mainWindow->setMenuBar(this);
+	mainWindow->getMenuBarComponent()->setName("MainMenu");
 #endif
 
 }
@@ -109,8 +118,13 @@
 UIComponent::~UIComponent()
 {
 	dataViewport->destroyTab(0); // get rid of tab for InfoLabel
-	if (timestampWindow)
-		delete timestampWindow;
+
+	if (pluginInstaller)
+	{
+		pluginInstaller->setVisible(false);
+		delete pluginInstaller;
+	}
+
 	AccessClass::shutdownBroadcaster();
 }
 
@@ -174,13 +188,34 @@ PluginManager* UIComponent::getPluginManager()
 	return pluginManager;
 }
 
+PluginInstaller* UIComponent::getPluginInstaller()
+{
+    if (pluginInstaller == nullptr)
+	{
+		pluginInstaller = new PluginInstaller(this->mainWindow, false);
+	}
+	return pluginInstaller;
+}
+
+void UIComponent::buttonClicked(Button* button)
+{
+    if (button == &messageCenterButton)
+    {
+        messageCenterButton.switchState();
+        
+        messageCenterIsCollapsed = !messageCenterIsCollapsed;
+        
+        resized();
+    }
+}
+
 void UIComponent::resized()
 {
 
 	int w = getWidth();
 	int h = getHeight();
 
-	if (editorViewportButton != 0)
+	if (editorViewportButton != nullptr)
 	{
 		editorViewportButton->setBounds(w-230, h-40, 225, 35);
 
@@ -189,42 +224,46 @@ void UIComponent::resized()
 
 		if (h < 200)
 			editorViewportButton->setBounds(w-230,h-40+200-h,225,35);
-		//else
-		//    editorViewportButton->setVisible(true);
 	}
 
-	if (editorViewport != 0)
+	if (signalChainTabComponent != nullptr)
 	{
-		//if (h < 400)
-		//    editorViewport->setVisible(false);
-		//else
-		//    editorViewport->setVisible(true);
-
-		if (editorViewportButton->isOpen() && !editorViewport->isVisible())
-			editorViewport->setVisible(true);
-		else if (!editorViewportButton->isOpen() && editorViewport->isVisible())
-			editorViewport->setVisible(false);
-
-		editorViewport->setBounds(6,h-190,w-11,150);
-
-
+		if (editorViewportButton->isOpen() && !signalChainTabComponent->isVisible())
+        {
+            signalChainTabComponent->setVisible(true);
+        }
+			
+		else if (!editorViewportButton->isOpen() && signalChainTabComponent->isVisible())
+        {
+            signalChainTabComponent->setVisible(false);
+        }
+			
+		signalChainTabComponent->setBounds(6,h-200,w-11,160);
 	}
 
-	if (controlPanel != 0)
+	if (controlPanel != nullptr)
 	{
 
-		int controlPanelWidth = w-210;
+		int controlPanelWidth;
 		int addHeight = 0;
 		int leftBound;
 
-		if (w >= 460)
+		if (!editorViewport->isSignalChainLocked())
 		{
-			leftBound = 202;
+			if (w >= 460)
+			{
+				leftBound = 202;
+				controlPanelWidth = w - 210;
+			}
+			else
+			{
+				leftBound = w - 258;
+				controlPanelWidth = w - leftBound;
+			}
 		}
-		else
-		{
-			leftBound = w-258;
-			controlPanelWidth = w-leftBound;
+		else {
+			leftBound = 6;
+			controlPanelWidth = w - 12;
 		}
 
 		if (controlPanelWidth < 750)
@@ -249,36 +288,47 @@ void UIComponent::resized()
 			controlPanel->setBounds(leftBound,6,controlPanelWidth,32+addHeight);
 	}
 
-	if (processorList != 0)
+	if (processorList != nullptr)
 	{
-		if (processorList->isOpen())
+		if (editorViewport->isSignalChainLocked())
 		{
-			if (editorViewportButton->isOpen())
-				processorListViewport.setBounds(5,5,195,h-200);
+			processorList->setVisible(false);
+		}
+			
+		else {
+
+			processorList->setVisible(true);
+			
+			if (processorList->isOpen())
+			{
+				if (editorViewportButton->isOpen())
+					processorListViewport.setBounds(5, 5, 195, h - 210);
+				else
+					processorListViewport.setBounds(5, 5, 195, h - 50);
+
+				processorListViewport.setScrollBarsShown(false, false, true, false);
+
+			}
 			else
-				processorListViewport.setBounds(5,5,195,h-50);
+			{
+				processorListViewport.setBounds(5, 5, 195, 34);
+				processorListViewport.setScrollBarsShown(false, false);
+				processorListViewport.setViewPosition(0, 0);
+			}
 
-			processorListViewport.setScrollBarsShown(true,false);
-
+			if (w < 460)
+				processorListViewport.setBounds(5 - 460 + getWidth(), 5, 195, processorList->getHeight());
 		}
-		else
-		{
-			processorListViewport.setBounds(5,5,195,34);
-			processorListViewport.setScrollBarsShown(false,false);
-			processorListViewport.setViewPosition(0, 0);
-		}
-
-		if (w < 460)
-			processorListViewport.setBounds(5-460+getWidth(),5,195,processorList->getHeight());
+		
 	}
 
-	if (dataViewport != 0)
+	if (dataViewport != nullptr)
 	{
 		int left, top, width, height;
 		left = 6;
 		top = 40;
 
-		if (processorList->isOpen())
+		if (processorList->isOpen() && !editorViewport->isSignalChainLocked())
 			left = processorListViewport.getX()+processorListViewport.getWidth()+2;
 		else
 			left = 6;
@@ -286,7 +336,7 @@ void UIComponent::resized()
 		top = controlPanel->getHeight()+8;
 
 		if (editorViewportButton->isOpen())
-			height = h - top - 195;
+			height = h - top - 205;
 		else
 			height = h - top - 45;
 
@@ -301,16 +351,26 @@ void UIComponent::resized()
 
 	}
 
-
-
-	if (messageCenterEditor != 0)
+	if (messageCenterEditor != nullptr)
 	{
-		messageCenterEditor->setBounds(6,h-35,w-241,30);
-		if (h < 200)
-			messageCenterEditor->setBounds(6,h-35+200-h,w-241,30);
-		//  else
-		//      messageCenter->setVisible(true);
+        if (messageCenterIsCollapsed)
+        {
+            messageCenterEditor->collapse();
+            messageCenterEditor->setBounds(6,h-35,w-241,30);
+            
+        } else {
+            messageCenterEditor->expand();
+            messageCenterEditor->setBounds(6,h-305,w-241,300);
+        }
 	}
+    
+
+    //if (messageCenterIsCollapsed)
+   // {
+    messageCenterButton.setBounds((w-241)/2,h-35,30,30);
+   // } else {
+   //     messageCenterButton.setBounds((w-241)/2,h-305,30,30);
+   // }
 
 	// for debugging purposes:
 	if (false)
@@ -365,11 +425,18 @@ PopupMenu UIComponent::getMenuForIndex(int menuIndex, const String& menuName)
 
 	if (menuIndex == 0)
 	{
-		menu.addCommandItem(commandManager, openConfiguration);
-		menu.addCommandItem(commandManager, saveConfiguration);
-		menu.addCommandItem(commandManager, saveConfigurationAs);
-		menu.addSeparator();
+		menu.addCommandItem(commandManager, openSignalChain);
+        menu.addSeparator();
+		menu.addCommandItem(commandManager, saveSignalChain);
+		menu.addCommandItem(commandManager, saveSignalChainAs);
+        menu.addSeparator();
 		menu.addCommandItem(commandManager, reloadOnStartup);
+		menu.addSeparator();
+		menu.addCommandItem(commandManager, toggleHttpServer);
+		menu.addSeparator();
+		menu.addCommandItem(commandManager, openDefaultConfigWindow);
+		menu.addSeparator();
+		menu.addCommandItem(commandManager, openPluginInstaller);
 
 #if !JUCE_MAC
 		menu.addSeparator();
@@ -387,15 +454,21 @@ PopupMenu UIComponent::getMenuForIndex(int menuIndex, const String& menuName)
 		menu.addSeparator();
 		menu.addCommandItem(commandManager, clearSignalChain);
 		menu.addSeparator();
-		menu.addCommandItem(commandManager, openTimestampSelectionWindow);
+		menu.addCommandItem(commandManager, lockSignalChain);
 
 	}
 	else if (menuIndex == 2)
 	{
 
+		PopupMenu clockMenu;
+		clockMenu.addCommandItem(commandManager, setClockModeDefault);
+		clockMenu.addCommandItem(commandManager, setClockModeHHMMSS);
+
 		menu.addCommandItem(commandManager, toggleProcessorList);
 		menu.addCommandItem(commandManager, toggleSignalChain);
 		menu.addCommandItem(commandManager, toggleFileInfo);
+		menu.addSeparator();
+		menu.addSubMenu("Clock mode", clockMenu);
 		menu.addSeparator();
 		menu.addCommandItem(commandManager, resizeWindow);
 
@@ -426,21 +499,28 @@ ApplicationCommandTarget* UIComponent::getNextCommandTarget()
 
 void UIComponent::getAllCommands(Array <CommandID>& commands)
 {
-	const CommandID ids[] = {openConfiguration,
-		saveConfiguration,
-		saveConfigurationAs,
+	const CommandID ids[] = {openSignalChain,
+		saveSignalChain,
+		saveSignalChainAs,
+        loadPluginSettings,
+        savePluginSettings,
 		reloadOnStartup,
 		undo,
 		redo,
 		copySignalChain,
 		pasteSignalChain,
 		clearSignalChain,
+		lockSignalChain,
 		toggleProcessorList,
 		toggleSignalChain,
+		toggleHttpServer,
 		toggleFileInfo,
+		setClockModeDefault,
+		setClockModeHHMMSS,
 		showHelp,
 		resizeWindow,
-		openTimestampSelectionWindow
+		openPluginInstaller,
+		openDefaultConfigWindow
 	};
 
 	commands.addArray(ids, numElementsInArray(ids));
@@ -454,21 +534,30 @@ void UIComponent::getCommandInfo(CommandID commandID, ApplicationCommandInfo& re
 
 	switch (commandID)
 	{
-		case openConfiguration:
-			result.setInfo("Open...", "Load a saved processor graph.", "General", 0);
+		case openSignalChain:
+			result.setInfo("Open...", "Open a saved signal chain.", "General", 0);
 			result.addDefaultKeypress('O', ModifierKeys::commandModifier);
 			result.setActive(!acquisitionStarted);
 			break;
 
-		case saveConfiguration:
-			result.setInfo("Save", "Save the current processor graph.", "General", 0);
+		case saveSignalChain:
+			result.setInfo("Save", "Save the current signal chain.", "General", 0);
 			result.addDefaultKeypress('S', ModifierKeys::commandModifier);
 			break;
 
-		case saveConfigurationAs:
-			result.setInfo("Save as...", "Save the current processor graph with a new name.", "General", 0);
+		case saveSignalChainAs:
+			result.setInfo("Save as...", "Save the current signal chain with a new name.", "General", 0);
 			result.addDefaultKeypress('S', ModifierKeys::commandModifier | ModifierKeys::shiftModifier);
 			break;
+            
+        case loadPluginSettings:
+            result.setInfo("Load plugin settings...", "Load saved plugin settings.", "General", 0);
+            result.setActive(!acquisitionStarted);
+            break;
+
+        case savePluginSettings:
+            result.setInfo("Save plugin settings...", "Save the settings of the selected plugin.", "General", 0);
+            break;
 
 		case reloadOnStartup:
 			result.setInfo("Reload on startup", "Load the last used configuration on startup.", "General", 0);
@@ -476,39 +565,52 @@ void UIComponent::getCommandInfo(CommandID commandID, ApplicationCommandInfo& re
 			result.setTicked(mainWindow->shouldReloadOnStartup);
 			break;
 
+		case toggleHttpServer:
+			result.setInfo("Enable HTTP Server", "Enable the HTTP server on port 37497.", "General", 0);
+			result.setActive(!acquisitionStarted);
+			result.setTicked(mainWindow->shouldEnableHttpServer);
+			break;
+
 		case undo:
 			result.setInfo("Undo", "Undo the last action.", "General", 0);
 			result.addDefaultKeypress('Z', ModifierKeys::commandModifier);
-			result.setActive(false);
+			result.setActive(!acquisitionStarted && getEditorViewport()->undoManager.canUndo() && !getEditorViewport()->isSignalChainLocked());
 			break;
 
 		case redo:
 			result.setInfo("Redo", "Undo the last action.", "General", 0);
-			result.addDefaultKeypress('Y', ModifierKeys::commandModifier);
-			result.setActive(false);
+			result.addDefaultKeypress('Z', ModifierKeys::commandModifier | ModifierKeys::shiftModifier);
+			result.setActive(!acquisitionStarted && getEditorViewport()->undoManager.canRedo() && !getEditorViewport()->isSignalChainLocked());
 			break;
 
 		case copySignalChain:
-			result.setInfo("Copy", "Copy a portion of the signal chain.", "General", 0);
+			result.setInfo("Copy", "Copy selected processors.", "General", 0);
 			result.addDefaultKeypress('C', ModifierKeys::commandModifier);
-			result.setActive(false);
+			result.setActive(!acquisitionStarted && getEditorViewport()->editorIsSelected() && !getEditorViewport()->isSignalChainLocked());
 			break;
 
 		case pasteSignalChain:
-			result.setInfo("Paste", "Paste a portion of the signal chain.", "General", 0);
+			result.setInfo("Paste", "Paste processors.", "General", 0);
 			result.addDefaultKeypress('V', ModifierKeys::commandModifier);
-			result.setActive(false);
+			result.setActive(!acquisitionStarted && getEditorViewport()->canPaste() && !getEditorViewport()->isSignalChainLocked());
 			break;
 
 		case clearSignalChain:
 			result.setInfo("Clear signal chain", "Clear the current signal chain.", "General", 0);
 			result.addDefaultKeypress(KeyPress::backspaceKey, ModifierKeys::commandModifier);
-			result.setActive(!getEditorViewport()->isSignalChainEmpty() && !acquisitionStarted);
+			result.setActive(!getEditorViewport()->isSignalChainEmpty() && !acquisitionStarted && !getEditorViewport()->isSignalChainLocked());
+			break;
+
+		case lockSignalChain:
+			result.setInfo("Lock signal chain", "Disable signal chain edits.", "General", 0);
+			result.addDefaultKeypress('L', ModifierKeys::commandModifier);
+			result.setTicked(getEditorViewport()->isSignalChainLocked());
 			break;
 
 		case toggleProcessorList:
 			result.setInfo("Processor List", "Show/hide Processor List.", "General", 0);
 			result.addDefaultKeypress('P', ModifierKeys::shiftModifier);
+			result.setActive(!editorViewport->isSignalChainLocked());
 			result.setTicked(processorList->isOpen());
 			break;
 
@@ -524,12 +626,28 @@ void UIComponent::getCommandInfo(CommandID commandID, ApplicationCommandInfo& re
 			result.setTicked(controlPanel->isOpen());
 			break;
 
-		case openTimestampSelectionWindow:
-			result.setInfo("Timestamp Source", "Show timestamp source selection window.", "General", 0);
+		case setClockModeDefault:
+			result.setInfo("Default", "Set clock mode to default.", "General", 0);
+			result.setTicked(controlPanel->clock->getMode() == Clock::DEFAULT);
+			break;
+
+		case setClockModeHHMMSS:
+			result.setInfo("HH:MM:SS", "Set clock mode to HH:MM:SS.", "General", 0);
+			result.setTicked(controlPanel->clock->getMode() == Clock::HHMMSS);
+			break;
+
+		case openPluginInstaller:
+			result.setInfo("Plugin Installer", "Launch the plugin installer.", "General", 0);
+			result.addDefaultKeypress('P', ModifierKeys::commandModifier);
+			break;
+		
+		case openDefaultConfigWindow:
+			result.setInfo("Load a default config", "Load a default configuration", "General", 0);
+			result.addDefaultKeypress('D', ModifierKeys::commandModifier);
 			break;
 
 		case showHelp:
-			result.setInfo("Show help...", "Take me to the GUI wiki.", "General", 0);
+			result.setInfo("Online documentation...", "Launch the GUI's documentation website in a browser.", "General", 0);
 			result.setActive(true);
 			break;
 
@@ -548,9 +666,9 @@ bool UIComponent::perform(const InvocationInfo& info)
 
 	switch (info.commandID)
 	{
-		case openConfiguration:
+		case openSignalChain:
 			{
-				FileChooser fc("Choose a file to load...",
+				FileChooser fc("Choose a settings file to load...",
 						CoreServices::getDefaultUserSaveDirectory(),
 						"*",
 						true);
@@ -558,16 +676,16 @@ bool UIComponent::perform(const InvocationInfo& info)
 				if (fc.browseForFileToOpen())
 				{
 					currentConfigFile = fc.getResult();
-					sendActionMessage(getEditorViewport()->loadState(currentConfigFile));
+					getEditorViewport()->loadState(currentConfigFile);
 				}
 				else
 				{
-					sendActionMessage("No configuration selected.");
+					sendActionMessage("No file selected.");
 				}
 
 				break;
 			}
-		case saveConfiguration:
+		case saveSignalChain:
 			{
 
 				if (currentConfigFile.exists())
@@ -584,7 +702,7 @@ bool UIComponent::perform(const InvocationInfo& info)
 					if (fc.browseForFileToSave(true))
 					{
 						currentConfigFile = fc.getResult();
-						std::cout << currentConfigFile.getFileName() << std::endl;
+						LOGD(currentConfigFile.getFileName());
 						sendActionMessage(getEditorViewport()->saveState(currentConfigFile));
 					}
 					else
@@ -596,7 +714,7 @@ bool UIComponent::perform(const InvocationInfo& info)
 				break;
 			}
 
-		case saveConfigurationAs:
+		case saveSignalChainAs:
 			{
 
 				FileChooser fc("Choose the file name...",
@@ -607,7 +725,7 @@ bool UIComponent::perform(const InvocationInfo& info)
 				if (fc.browseForFileToSave(true))
 				{
 					currentConfigFile = fc.getResult();
-					std::cout << currentConfigFile.getFileName() << std::endl;
+					LOGD(currentConfigFile.getFileName());
 					sendActionMessage(getEditorViewport()->saveState(currentConfigFile));
 				}
 				else
@@ -617,6 +735,47 @@ bool UIComponent::perform(const InvocationInfo& info)
 
 				break;
 			}
+            
+        case loadPluginSettings:
+        {
+            FileChooser fc("Choose a settings file to load...",
+                    CoreServices::getDefaultUserSaveDirectory(),
+                    "*",
+                    true);
+
+            if (fc.browseForFileToOpen())
+            {
+                currentConfigFile = fc.getResult();
+                sendActionMessage(getEditorViewport()->loadPluginState(currentConfigFile));
+            }
+            else
+            {
+                sendActionMessage("No file selected.");
+            }
+
+            break;
+        }
+        case savePluginSettings:
+        {
+
+            FileChooser fc("Choose the file name...",
+                    CoreServices::getDefaultUserSaveDirectory(),
+                    "*",
+                    true);
+
+            if (fc.browseForFileToSave(true))
+            {
+                currentConfigFile = fc.getResult();
+                LOGD(currentConfigFile.getFileName());
+                sendActionMessage(getEditorViewport()->savePluginState(currentConfigFile));
+            }
+            else
+            {
+                sendActionMessage("No file chosen.");
+            }
+
+            break;
+        }
 
 		case reloadOnStartup:
 			{
@@ -625,15 +784,71 @@ bool UIComponent::perform(const InvocationInfo& info)
 			}
 			break;
 
+		case toggleHttpServer:
+
+			mainWindow->shouldEnableHttpServer = !mainWindow->shouldEnableHttpServer;
+
+			if (mainWindow->shouldEnableHttpServer) {
+				mainWindow->enableHttpServer();
+			}
+			else {
+				mainWindow->disableHttpServer();
+			}
+			break;
+
+        case undo:
+            {
+                getEditorViewport()->undo();
+                break;
+            }
+            
+        case redo:
+            {
+                getEditorViewport()->redo();
+                break;
+            }
+            
+        case copySignalChain:
+            {
+                getEditorViewport()->copySelectedEditors();
+                break;
+            }
+            
+        case pasteSignalChain:
+            {
+                getEditorViewport()->paste();
+                break;
+            }
+                
 		case clearSignalChain:
 			{
 				getEditorViewport()->clearSignalChain();
 				break;
 			}
 
+		case lockSignalChain:
+		{
+			
+			if (getEditorViewport()->isSignalChainLocked())
+			{
+				getEditorViewport()->lockSignalChain(false);
+				resized();
+				//processorList->unlock();
+				
+			}
+			else {
+				getEditorViewport()->lockSignalChain(true);
+				resized();
+				//processorList->lock();
+			}
+			
+			break;
+		}
+
+
 		case showHelp:
 			{
-				URL url = URL("https://open-ephys.atlassian.net/wiki/display/OEW/Open+Ephys+GUI");
+				URL url = URL("https://open-ephys.github.io/gui-docs/");
 				url.launchInDefaultBrowser();
 				break;
 			}
@@ -651,16 +866,34 @@ bool UIComponent::perform(const InvocationInfo& info)
 			break;
 
 		case resizeWindow:
-			mainWindow->centreWithSize(800, 600);
+			mainWindow->centreWithSize(1200, 800);
 			break;
 
-		case openTimestampSelectionWindow:
-			if (timestampWindow == nullptr)
+		case setClockModeDefault:
+			controlPanel->clock->setMode(Clock::DEFAULT);
+			break;
+
+		case setClockModeHHMMSS:
+			controlPanel->clock->setMode(Clock::HHMMSS);
+			break;
+
+		case openPluginInstaller:
 			{
-				timestampWindow = new TimestampSourceSelectionWindow();
+				if (pluginInstaller == nullptr)
+				{
+					pluginInstaller = new PluginInstaller(this->mainWindow);
+				}
+				pluginInstaller->setVisible(true);
+				pluginInstaller->toFront(true);
+				break;
 			}
-			timestampWindow->setVisible(true);
-			timestampWindow->toFront(true);
+
+		case openDefaultConfigWindow:
+			{
+				defaultConfigWindow = std::make_unique<DefaultConfigWindow>(this->mainWindow);
+				break;
+			}
+
 		default:
 			break;
 
@@ -680,25 +913,22 @@ void UIComponent::saveStateToXml(XmlElement* xml)
 
 void UIComponent::loadStateFromXml(XmlElement* xml)
 {
-	forEachXmlChildElement(*xml, xmlNode)
+	for (auto* xmlNode : xml->getChildWithTagNameIterator("UICOMPONENT"))
 	{
-		if (xmlNode->hasTagName("UICOMPONENT"))
-		{
 
-			bool isProcessorListOpen = xmlNode->getBoolAttribute("isProcessorListOpen");
-			bool isEditorViewportOpen = xmlNode->getBoolAttribute("isEditorViewportOpen");
+        bool isProcessorListOpen = xmlNode->getBoolAttribute("isProcessorListOpen");
+        bool isEditorViewportOpen = xmlNode->getBoolAttribute("isEditorViewportOpen");
 
-			if (!isProcessorListOpen)
-			{
-				processorList->toggleState();
-			}
+        if (!isProcessorListOpen)
+        {
+            processorList->toggleState();
+        }
 
-			if (!isEditorViewportOpen)
-			{
-				editorViewportButton->toggleState();
-			}
+        if (!isEditorViewportOpen)
+        {
+            editorViewportButton->toggleState();
+        }
 
-		}
 	}
 }
 
@@ -718,14 +948,7 @@ EditorViewportButton::EditorViewportButton(UIComponent* ui) : UI(ui)
 {
 	open = true;
 
-	buttonFont = Font("Default Light", 25, Font::plain);
-
-	// MemoryInputStream mis1(BinaryData::cpmonolightserialized,
-	//                        BinaryData::cpmonolightserializedSize,
-	//                        false);
-	// Typeface::Ptr tp1 = new CustomTypeface(mis1);
-	// buttonFont = Font(tp1);
-	// buttonFont.setHeight(25);
+	buttonFont = Font("CP Mono", "Light", 25);
 
 }
 

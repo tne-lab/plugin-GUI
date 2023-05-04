@@ -40,7 +40,11 @@
 class CustomLookAndFeel : public LookAndFeel_V2
 {
 public:
+
+    /** Constructor */
     CustomLookAndFeel();
+
+    /** Destructor */
     ~CustomLookAndFeel();
 
     // ======== custom typeface getter: =============================
@@ -111,31 +115,91 @@ public:
                       int buttonX, int buttonY,
                       int buttonW, int buttonH,
                       ComboBox& box);
+    
+    Font getComboBoxFont (ComboBox& box) override;
+
+    // ========= custom popup menu & menu bar methods: ===========================
+
+    void drawPopupMenuBackground (Graphics&, int width, int height);
+        
+    Font getPopupMenuFont() override;
+
+    void drawMenuBarBackground (Graphics&, int width, int height, bool isMouseOverBar, MenuBarComponent&) override;
+
+    Font getMenuBarFont (MenuBarComponent&, int itemIndex, const String& itemText) override;
+
+    // ========= custom button methods: ===========================
+
+    void drawButtonBackground (Graphics& g,
+                               Button& button,
+                               const Colour& backgroundColour,
+                               bool isMouseOverButton, bool isButtonDown) override;
+
+    void drawButtonText (Graphics& g,
+                         TextButton& button,
+                         bool isMouseOverButton, bool isButtonDown) override;
+
+    Font getTextButtonFont (TextButton&, int buttonHeight) override;
+
+    // ========= custom toggle button methods: ===========================
+    void drawToggleButton (Graphics&, ToggleButton&,
+                           bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
+    
+    void drawTickBox (Graphics&, Component&,
+                      float x, float y, float w, float h,
+                      bool ticked, bool isEnabled,
+                      bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
+    
+    Path getTickShape (float height) override;
+
+    // ========= custom progress bar methods: ===========================
+    void drawProgressBar (Graphics&, ProgressBar&, int width, int height, 
+                          double progress, const String& textToShow) override;
+
+    // ========= custom document window methods: ===========================
+    Button* createDocumentWindowButton (int) override;
+
+    void drawDocumentWindowTitleBar (DocumentWindow&, Graphics&, int, int, int, int, const Image*, bool) override;
+
+    // ========= custom Alert Window methods: ===========================
+    Font getAlertWindowTitleFont() override;
+    Font getAlertWindowMessageFont() override;
+    Font getAlertWindowFont() override;
 
 private:
 
-    // UNCOMMENT AFTER UPDATE
-    // this maps strings to customtypeface pointers
-    HashMap<String, Typeface::Ptr> typefaceMap;
-
-    MemoryInputStream
-    cpmonoExtraLightStream,
-    cpmonoLightStream,
-    cpmonoPlainStream,
-    cpmonoBoldStream,
-    cpmonoBlackStream,
-    misoRegularStream,
-    silkscreenStream;
-
     Typeface::Ptr
-    cpmonoExtraLight,
-    cpmonoLight,
-    cpmonoPlain,
-    cpmonoBold,
-    cpmonoBlack,
-    misoRegular,
-    silkscreen;
+        bebasNeue,
 
+        cpmonoExtraLight,
+        cpmonoLight,
+        cpmonoPlain,
+        cpmonoBold,
+        
+        firaCodeLight,
+        firaCodeMedium,
+        firaCodeRetina,
+        firaCodeRegular,
+        firaCodeSemiBold,
+        firaCodeBold,
+
+        firaSansExtraLight,
+        firaSansRegular,
+        firaSansSemiBold,
+        firaSansExtraBold,
+
+        misoRegular,
+        misoLight,
+        misoBold,
+
+        nimbusSans,
+        nordic,
+        ostrich,
+        silkscreen;
+    
+    MemoryInputStream silkscreenStream;
+
+    Font getCommonMenuFont();
 };
 
 

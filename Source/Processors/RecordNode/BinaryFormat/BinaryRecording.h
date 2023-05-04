@@ -2,7 +2,7 @@
 ------------------------------------------------------------------
 
 This file is part of the Open Ephys GUI
-Copyright (C) 2013 Open Ephys
+Copyright (C) 2022 Open Ephys
 
 ------------------------------------------------------------------
 
@@ -19,83 +19,111 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-*/
+ */
+
 #ifndef BINARYRECORDING_H
 #define BINARYRECORDING_H
 
+#include <chrono>
+#include <iomanip>
+#include <memory>
+
+#include "../../../Utils/Utils.h"
 #include "../RecordEngine.h"
+
 #include "SequentialBlockFile.h"
 #include "NpyFile.h"
 
-namespace BinaryRecordingEngine
+class BinaryRecording : public RecordEngine
 {
+public:
 
-    class BinaryRecording : public RecordEngine
+	/** Constructor */
+	BinaryRecording();
+
+	/** Destructor */
+	~BinaryRecording();
+
+	/** Returns the unique identifier of this RecordEngine */
+	String getEngineId() const override;
+
+    /** Launches the manager for this Record Engine, and instantiates any parameters */
+    static RecordEngineManager* getEngineManager();
+
+	/** Opens files at the start of recording */
+	void openFiles(File rootFolder, int experimentNumber, int recordingNumber);
+
+	/** Closes files at the end of recording */
+	void closeFiles();
+
+	/** Writes a block of continuous data */
+	void writeContinuousData(int writeChannel,
+		int realChannel,
+		const float* dataBuffer,
+		const double* timestampBuffer,
+		int size);
+
+	/** Writes an event to disk */
+	void writeEvent(int eventIndex, const EventPacket& packet);
+
+	/** Writes a spike to disk */
+	void writeSpike(int electrodeIndex, const Spike* spike);
+
+	/** Writes timestamp sync texts */
+	void writeTimestampSyncText(uint64 streamId, int64 sampleNumber, float sampleRate, String text);
+
+	/** Sets an engine parameter (in this case TTL word writing bool) */
+	void setParameter(EngineParameter& parameter);
+
+private:
+
+    class EventRecording
     {
     public:
-        BinaryRecording();
-        ~BinaryRecording();
 
-        String getEngineID() const override;
-        void openFiles(File rootFolder, int experimentNumber, int recordingNumber) override;
-        void closeFiles() override;
-        void writeData(int writeChannel, int realChannel, const float* buffer, int size) override;
-        void writeEvent(int eventIndex, const MidiMessage& event) override;
-        void resetChannels() override;
-        void addSpikeElectrode(int index, const SpikeChannel* elec) override;
-        void writeSpike(int electrodeIndex, const SpikeEvent* spike) override;
-        void writeTimestampSyncText(uint16 sourceID, uint16 sourceIdx, int64 timestamp, float, String text) override;
-        void setParameter(EngineParameter& parameter) override;
-
-        static RecordEngineManager* getEngineManager();
-
-    private:
-
-        class EventRecording
-        {
-        public:
-            ScopedPointer<NpyFile> mainFile;
-            ScopedPointer<NpyFile> timestampFile;
-            ScopedPointer<NpyFile> metaDataFile;
-            ScopedPointer<NpyFile> channelFile;
-            ScopedPointer<NpyFile> extraFile;
-        };
-
-
-        NpyFile* createEventMetadataFile(const MetaDataEventObject* channel, String fileName, DynamicObject* jsonObject);
-        void createChannelMetaData(const MetaDataInfoObject* channel, DynamicObject* jsonObject);
-        void writeEventMetaData(const MetaDataEvent* event, NpyFile* file);
-        void increaseEventCounts(EventRecording* rec);
-        static String jsonTypeValue(BaseType type);
-        static String getProcessorString(const InfoObjectCommon* channelInfo);
-
-        bool m_saveTTLWords{ true };
-
-        HeapBlock<float> m_scaledBuffer;
-        HeapBlock<int16> m_intBuffer;
-        HeapBlock<int64> m_tsBuffer;
-        int m_bufferSize;
-
-        OwnedArray<SequentialBlockFile> m_DataFiles;
-        Array<unsigned int> m_channelIndexes;
-        Array<unsigned int> m_fileIndexes;
-        OwnedArray<EventRecording> m_eventFiles;
-        OwnedArray<EventRecording> m_spikeFiles;
-        OwnedArray<NpyFile> m_dataTimestampFiles;
-        ScopedPointer<FileOutputStream> m_syncTextFile;
-
-        Array<unsigned int> m_spikeFileIndexes;
-        Array<uint16> m_spikeChannelIndexes;
-
-        int m_recordingNum;
-        Array<int64> m_startTS;
-
-
-        //Compile-time constants
-        const int samplesPerBlock{ 4096 };
-
+		std::unique_ptr<NpyFile> data;
+		std::unique_ptr<NpyFile> samples;
+		std::unique_ptr<NpyFile> channels;
+        std::unique_ptr<NpyFile> extraFile;
+        std::unique_ptr<NpyFile> timestamps;
     };
 
-}
+    std::unique_ptr<NpyFile> createEventMetadataFile(const MetadataEventObject* channel, String fileName, DynamicObject* jsonObject);
+	void createChannelMetadata(const MetadataObject* channel, DynamicObject* jsonObject);
+    void writeEventMetadata(const MetadataEvent* event, NpyFile* file);
+    void increaseEventCounts(EventRecording* rec);
 
+    bool m_saveTTLWords{ true };
+
+	HeapBlock<float> m_scaledBuffer;
+	HeapBlock<int16> m_intBuffer;
+	HeapBlock<int64> m_sampleNumberBuffer;
+	int m_bufferSize;
+	int m_syncTimestampBufferSize;
+
+	Array<unsigned int> m_channelIndexes;
+	Array<unsigned int> m_fileIndexes;
+
+    OwnedArray<SequentialBlockFile> m_continuousFiles;
+	OwnedArray<EventRecording> m_eventFiles;
+	OwnedArray<EventRecording> m_spikeFiles;
+
+	static String jsonTypeValue(BaseType type);
+	static String getProcessorString(const InfoObject* channelInfo);
+
+	OwnedArray<NpyFile> m_dataTimestampFiles;
+	OwnedArray<NpyFile> m_dataSyncTimestampFiles;
+	std::unique_ptr<FileOutputStream> m_syncTextFile;
+
+	Array<unsigned int> m_spikeFileIndexes;
+    Array<uint16> m_spikeChannelIndexes;
+
+	int m_recordingNum;
+    int m_experimentNum;
+    Array<int64> m_samplesWritten;
+
+	const int samplesPerBlock{ 4096 };
+
+
+};
 #endif

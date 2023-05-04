@@ -33,7 +33,26 @@
 #include "LookAndFeel/CustomLookAndFeel.h"
 #include "../AccessClass.h"
 #include "../Processors/Editors/GenericEditor.h" // for UtilityButton
+#include "FilenameConfigWindow.h"
 #include <queue>
+
+/** 
+
+    Allows the user to specify custom file names,
+    instead of always using the auto-generated date string
+
+*/
+class FilenameEditorButton : public TextButton
+{
+public:
+
+    /** Constructor */
+    FilenameEditorButton();
+
+    /** Destructor */
+    ~FilenameEditorButton() {}
+};
+
 
 /**
 
@@ -49,13 +68,15 @@
   @see ControlPanel, ProcessorGraph
 
 */
-
-
 class PlayButton : public DrawableButton
 {
 public:
+    
+    /** Constructor*/
     PlayButton();
-    ~PlayButton();
+    
+    /** Destructor*/
+    ~PlayButton() { }
 };
 
 /**
@@ -76,8 +97,12 @@ public:
 class RecordButton : public DrawableButton
 {
 public:
+    
+    /** Constructor*/
     RecordButton();
-    ~RecordButton();
+    
+    /** Destructor*/
+    ~RecordButton() { }
 };
 
 /**
@@ -99,8 +124,12 @@ public:
 class CPUMeter : public Label
 {
 public:
+    
+    /** Constructor*/
     CPUMeter();
-    ~CPUMeter();
+    
+    /** Destructor*/
+    ~CPUMeter() { }
 
     /** Updates the load level displayed by the CPUMeter. Called by
          the ControlPanel. */
@@ -112,9 +141,7 @@ public:
 private:
 
     Font font;
-
     float cpu;
-    float lastCpu;
 
 };
 
@@ -131,11 +158,16 @@ private:
 
 */
 
-class DiskSpaceMeter : public Component, public SettableTooltipClient
+class DiskSpaceMeter : public Component,
+                       public SettableTooltipClient
 {
 public:
+    
+    /** Constructor*/
     DiskSpaceMeter();
-    ~DiskSpaceMeter();
+    
+    /** Destructor*/
+    ~DiskSpaceMeter() { }
 
     /** Updates the free disk space displayed by the DiskSpaceMeter. Called by
     	the ControlPanel. */
@@ -171,8 +203,17 @@ private:
 class Clock : public Component
 {
 public:
+
+    enum Mode {
+        DEFAULT,
+        HHMMSS
+    };
+    
+    /** Constructor*/
     Clock();
-    ~Clock();
+    
+    /** Destructor*/
+    ~Clock() { }
 
     /** Starts the acquisition (yellow) clock.*/
     void start();
@@ -192,6 +233,15 @@ public:
     /** Renders the clock.*/
     void paint(Graphics& g);
 
+    /** Sets the clock mode*/
+	void setMode(Mode m);
+
+    /** Gets the clock mode*/
+    Mode getMode() { return mode; }
+
+    /** Responds to right clicks*/
+    void mouseDown(const MouseEvent& e);
+
 private:
 
     /** Draws the current time.*/
@@ -206,6 +256,8 @@ private:
     bool isRecording;
 
     Font clockFont;
+
+    Mode mode;
 
 };
 
@@ -224,8 +276,12 @@ private:
 class ControlPanelButton : public Component, public SettableTooltipClient
 {
 public:
+    
+    /** Constructor*/
     ControlPanelButton(ControlPanel* cp_);
-    ~ControlPanelButton();
+    
+    /** Destructor*/
+    ~ControlPanelButton() { }
 
     /** Returns the open/closed state of the ControlPanelButton.*/
     bool isOpen()
@@ -239,8 +295,6 @@ public:
     /** Sets the open/closed state of the ControlPanelButton.*/
     void setState(bool);
 
-
-
     /** Draws the button. */
     void paint(Graphics& g);
 
@@ -250,9 +304,10 @@ public:
 private:
 
     ControlPanel* cp;
+    
+    Path openPath, closedPath;
 
     bool open;
-
 
 };
 
@@ -276,22 +331,20 @@ class ControlPanel : public Component,
     public Button::Listener,
     public Timer,
     public Label::Listener,
-    public ComboBox::Listener
+    public ComboBox::Listener,
+    public ComponentListener
 
 {
 public:
+    /** Constructor */
     ControlPanel(ProcessorGraph* graph, AudioComponent* audio);
+
+    /** Destructor */
     ~ControlPanel();
 
     /** Disables the callbacks of the ProcessorGraph (used to
         drive data acquisition).*/
     void disableCallbacks();
-
-    /** Returns a pointer to the AudioEditor.*/
-    /*  AccessClass* getAudioEditor()
-      {
-          return (AccessClass*) audioEditor;
-      }*/
 
     /** Sets whether or not the FilenameComponent is visible.*/
     void openState(bool isOpen);
@@ -299,20 +352,17 @@ public:
     /** Toggles the visibility of the FilenameComponent.*/
     void toggleState();
 
-    /** Used to manually turn recording on and off.*/
-    void setRecordState(bool isRecording);
-
-    /** Return current recording state.*/
-    bool getRecordingState();
-
-    /** Set recording directory and update FilenameComponent */
-    void setRecordingDirectory(String path);
-
     /** Return current acquisition state.*/
     bool getAcquisitionState();
 
     /** Used to manually turn recording on and off.*/
     void setAcquisitionState(bool state);
+
+    /** Called to start acquisition*/
+    void startAcquisition(bool startRecording = false);
+
+    /** Called to end acquisition */
+    void stopAcquisition();
 
     /** Returns a boolean that indicates whether or not the FilenameComponet
         is visible. */
@@ -324,20 +374,63 @@ public:
     /** Notifies the control panel when the filename is updated */
     void labelTextChanged(Label*);
 
-    /** Used by RecordNode to set the filename. */
-    String getTextToPrepend();
+    /** Used to manually turn recording on and off.*/
+    void setRecordingState(bool isRecording, bool force=false);
 
-    /** Used by RecordNode to set the filename. */
-    String getTextToAppend();
+    /** Returns true if recording is active, false otherwise. */
+    bool getRecordingState();
 
-    /** Manually set the text to be prepended to the recording directory */
-    void setPrependText(String text);
+    /** Sets the parent recording directory.
 
-    /** Manually set the text to be appended to the recording directory */
-    void setAppendText(String text);
+        The parent recording directory is inherited by all subsequent Record Nodes
+        that are placed in the signal chain. Existing Record Nodes will not be
+        affected by this change.
 
-    /** Set date text. */
-    void setDateText(String);
+        The actual recording location is determined by three strings:
+
+        <parent_directory>/<directory_name>/Record Node <ID>
+
+        "parent_directory" can be set independently in the Control Panel
+        and individual Record Nodes.
+
+        "directory_name" is generated when recording starts, and is
+        shared by all Record Nodes
+
+        "Record Node <ID>" is based on the processor ID for each Record Node,
+        and can't be changed manually.
+    */
+    void setRecordingParentDirectory(String path);
+
+    /** Returns the current parent recording diretory*/
+    File getRecordingParentDirectory();
+
+    /** Gets the base name of the recording directory */
+    String getRecordingDirectoryBaseText();
+
+    /** Sets the base name of the recording directory (overrides the auto-generated text,
+        but not prepend or append text)*/
+    void setRecordingDirectoryBaseText(String text);
+
+    /** Gets the name of the current recording directory (including prepend and append text)
+    
+        Returns an empty string if recording has not been started yet.
+    */
+    String getRecordingDirectoryName();
+
+    /** Will generate a new directory name the next time recording is started*/
+    void createNewRecordingDirectory();
+
+    /** Returns the prepend text used to generate the recording directory name */
+    String getRecordingDirectoryPrependText();
+
+    /** Manually sets the text to be prepended to the recording directory (overrides auto-generated text)*/
+    void setRecordingDirectoryPrependText(String text);
+
+    /** Returns the append text used to generate the recording directory name */
+    String getRecordingDirectoryAppendText();
+
+    /** Manually sets the text to be appended to the recording directory (overrides auto-generated text)*/
+    void setRecordingDirectoryAppendText(String text);
 
     /** Save settings. */
     void saveStateToXml(XmlElement*);
@@ -345,7 +438,36 @@ public:
     /** Load settings. */
     void loadStateFromXml(XmlElement*);
 
-    void handleIncomdingMessages();
+    /** Returns a list of recently used directories for saving data. */
+    StringArray getRecentlyUsedFilenames();
+
+    /** Sets the list of recently used directories for saving data. */
+    void setRecentlyUsedFilenames (const StringArray& filenames);
+
+    /** Queries the RecordEnginerManager for available engines when the GUI launches*/
+    void updateRecordEngineList();
+
+    /** Selects a new record engine */
+    void setSelectedRecordEngine(int index);
+
+    /** Returns a list of available engines*/
+    std::vector<RecordEngineManager*> getAvailableRecordEngines();
+
+    /** Returns the name of the currently selected record engine*/
+    String getSelectedRecordEngineId();
+
+    /** Sets the current record engine (will only apply to future Record Nodes) */
+	bool setSelectedRecordEngineId(String id);
+
+    /** Generates the current datetime based on the input formatting string */
+    String generateDatetimeFromFormat(String format);
+
+    std::unique_ptr<FilenameEditorButton> filenameText;
+    std::unique_ptr<FilenameConfigWindow> filenameConfigWindow;
+
+    std::unique_ptr<Clock> clock;
+
+private:
 
     /** Informs the Control Panel that recording has begun.*/
     void startRecording();
@@ -353,38 +475,31 @@ public:
     /** Informs the Control Panel that recording has stopped.*/
     void stopRecording();
 
-    /** Returns a list of recently used directories for saving data. */
-    StringArray getRecentlyUsedFilenames();
+    /** Generates prepend string for recording directory */
+    String generatePrepend(String format);
 
-    /** Sets the list of recently used directories for saving data. */
-    void setRecentlyUsedFilenames (const StringArray& filenames);
+    /** Generates append string for recording directory */
+    String generateAppend(String format);
 
-    /** Adds the RecordNode as a listener of the FilenameComponent
-    (so it knows when the data directory has changed).*/
-    void updateChildComponents();
+    /** Generates the next recording directory based on field settings **/
+    String generateFilenameFromFields(bool usePlaceholderText);
+    
+    bool forceRecording;
 
-    void updateRecordEngineList();
+    std::unique_ptr<PlayButton> playButton;
 
-	String getSelectedRecordEngineId();
+    std::unique_ptr<CPUMeter> cpuMeter;
+    std::unique_ptr<DiskSpaceMeter> diskMeter;
+    std::unique_ptr<FilenameComponent> filenameComponent;
+    std::unique_ptr<UtilityButton> newDirectoryButton;
+    std::unique_ptr<ControlPanelButton> cpb;
+    std::unique_ptr<RecordButton> recordButton;
+    std::unique_ptr<ComboBox> recordSelector;
 
-	bool setSelectedRecordEngineId(String id);
+    Array<std::shared_ptr<FilenameFieldComponent>> filenameFields;
 
-    ScopedPointer<RecordButton> recordButton;
-private:
-    ScopedPointer<PlayButton> playButton;
-
-    ScopedPointer<Clock> masterClock;
-    ScopedPointer<CPUMeter> cpuMeter;
-    ScopedPointer<DiskSpaceMeter> diskMeter;
-    ScopedPointer<FilenameComponent> filenameComponent;
-    ScopedPointer<UtilityButton> newDirectoryButton;
-    ScopedPointer<ControlPanelButton> cpb;
-
-    ScopedPointer<ComboBox> recordSelector;
-
-    ScopedPointer<Label> prependText;
-    ScopedPointer<Label> dateText;
-    ScopedPointer<Label> appendText;
+    /* Popup window for editing recording filename fields */
+    void componentBeingDeleted(Component &component);
 
     ProcessorGraph* graph;
     AudioComponent* audio;
@@ -394,6 +509,7 @@ private:
 
     void resized();
 
+    void paintButton(Graphics& g);
     void buttonClicked(Button* button);
 
     void comboBoxChanged(ComboBox* combo);
@@ -407,7 +523,6 @@ private:
 
     bool keyPressed(const KeyPress& key);
 
-
     Font font;
 
     bool open;
@@ -417,10 +532,12 @@ private:
     /** Draws the boundaries around the FilenameComponent.*/
     void createPaths();
 
+    String recordingDirectoryName;
+
     Colour backgroundColour;
 
     OwnedArray<RecordEngineManager> recordEngines;
-    ScopedPointer<UtilityButton> recordOptionsButton;
+    std::unique_ptr<UtilityButton> recordOptionsButton;
     int lastEngineIndex;
 
 };

@@ -26,6 +26,7 @@
 
 #include <algorithm>
 
+using namespace juce;
 
 TiledButtonGroupManager::TiledButtonGroupManager()
     : m_buttonWidth                 (10)
@@ -40,6 +41,11 @@ TiledButtonGroupManager::TiledButtonGroupManager()
 {
     setRadioButtonMode (false);
     setButtonsLookAndFeel (m_materialButtonsLookAndFeel);
+}
+
+TiledButtonGroupManager::~TiledButtonGroupManager()
+{
+    setButtonsLookAndFeel(nullptr);
 }
 
 
@@ -162,7 +168,7 @@ void TiledButtonGroupManager::addButton (Button* newButton, bool useDefaultLookA
 }
 
 
-int TiledButtonGroupManager::getIndexOfButtonAtPosition (Point<int> position) const
+int TiledButtonGroupManager::getIndexOfButtonAtPosition (juce::Point<int> position) const
 {
 
     const int numButtons = m_buttons.size();

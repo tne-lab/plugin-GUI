@@ -19,19 +19,38 @@
 	You should have received a copy of the GNU General Public License
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-	*/
+*/
+
 #include "GenericProcessor.h"
-#include "../../UI/UIComponent.h"
+
 #include "../../AccessClass.h"
+#include "../../Utils/Utils.h"
+#include "../Editors/GenericEditor.h"
+
+#include "../Settings/DataStream.h"
+#include "../Settings/ProcessorInfo.h"
+#include "../Settings/ConfigurationObject.h"
+#include "../Settings/DeviceInfo.h"
+
+#include "../Splitter/Splitter.h"
+
+#include "../Merger/Merger.h"
+
+#include "../Events/Event.h"
+#include "../Events/Spike.h"
+
+#include "../MessageCenter/MessageCenterEditor.h"
 
 #include <exception>
 
+#define MS_FROM_START Time::highResolutionTicksToSeconds(Time::getHighResolutionTicks() - start) * 1000
 
 const String GenericProcessor::m_unusedNameString("xxx-UNUSED-OPEN-EPHYS-xxx");
 
 GenericProcessor::GenericProcessor(const String& name)
-	: sourceNode(0)
-	, destNode(0)
+	: GenericProcessorBase(name)
+	, sourceNode(nullptr)
+	, destNode(nullptr)
 	, isEnabled(true)
 	, wasConnected(false)
 	, nextAvailableChannel(0)
@@ -40,25 +59,32 @@ GenericProcessor::GenericProcessor(const String& name)
 	, currentChannel(-1)
 	, editor(nullptr)
 	, parametersAsXml(nullptr)
+	, ttlEventChannel(nullptr)
 	, sendSampleCount(true)
-	, m_processorType(PROCESSOR_TYPE_UTILITY)
 	, m_name(name)
-	, m_isParamsWereLoaded(false)
+	, m_paramsWereLoaded(false)
+
 {
-	settings.numInputs = settings.numOutputs = 0;
-	m_lastProcessTime = Time::getHighResolutionTicks();
+	latencyMeter = std::make_unique<LatencyMeter>(this);
+
+	addBooleanParameter(Parameter::STREAM_SCOPE,
+        "enable_stream",
+		"Determines whether or not processing is enabled for a particular stream",
+		true, true);
 }
 
 
 GenericProcessor::~GenericProcessor()
 {
+    availableParameters.clear(true);
 }
 
 
 AudioProcessorEditor* GenericProcessor::createEditor()
 {
-	editor = new GenericEditor(this, true);
-	return editor;
+	editor = std::make_unique<GenericEditor>(this);
+
+	return editor.get();
 }
 
 
@@ -73,70 +99,314 @@ void GenericProcessor::setNodeId(int id)
 }
 
 
-Parameter* GenericProcessor::getParameterByName(String name)
-{
-	const int numParameters = getNumParameters();
-	// doesn't work
-	for (int i = 0; i < numParameters; ++i)
-	{
-		const auto parameter = parameters[i];
-		const String parameterName = parameter->getName();
 
-		if (parameterName.compare(name) == 0) // fails at this point
-			return parameter;//parameters.getReference(i);
+Parameter* GenericProcessor::getParameter(const String& name)
+{
+	for (auto param : availableParameters)
+	{
+		if (param->getName().equalsIgnoreCase(name))
+			return param;
 	}
 
-	Parameter* nullParam = new Parameter("VOID", false, -1);
+    LOGE("Could not find parameter named ", name);
 
-	return nullParam;
+	return nullptr;
 }
 
-
-Parameter* GenericProcessor::getParameterObject(int parameterIndex) const
+Parameter* GenericProcessor::getParameter(uint16 streamId, const String& name)
 {
-	return parameters[parameterIndex];
+    // no checking, so it's fast; but take care to provide a valid stream / name
+    return streamParameterMap[streamId][name];
+
 }
 
+Parameter* GenericProcessor::getParameter(EventChannel* eventChannel, const String& name)
+{
+    // no checking, so it's fast; but take care to provide a valid stream / name
+    return eventChannelParameterMap[eventChannel][name];
+
+}
+
+
+Parameter* GenericProcessor::getParameter(ContinuousChannel* continuousChannel, const String& name)
+{
+    // no checking, so it's fast; but take care to provide a valid stream / name
+    return continuousChannelParameterMap[continuousChannel][name];
+
+}
+
+
+Parameter* GenericProcessor::getParameter(SpikeChannel* spikeChannel, const String& name)
+{
+    // no checking, so it's fast; but take care to provide a valid stream / name
+    return spikeChannelParameterMap[spikeChannel][name];
+
+}
+
+Array<Parameter*> GenericProcessor::getParameters()
+{
+    Array<Parameter*> params;
+    
+    for (const auto & [key, value] : globalParameterMap)
+    {
+        params.add(value);
+    }
+    
+    return params;
+}
+
+Array<Parameter*> GenericProcessor::getParameters(uint16 streamId)
+{
+    Array<Parameter*> params;
+    
+    if (getDataStream(streamId) != nullptr)
+    {
+        params = getDataStream(streamId)->getParameters();
+    }
+    
+    return params;
+}
+
+
+Array<Parameter*> GenericProcessor::getParameters(EventChannel* eventChannel)
+{
+    Array<Parameter*> params;
+    
+    if (eventChannel != nullptr)
+        params = eventChannel->getParameters();
+    
+    return params;
+}
+
+Array<Parameter*> GenericProcessor::getParameters(ContinuousChannel* continuousChannel)
+{
+    Array<Parameter*> params;
+    
+    if (continuousChannel != nullptr)
+        params = continuousChannel->getParameters();
+    
+    return params;
+}
+
+Array<Parameter*> GenericProcessor::getParameters(SpikeChannel* spikeChannel)
+{
+    Array<Parameter*> params;
+    
+    if (spikeChannel != nullptr)
+        params = spikeChannel->getParameters();
+    
+    return params;
+}
+
+
+void GenericProcessor::addBooleanParameter(
+    Parameter::ParameterScope scope,
+    const String& name,
+	const String& description,
+	bool defaultValue,
+	bool deactivateDuringAcquisition)
+{
+
+	BooleanParameter* p = new BooleanParameter(
+		this, 
+		scope,
+		name, 
+		description, 
+		defaultValue, 
+		deactivateDuringAcquisition);
+
+	availableParameters.add(p);
+
+	if (scope == Parameter::GLOBAL_SCOPE)
+	{
+		globalParameterMap[p->getName()] = p;
+	}
+
+}
+
+void GenericProcessor::addCategoricalParameter(
+    Parameter::ParameterScope scope,
+    const String& name,
+	const String& description,
+	StringArray categories,
+	int defaultIndex,
+	bool deactivateDuringAcquisition)
+{
+
+	CategoricalParameter* p = new CategoricalParameter(
+		this, 
+		scope,
+		name, 
+		description, 
+		categories, 
+		defaultIndex, 
+		deactivateDuringAcquisition);
+
+	availableParameters.add(p);
+	
+	if (scope == Parameter::GLOBAL_SCOPE)
+	{
+		globalParameterMap[p->getName()] = p;
+	}
+
+}
+
+void GenericProcessor::addIntParameter(
+    Parameter::ParameterScope scope,
+    const String& name,
+    const String& description,
+	int defaultValue,
+	int minValue,
+	int maxValue,
+	bool deactivateDuringAcquisition)
+{
+
+	IntParameter* p = 
+		new IntParameter(this, 
+			scope,
+			name, 
+			description, 
+			defaultValue, 
+			minValue, 
+			maxValue, 
+			deactivateDuringAcquisition);
+
+	availableParameters.add(p);
+
+	if (scope == Parameter::GLOBAL_SCOPE)
+	{
+		globalParameterMap[p->getName()] = p;
+	}
+
+}
+
+void GenericProcessor::addStringParameter(
+    Parameter::ParameterScope scope,
+    const String& name,
+    const String& description,
+    String defaultValue,
+    bool deactivateDuringAcquisition)
+{
+    StringParameter* p =
+        new StringParameter(this,
+            scope,
+            name,
+            description,
+            defaultValue,
+            deactivateDuringAcquisition);
+
+    availableParameters.add(p);
+
+    if (scope == Parameter::GLOBAL_SCOPE)
+    {
+        globalParameterMap[p->getName()] = p;
+    }
+}
+
+void GenericProcessor::addFloatParameter(
+	Parameter::ParameterScope scope,
+    const String& name,
+    const String& description,
+	float defaultValue,
+	float minValue,
+	float maxValue,
+	float stepSize,
+	bool deactivateDuringAcquisition)
+{
+
+	FloatParameter* p =
+		new FloatParameter(this,
+			scope,
+			name,
+			description,
+			defaultValue,
+			minValue,
+			maxValue,
+			stepSize,
+			deactivateDuringAcquisition);
+
+	availableParameters.add(p);
+
+	if (scope == Parameter::GLOBAL_SCOPE)
+	{
+		globalParameterMap[p->getName()] = p;
+	}
+
+}
+
+void GenericProcessor::addMaskChannelsParameter(
+	Parameter::ParameterScope scope,
+    const String& name,
+    const String& description,
+	bool deactivateDuringAcquisition)
+{
+
+	Array<var> defaultValue;
+
+	MaskChannelsParameter* p =
+		new MaskChannelsParameter(this,
+			scope,
+			name,
+			description,
+			deactivateDuringAcquisition);
+
+	availableParameters.add(p);
+
+	if (scope == Parameter::GLOBAL_SCOPE)
+	{
+		globalParameterMap[p->getName()] = p;
+	}
+}
+
+
+
+void GenericProcessor::addSelectedChannelsParameter(
+    Parameter::ParameterScope scope,
+    const String& name,
+    const String& description,
+    int maxSelectedChannels,
+    bool deactivateDuringAcquisition)
+{
+
+    Array<var> defaultValue;
+
+    SelectedChannelsParameter* p =
+        new SelectedChannelsParameter(this,
+            scope,
+            name,
+            description,
+            defaultValue,
+            maxSelectedChannels,
+            deactivateDuringAcquisition);
+
+    availableParameters.add(p);
+
+    if (scope == Parameter::GLOBAL_SCOPE)
+    {
+        globalParameterMap[p->getName()] = p;
+    }
+}
+
+
+
+
+void GenericProcessor::parameterChangeRequest(Parameter* param)
+{
+	currentParameter = param;
+
+	setParameter(-1, 0.0f);
+
+	getEditor()->updateView();
+}
 
 void GenericProcessor::setParameter(int parameterIndex, float newValue)
 {
-	editor->updateParameterButtons(parameterIndex);
-	std::cout << "Setting parameter" << std::endl;
-
-	if (currentChannel >= 0)
-		parameters[parameterIndex]->setValue(newValue, currentChannel);
-}
-
-
-const String GenericProcessor::getParameterName(int parameterIndex)
-{
-	return parameters[parameterIndex]->getName();
-}
-
-
-const String GenericProcessor::getParameterText(int parameterIndex)
-{
-	return parameters[parameterIndex]->getDescription();
-}
-
-
-var GenericProcessor::getParameterVar(int parameterIndex, int parameterChannel)
-{
-	const auto parameter = parameters[parameterIndex];
-	return parameter->operator[] (parameterChannel);
-}
-
-
-void GenericProcessor::prepareToPlay(double sampleRate_, int estimatedSamplesPerBlock)
-{
-}
-
-
-void GenericProcessor::releaseResources()
-{
-	// use the disable() function instead
-	// releaseResources() is called by Juce at unpredictable times
-	// disable() is only called by the ProcessorGraph at the end of acquisition
+	if (currentParameter != nullptr)
+	{
+		currentParameter->updateValue();
+		parameterValueChanged(currentParameter);
+	}
+	
 }
 
 
@@ -144,7 +414,7 @@ int GenericProcessor::getNextChannel(bool increment)
 {
 	int chan = nextAvailableChannel;
 
-	//std::cout << "Next channel: " << chan << ", num inputs: " << getNumInputs() << std::endl;
+	//LOGDD("Next channel: ", chan, ", num inputs: ", getNumInputs());
 
 	if (increment)
 		nextAvailableChannel++;
@@ -166,547 +436,767 @@ void GenericProcessor::resetConnections()
 
 void GenericProcessor::setSourceNode(GenericProcessor* sn)
 {
-	//std::cout << "My name is " << getName() << ". Setting source node." << std::endl;
-
-	if (!isSource())
-	{
-		//	std::cout << " I am not a source." << std::endl;
-
-		if (sn != 0)
-		{
-			//	std::cout << " The source is not blank." << std::endl;
-
-			if (!sn->isSink())
-			{
-				//		std::cout << " The source is not a sink." << std::endl;
-				if (sourceNode != sn)
-				{
-					//			std::cout << " The source is new and named " << sn->getName() << std::endl;
-
-					if (this->isMerger())
-						setMergerSourceNode(sn);
-					else
-						sourceNode = sn;
-
-					sn->setDestNode(this);
-				}
-				else
-				{
-					//			std::cout << "  The source node is not new." << std::endl;
-				}
-			}
-			else
-			{
-				//		std::cout << " The source is a sink." << std::endl;
-				sourceNode = 0;
-			}
-
-		}
-		else
-		{
-			//		std::cout << " The source is blank." << std::endl;
-			sourceNode = 0;
-		}
-	}
-	else
-	{
-		//	std::cout << " I am a source. I can't have a source node." << std::endl;
-
-		if (sn != 0)
-			sn->setDestNode(this);
-	}
+    if (this->isMerger())
+        setMergerSourceNode(sn);
+    else
+        sourceNode = sn;
 }
 
 
 void GenericProcessor::setDestNode(GenericProcessor* dn)
 {
-	//	std::cout << "My name is " << getName() << ". Setting dest node." << std::endl;
+	
+    if (isSplitter())
+    {
+        setSplitterDestNode(dn);
+    }
+    else
+    {
+        destNode = dn;
+    }
 
-	if (!isSink())
-	{
-		//	std::cout << "  I am not a sink." << std::endl;
-
-		if (dn != 0)
-		{
-			//		std::cout << "  The dest node is not blank." << std::endl;
-			if (!dn->isSource())
-			{
-				//		std::cout << "  The dest node is not a source." << std::endl;
-
-				if (destNode != dn)
-				{
-					//		std::cout << "  The dest node is new and named " << dn->getName() << std::endl;
-					//
-					if (this->isSplitter())
-						setSplitterDestNode(dn);
-					else
-						destNode = dn;
-
-					dn->setSourceNode(this);
-				}
-				else
-				{
-					//		std::cout << "  The dest node is not new." << std::endl;
-				}
-			}
-			else
-			{
-				//	std::cout << "  The dest node is a source." << std::endl;
-
-				destNode = 0;
-			}
-		}
-		else
-		{
-			//	std::cout << "  The dest node is blank." << std::endl;
-
-			destNode = 0;
-		}
-	}
-	else
-	{
-		//std::cout << "  I am a sink, I can't have a dest node." << std::endl;
-		//if (dn != 0)
-		//	dn->setSourceNode(this);
-	}
 }
 
 
 void GenericProcessor::clearSettings()
 {
-	//std::cout << "Generic processor clearing settings." << std::endl;
 
-	settings.originalSource = 0;
-	settings.numInputs = 0;
-	settings.numOutputs = 0;
+    LOGDD("Clearing settings for ", getName());
+    
+    Array<ContinuousChannel*> continuousChannelsToKeep;
+    
+    for (auto obj : continuousChannels)
+    {
+        //std::cout << obj->getName() << std::endl;
+        if (!obj->isLocal())
+            delete obj;
+        else
+            continuousChannelsToKeep.add(obj);
+    }
+    
+    continuousChannels.clearQuick(false);
+    continuousChannels.addArray(continuousChannelsToKeep);
 
-	// std::cout << "Record status size = " << recordStatus.size() << std::endl;
+    Array<EventChannel*> eventChannelsToKeep;
+    
+    for (auto obj : eventChannels)
+    {
 
-	if (m_recordStatus.size() < dataChannelArray.size())
-		m_recordStatus.resize(dataChannelArray.size());
+        if (!obj->isLocal())
+            delete obj;
+        else
+            eventChannelsToKeep.add(obj);
+    }
+    
+    eventChannels.clearQuick(false);
+    eventChannels.addArray(eventChannelsToKeep);
+    
+    Array<SpikeChannel*> spikeChannelsToKeep;
+    
+    for (auto obj : spikeChannels)
+    {
+        if (!obj->isLocal())
+            delete obj;
+        else
+            spikeChannelsToKeep.add(obj);            
+    }
+    
+    spikeChannels.clearQuick(false);
+    spikeChannels.addArray(spikeChannelsToKeep);
 
-	if (m_monitorStatus.size() < dataChannelArray.size())
-		m_monitorStatus.resize(dataChannelArray.size());
+    Array<ConfigurationObject*> configurationObjectsToKeep;
+    
+    for (auto obj : configurationObjects)
+    {
+        if (!obj->isLocal())
+            delete obj;
+        else
+            configurationObjectsToKeep.add(obj);
+    }
+    
+    configurationObjects.clearQuick(false);
+    configurationObjects.addArray(configurationObjectsToKeep);
 
-	for (int i = 0; i < dataChannelArray.size(); ++i)
+    Array<DataStream*> dataStreamsToKeep;
+
+    
+    for (auto obj : dataStreams)
+    {
+
+        if (!obj->isLocal())
+        {
+            savedDataStreamParameters.add(new ParameterCollection());
+            
+            //std::cout << "SAVING STREAM PARAMETERS" << std::endl;
+            savedDataStreamParameters.getLast()->copyParametersFrom(obj);
+            
+            delete obj;
+        } else {
+            dataStreamsToKeep.add(obj);
+        }
+            
+    }
+    
+    dataStreams.clearQuick(false);
+    dataStreams.addArray(dataStreamsToKeep);
+
+    ttlEventChannel = nullptr;
+
+	startTimestampsForBlock.clear();
+    startSamplesForBlock.clear();
+	numSamplesInBlock.clear();
+	processStartTimes.clear();
+
+}
+
+void GenericProcessor::setStreamEnabled(uint16 streamId, bool isEnabled)
+{
+    
+    getDataStream(streamId)->getParameter("enable_stream")->setNextValue(isEnabled);
+}
+
+int GenericProcessor::findMatchingStreamParameters(DataStream* stream)
+{
+
+   // std::cout << "Finding best matching saved parameters for " << stream->getName() << " (" << stream->getNodeId() << ")" << std::endl;
+    
+    for (int i = 0; i < savedDataStreamParameters.size(); i++)
+    {
+        ParameterCollection* params = savedDataStreamParameters[i];
+
+        // matching ID --> perfect match
+        if (params->owner.streamId == stream->getStreamId())
+        {
+           // std::cout << "Found matching ID: " << params->owner.streamId << std::endl;
+            return i;
+        }
+
+    }
+
+
+    for (int i = 0; i < savedDataStreamParameters.size(); i++)
+    {
+        ParameterCollection* params = savedDataStreamParameters[i];
+
+        //std::cout << params->owner.name << std::endl;
+
+        // matching name --> this is a good sign
+        if (params->owner.name.equalsIgnoreCase(stream->getName()))
+        {
+            //std::cout << "Found matching name." << std::endl;
+
+            bool betterMatch = false;
+
+            for (auto otherStream : dataStreams)
+            {
+                if (otherStream != stream && params->owner.streamId == otherStream->getStreamId())
+                {
+                    betterMatch = true;
+                   // std::cout << "...but found another stream with matching ID" << std::endl;
+                }
+            }
+
+            if (!betterMatch)
+            {
+                //std::cout << "And it's the best match." << std::endl;
+                return i;
+            }
+            else
+                continue;
+        }
+            
+    }
+
+    for (int i = 0; i < savedDataStreamParameters.size(); i++)
+    {
+        ParameterCollection* params = savedDataStreamParameters[i];
+
+        //std::cout << params->owner.name << std::endl;
+
+        if (!stream->hasDevice())
+            continue;
+
+        // matching name --> this is a good sign
+        if (params->owner.deviceName.equalsIgnoreCase(stream->device->getName()))
+        {
+           // std::cout << "Found matching device." << std::endl;
+
+            bool betterMatch = false;
+
+            for (auto otherStream : dataStreams)
+            {
+                if (otherStream != stream && params->owner.name.equalsIgnoreCase(otherStream->getName()))
+                {
+                    betterMatch = true;
+                   // std::cout << "...but found another stream with matching name" << std::endl;
+                }
+            }
+
+            if (!betterMatch)
+            {
+                //std::cout << "And it's the best match." << std::endl;
+                return i;
+            }
+            else
+                continue;
+        }
+
+    }
+
+    int candidate = -1;
+
+    for (int i = 0; i < savedDataStreamParameters.size(); i++)
+    {
+        ParameterCollection* params = savedDataStreamParameters[i];
+
+
+        // matching channels and sample rate --> this is pretty good
+        if (params->owner.sample_rate == stream->getSampleRate() &&
+            params->owner.channel_count == stream->getChannelCount())
+        {
+
+           // std::cout << "Found matching sample rate + channel count." << std::endl;
+
+            bool betterMatch = false;
+            
+            for (auto otherStream : dataStreams)
+            {
+                if (otherStream != stream && otherStream->getName().equalsIgnoreCase(params->owner.name))
+                {
+                    betterMatch = true;
+                    //std::cout << "...but found another stream with matching name" << std::endl;
+                }
+            }
+
+            if (!betterMatch)
+            {
+                //std::cout << "And it's the best match." << std::endl;
+                return i;
+            }
+            else
+                continue;
+        }
+            
+    }
+
+    for (int i = 0; i < savedDataStreamParameters.size(); i++)
+    {
+        ParameterCollection* params = savedDataStreamParameters[i];
+
+        // only sample rate match --> still use it
+        if (params->owner.sample_rate == stream->getSampleRate())
+        {
+
+            //std::cout << "Found matching sample rate." << std::endl;
+
+            bool betterMatch = false;
+
+            for (auto otherStream : dataStreams)
+            {
+                if (otherStream != stream && params->owner.sample_rate == otherStream->getSampleRate() &&
+                                             params->owner.channel_count == otherStream->getChannelCount())
+                {
+                    betterMatch = true;
+                    //std::cout << "...but found another stream with matching sample rate and channel count" << std::endl;
+                }
+            }
+
+            if (!betterMatch)
+            {
+                //std::cout << "And it's the best match." << std::endl;
+                return i;
+            }
+            else
+                continue;
+        }
+    }
+
+    // no match found
+
+    return -1;
+}
+
+int GenericProcessor::copyDataStreamSettings(const DataStream* stream, int continuousChannelGlobalIndex)
+{
+
+	if (false)
 	{
-		// std::cout << channels[i]->getRecordState() << std::endl;
-		m_recordStatus.set(i, dataChannelArray[i]->getRecordState());
-		m_monitorStatus.set(i, dataChannelArray[i]->isMonitored());
+        std::cout << getName() << " " << getNodeId() << std::endl;
+		std::cout << "Copying stream " << stream->getName() << ":" << std::endl;
+		std::cout << "  Source Node ID: " << stream->getSourceNodeId() << std::endl;
+		std::cout << "  Source Node Name: " << stream->getSourceNodeName() << std::endl;
+		std::cout << "  Last Node ID: " << stream->getNodeId() << std::endl;
+		std::cout << "  Last Node Name: " << stream->getNodeName() << std::endl;
+		std::cout << "  Name: " << stream->getName() << std::endl;
+		std::cout << "  Stream ID: " << stream->getStreamId() << std::endl;
+		std::cout << "  Sample rate: " << stream->getSampleRate() << std::endl;
+		std::cout << "  Channel count: " << stream->getChannelCount() << std::endl;
+		std::cout << "  " << std::endl;
+	}
+	
+    dataStreams.add(new DataStream(*stream));
+    
+	dataStreams.getLast()->clearChannels();
+	dataStreams.getLast()->addProcessor(processorInfo.get());
+    
+	for (auto continuousChannel : stream->getContinuousChannels())
+	{
+
+        if (false)
+        {
+            std::cout << "Copying continuous channel: " << std::endl;
+            std::cout << "  Source Node ID: " << continuousChannel->getSourceNodeId() << std::endl;
+            std::cout << "  Source Node Name: " << continuousChannel->getSourceNodeName() << std::endl;
+            std::cout << "  Last Node ID: " << continuousChannel->getNodeId() << std::endl;
+            std::cout << "  Last Node Name: " << continuousChannel->getNodeName() << std::endl;
+            std::cout << "  Name: " << continuousChannel->getName() << std::endl;
+            std::cout << "  Stream ID: " << continuousChannel->getStreamId() << std::endl;
+            std::cout << "  Sample rate: " << continuousChannel->getSampleRate() << std::endl;
+        }
+		
+		continuousChannels.add(new ContinuousChannel(*continuousChannel));
+		continuousChannels.getLast()->addProcessor(processorInfo.get());
+		continuousChannels.getLast()->setDataStream(dataStreams.getLast(), true);
+        continuousChannels.getLast()->setGlobalIndex(continuousChannelGlobalIndex++);
+
 	}
 
-	dataChannelArray.clear();
-	eventChannelArray.clear();
-	spikeChannelArray.clear();
-	configurationObjectArray.clear();
-	clearChannelCreationCounts();
+	for (auto eventChannel : stream->getEventChannels())
+	{
+
+		if (false)
+		{
+			std::cout << "Copying event channel: " << std::endl;
+			std::cout << "  Source Node ID: " << eventChannel->getSourceNodeId() << std::endl;
+			std::cout << "  Source Node Name: " << eventChannel->getSourceNodeName() << std::endl;
+			std::cout << "  Last Node ID: " << eventChannel->getNodeId() << std::endl;
+			std::cout << "  Last Node Name: " << eventChannel->getNodeName() << std::endl;
+			std::cout << "  Name: " << eventChannel->getName() << std::endl;
+			std::cout << "  ID: " << eventChannel->getStreamId() << std::endl;
+			std::cout << "  Sample rate: " << eventChannel->getSampleRate() << std::endl;
+		}
+
+		eventChannels.add(new EventChannel(*eventChannel));
+		eventChannels.getLast()->addProcessor(processorInfo.get());
+		eventChannels.getLast()->setDataStream(dataStreams.getLast(), true);
+	}
+
+	for (auto spikeChannel : stream->getSpikeChannels())
+	{
+
+        if (false)
+        {
+            std::cout << "Copying spike channel: " << std::endl;
+            std::cout << "  Source Node ID: " << spikeChannel->getSourceNodeId() << std::endl;
+            std::cout << "  Source Node Name: " << spikeChannel->getSourceNodeName() << std::endl;
+            std::cout << "  Last Node ID: " << spikeChannel->getNodeId() << std::endl;
+            std::cout << "  Last Node Name: " << spikeChannel->getNodeName() << std::endl;
+            std::cout << "  Name: " << spikeChannel->getName() << std::endl;
+            std::cout << "  ID: " << spikeChannel->getStreamId() << std::endl;
+            std::cout << "  Sample rate: " << spikeChannel->getSampleRate() << std::endl;
+        }
+
+		spikeChannels.add(new SpikeChannel(*spikeChannel));
+		spikeChannels.getLast()->addProcessor(processorInfo.get());
+        spikeChannels.getLast()->setDataStream(dataStreams.getLast(), true);
+	}
+    
+    return continuousChannelGlobalIndex;
+}
+
+void GenericProcessor::updateDisplayName(String name)
+{
+	m_name = name;
 }
 
 
 void GenericProcessor::update()
 {
-	std::cout << getName() << " updating settings." << std::endl;
 
-	// ---- RESET EVERYTHING ---- ///
+    LOGD("Updating settings for ", getName(), " (", getNodeId(), ")");
+
+    int64 start = Time::getHighResolutionTicks();
+
 	clearSettings();
 
-	if (sourceNode != 0) // copy settings from source node
-	{
-		// everything is inherited except numOutputs
-		settings = sourceNode->settings;
-		settings.numInputs = settings.numOutputs;
-		settings.numOutputs = settings.numInputs;
+	processorInfo.reset();
+	processorInfo = std::unique_ptr<ProcessorInfoObject>(new ProcessorInfoObject(this));
+   
+    if (!isMerger()) // only has one source
+    {
+        if (sourceNode != nullptr)
+        {
+            int continuousChannelGlobalIndex = 0;
 
-		for (int i = 0; i < sourceNode->dataChannelArray.size(); ++i)
-		{
-			DataChannel* sourceChan = sourceNode->dataChannelArray[i];
-			DataChannel* ch = new DataChannel(*sourceChan);
+            // copy settings from source node
+            messageChannel.reset();
+            messageChannel = std::make_unique<EventChannel>(*sourceNode->getMessageChannel());
+            messageChannel->addProcessor(processorInfo.get());
+            messageChannel->setDataStream(AccessClass::getMessageCenter()->messageCenter->getMessageStream());
 
-
-			if (i < m_recordStatus.size())
-			{
-				ch->setRecordState(m_recordStatus[i]);
-				ch->setMonitored(m_monitorStatus[i]);
-			}
-
-			ch->addToHistoricString(getName());
-			dataChannelArray.add(ch);
-		}
-
-		for (int i = 0; i < sourceNode->eventChannelArray.size(); ++i)
-		{
-			EventChannel* sourceChan = sourceNode->eventChannelArray[i];
-			EventChannel* ch = new EventChannel(*sourceChan);
-			ch->eventMetaDataLock = true;
-			eventChannelArray.add(ch);
-		}
-		for (int i = 0; i < sourceNode->spikeChannelArray.size(); ++i)
-		{
-			SpikeChannel* sourceChan = sourceNode->spikeChannelArray[i];
-			SpikeChannel* ch = new SpikeChannel(*sourceChan);
-			ch->eventMetaDataLock = true;
-			spikeChannelArray.add(ch);
-
-		}
-		for (int i = 0; i < sourceNode->configurationObjectArray.size(); ++i)
-		{
-			ConfigurationObject* sourceChan = sourceNode->configurationObjectArray[i];
-			ConfigurationObject* ch = new ConfigurationObject(*sourceChan);
-			configurationObjectArray.add(ch);
-		}
-	}
-	else // generate new settings
-	{
-
-		createDataChannels(); //Only sources can create data channels
-		settings.numOutputs = dataChannelArray.size();
-		std::cout << getName() << " setting num outputs to " << settings.numOutputs << std::endl;
-
-		for (int i = 0; i < dataChannelArray.size(); i++)
-		{
-            if (i < m_recordStatus.size())
+            if (sourceNode->isSplitter())
             {
-                dataChannelArray[i]->setRecordState(m_recordStatus[i]);
-                dataChannelArray[i]->setMonitored(m_monitorStatus[i]);
-            }
-            else if (isSource())
+                Splitter* splitter = (Splitter*) sourceNode;
+
+                for (auto stream : splitter->getStreamsForDestNode(this))
+                {
+                    continuousChannelGlobalIndex = copyDataStreamSettings(stream, continuousChannelGlobalIndex);
+
+                    if (splitter->getDestNode(0) == this)
+                    {
+                        dataStreams.getLast()->setName(stream->getName() + "-A");
+                    }
+                    else {
+                        dataStreams.getLast()->setName(stream->getName() + "-B");
+                    }
+                    
+                }
+            } else if (sourceNode->isMerger())
             {
-                dataChannelArray[i]->setRecordState(true);
+                Merger* merger = (Merger*) sourceNode;
+
+                for (auto stream : merger->getStreamsForDestNode(this))
+                {
+                    continuousChannelGlobalIndex = copyDataStreamSettings(stream, continuousChannelGlobalIndex);
+                }
             }
-		}
-	}
+            else {
+                for (auto stream : sourceNode->getStreamsForDestNode(this))
+                {
+                    continuousChannelGlobalIndex = copyDataStreamSettings(stream, continuousChannelGlobalIndex);
+                }
+            }
 
-	//Any processor, not only sources, can add new event and spike channels. It's best to do it in their dedicated methods
-	createEventChannels();
-	createSpikeChannels();
-	createConfigurationObjects();
+            for (auto configurationObject : sourceNode->configurationObjects)
+            {
+                configurationObjects.add(new ConfigurationObject(*configurationObject));
+            }
 
-	if (this->isSink())
+            isEnabled = sourceNode->isEnabled;
+            
+            if (continuousChannelGlobalIndex == 0)
+                isEnabled = false;
+                
+        }
+        else
+        {
+            // connect first processor in signal chain to message center
+           // messageChannel.reset();
+            const EventChannel* originalChannel = AccessClass::getMessageCenter()->messageCenter->getMessageChannel();
+            EventChannel* newChannel = new EventChannel(*originalChannel);
+            messageChannel.reset(newChannel);
+           // messageChannel = std::make_unique<EventChannel>(originalChannel);
+            messageChannel->addProcessor(processorInfo.get());
+            messageChannel->setDataStream(AccessClass::getMessageCenter()->messageCenter->getMessageStream());
+
+            if (!isSource())
+                isEnabled = false;
+
+            LOGD(getNodeId(), " connected to Message Center");
+        }
+    } else {
+        
+        updateSettings(); // only for Merger
+    }
+
+	updateChannelIndexMaps();
+
+    LOGD("    Copied upstream settings in ", MS_FROM_START, " milliseconds");
+
+    /// UPDATE PARAMETERS FOR STREAMS
+	for (auto stream : dataStreams)
 	{
-		settings.numOutputs = 0;
+		LOGD( "Stream ", stream->getStreamId(), " - ", stream->getName(), " num channels: ", stream->getChannelCount(), " num parameters: ", stream->numParameters());
+        LOGD("Number of saved params: ", savedDataStreamParameters.size());
+
+        if (stream->numParameters() == 0)
+        {
+            //std::cout << "No parameters found, adding..." << std::endl;
+            
+            for (auto param : availableParameters)
+            {
+                if (param->getScope() == Parameter::STREAM_SCOPE)
+                {
+                    if (param->getType() == Parameter::BOOLEAN_PARAM)
+                    {
+                        BooleanParameter* p = (BooleanParameter*)param;
+                        p->setDataStream(stream);
+                        stream->addParameter(new BooleanParameter(*p));
+                    }
+                    else if (param->getType() == Parameter::STRING_PARAM)
+                    {
+                        StringParameter* p = (StringParameter*)param;
+                        p->setDataStream(stream);
+                        stream->addParameter(new StringParameter(*p));
+                    }
+                    else if (param->getType() == Parameter::INT_PARAM)
+                    {
+                        IntParameter* p = (IntParameter*)param;
+                        p->setDataStream(stream);
+                        stream->addParameter(new IntParameter(*p));
+                    }
+                    else if (param->getType() == Parameter::FLOAT_PARAM)
+                    {
+                        FloatParameter* p = (FloatParameter*)param;
+                        p->setDataStream(stream);
+                        stream->addParameter(new FloatParameter(*p));
+                    }
+                    else if (param->getType() == Parameter::CATEGORICAL_PARAM)
+                    {
+                        CategoricalParameter* p = (CategoricalParameter*)param;
+                        p->setDataStream(stream);
+                        stream->addParameter(new CategoricalParameter(*p));
+                    }
+                    else if (param->getType() == Parameter::SELECTED_CHANNELS_PARAM)
+                    {
+                        SelectedChannelsParameter* p = (SelectedChannelsParameter*)param;
+                        SelectedChannelsParameter* p2 = new SelectedChannelsParameter(this,
+                                                                              p->getScope(),
+                                                                              p->getName(),
+                                                                              p->getDescription(),
+                                                                              p->getValue(),
+                                                                              p->getMaxSelectableChannels(),
+                                                                              p->shouldDeactivateDuringAcquisition());
+                        
+                        p2->setChannelCount(stream->getChannelCount());
+                        p2->setDataStream(stream);
+                        //LOGD("GenericProcessor::update() Adding SelectedChannelsParameter to stream ", stream->getStreamId(), " with ", stream->getChannelCount(), " channels");
+
+                        stream->addParameter(p2);
+                    }
+                    else if (param->getType() == Parameter::MASK_CHANNELS_PARAM)
+                    {
+                        MaskChannelsParameter* p = (MaskChannelsParameter*)param;
+                        MaskChannelsParameter* p2 = new MaskChannelsParameter(this,
+                                                                              p->getScope(),
+                                                                              p->getName(),
+                                                                              p->getDescription(),
+                                                                              p->shouldDeactivateDuringAcquisition());
+                        p2->setChannelCount(stream->getChannelCount());
+                        p2->setDataStream(stream);
+                        stream->addParameter(p2);
+                    }
+                }
+            }
+        }
+        else
+        {
+            for (auto param : availableParameters)
+            {
+               if (param->getScope() == Parameter::STREAM_SCOPE)
+               {
+                    if (param->getType() == Parameter::SELECTED_CHANNELS_PARAM)
+                    {
+                        SelectedChannelsParameter* p = (SelectedChannelsParameter*) stream->getParameter(param->getName());
+                        p->setChannelCount(stream->getChannelCount());
+                        //LOGD("GenericProcessor::update() Setting SelectedChannelsParameter channel count for ", stream->getStreamId(), " to ", stream->getChannelCount(), " channels");
+
+                    } else if (param->getType() == Parameter::MASK_CHANNELS_PARAM)
+                    {
+                        MaskChannelsParameter* p = (MaskChannelsParameter*) stream->getParameter(param->getName());
+                        p->setChannelCount(stream->getChannelCount());
+
+                    }
+               }
+            }
+        }
+        
+       // LOGC( "Stream ", stream->getStreamId(), " - ", stream->getName(), " num channels: ", stream->getChannelCount(), " num parameters: ", stream->numParameters());
+        
+        if (savedDataStreamParameters.size() > 0)
+        {
+
+            int index = findMatchingStreamParameters(stream);
+
+            if (index > -1)
+            {
+                //LOGD("GenericProcessor::update() Copying savedDataStreamParameters for ", stream->getStreamId());
+
+                //std::cout << "COPYING STREAM PARAMETERS TO" << std::endl;
+                savedDataStreamParameters[index]->copyParametersTo(stream);
+                savedDataStreamParameters.remove(index);
+            }
+
+        }
 	}
+    
+   /// UPDATE PARAMETERS FOR SPIKE CHANNELS
+   for (auto spikeChannel : spikeChannels)
+   {
+      if (spikeChannel->isLocal())
+      {
+        
+          DataStream* similarStream = spikeChannel->findSimilarStream(dataStreams);
 
-	updateSettings(); // allow processors to change custom settings
+          if (similarStream != nullptr)
+          {
+              if (!(*similarStream)["enable_stream"])
+                  continue;
+          }
+         
+          spikeChannel->setDataStream(similarStream, true);
+          
+          int channelCount = similarStream != nullptr ?
+                             similarStream->getChannelCount() : 0;
+          
+          for (auto param : spikeChannel->getParameters())
+          {
+              if (param->getType() == Parameter::SELECTED_CHANNELS_PARAM)
+              {
+                   
+                 SelectedChannelsParameter* p = (SelectedChannelsParameter*) spikeChannel->getParameter(param->getName());
+                     
+                 p->setChannelCount(channelCount);
+              }
+          }
+       }
+    }
 
-	updateChannelIndexes();
+    LOGG("    Copied parameters in ", MS_FROM_START, " milliseconds");
 
+    if (!isMerger())
+        updateSettings(); // allow processors to change custom settings,
+                          // including creation of streams / channels and
+                          // setting isEnabled variable
+
+    LOGG("    Updated custom settings in ", MS_FROM_START, " milliseconds");
+
+	updateChannelIndexMaps();
+    
 	m_needsToSendTimestampMessages.clear();
-	m_needsToSendTimestampMessages.insertMultiple(-1, false, getNumSubProcessors());
+	for (auto stream : getDataStreams())
+		m_needsToSendTimestampMessages[stream->getStreamId()] = true;
 
 	// required for the ProcessorGraph to know the
 	// details of this processor:
 	setPlayConfigDetails(getNumInputs(),  // numIns
 		getNumOutputs(), // numOuts
-		44100.0,         // sampleRate
+		44100.0,         // sampleRate (always 44100 Hz, default audio card rate)
 		128);            // blockSize
 
-	editor->update(); // allow the editor to update its settings
+	editor->update(isEnabled); // allow the editor to update its settings
+
+    LOGG("    TOTAL TIME: ", MS_FROM_START, " milliseconds");
 }
 
-void GenericProcessor::updateChannelIndexes(bool updateNodeID)
+void GenericProcessor::updateChannelIndexMaps()
 {
-	//Recreate the channel indexes
-	dataChannelMap.clear();
+	continuousChannelMap.clear();
 	eventChannelMap.clear();
 	spikeChannelMap.clear();
-	unsigned int nChans;
+	dataStreamMap.clear();
 
-	nChans = dataChannelArray.size();
-	for (int i = 0; i < nChans; i++)
+    if (dataStreams.size() == 0)
+        return;
+
+	for (int i = 0; i < continuousChannels.size(); i++)
 	{
-		DataChannel* channel = dataChannelArray[i];
-		if (updateNodeID)
-		{
-			channel->m_nodeID = nodeId;
-			channel->m_nodeIdx = i;
-			channel->m_currentNodeName = getName();
-			channel->m_currentNodeType = getName(); //Fix when the ability to name individual processors is implemented
-		}
-		uint32 sourceID = getProcessorFullId(channel->getSourceNodeID(), channel->getSubProcessorIdx());
-		dataChannelMap[sourceID][channel->getSourceIndex()] = i;
+		ContinuousChannel* chan = continuousChannels[i];
+		chan->setGlobalIndex(i);
+
+		uint16 processorId = chan->getSourceNodeId();
+		uint16 streamId = chan->getStreamId();
+		uint16 localIndex = chan->getLocalIndex();
+
+		continuousChannelMap[processorId][streamId][localIndex] = chan;
 	}
-	nChans = eventChannelArray.size();
-	for (int i = 0; i < nChans; i++)
+
+	for (int i = 0; i < eventChannels.size(); i++)
 	{
-		EventChannel* channel = eventChannelArray[i];
-		if (updateNodeID)
-		{
-			channel->m_nodeID = nodeId;
-			channel->m_nodeIdx = i;
-			channel->m_currentNodeName = getName();
-			channel->m_currentNodeType = getName(); //Fix when the ability to name individual processors is implemented
-		}
-		uint32 sourceID = getProcessorFullId(channel->getSourceNodeID(), channel->getSubProcessorIdx());
-		eventChannelMap[sourceID][channel->getSourceIndex()] = i;
+		EventChannel* chan = eventChannels[i];
+		chan->setGlobalIndex(i);
+
+		uint16 processorId = chan->getSourceNodeId();
+		uint16 streamId = chan->getStreamId();
+		uint16 localIndex = chan->getLocalIndex();
+
+		eventChannelMap[processorId][streamId][localIndex] = chan;
 	}
-	nChans = spikeChannelArray.size();
-	for (int i = 0; i < nChans; i++)
+
+	for (int i = 0; i < spikeChannels.size(); i++)
 	{
-		SpikeChannel* channel = spikeChannelArray[i];
-		if (updateNodeID)
-		{
-			channel->m_nodeID = nodeId;
-			channel->m_nodeIdx = i;
-			channel->m_currentNodeName = getName();
-			channel->m_currentNodeType = getName(); //Fix when the ability to name individual processors is implemented
-		}
-		uint32 sourceID = getProcessorFullId(channel->getSourceNodeID(), channel->getSubProcessorIdx());
-		spikeChannelMap[sourceID][channel->getSourceIndex()] = i;
+		SpikeChannel* chan = spikeChannels[i];
+		chan->setGlobalIndex(i);
+
+		uint16 processorId = chan->getSourceNodeId();
+		uint16 streamId = chan->getStreamId();
+		uint16 localIndex = chan->getLocalIndex();
+
+		spikeChannelMap[processorId][streamId][localIndex] = chan;
 	}
+
+	for (int i = 0; i < dataStreams.size(); i++)
+	{
+		DataStream* stream = dataStreams[i];
+
+		uint16 streamId = stream->getStreamId();
+
+		dataStreamMap[streamId] = stream;
+	}
+	
+    if (latencyMeter != nullptr)
+        latencyMeter->update(getDataStreams());
 }
 
-void GenericProcessor::createDataChannels()
+String GenericProcessor::handleConfigMessage(String msg)
 {
-	createDataChannelsByType(DataChannel::HEADSTAGE_CHANNEL);
-	createDataChannelsByType(DataChannel::AUX_CHANNEL);
-	createDataChannelsByType(DataChannel::ADC_CHANNEL);
+	return "";
 }
 
-void GenericProcessor::createDataChannelsByType(DataChannel::DataChannelTypes type)
-{
-	int nSub = getNumSubProcessors();
-	for (int sub = 0; sub < nSub; sub++)
-	{
-		int nChans = getDefaultNumDataOutputs(type, sub);
-		for (int i = 0; i < nChans; i++)
-		{
-			DataChannel* chan = new DataChannel(type, getSampleRate(sub), this, sub);
-			chan->setBitVolts(getBitVolts(sub));
-			chan->addToHistoricString(getName());
-			chan->m_nodeID = nodeId;
-			dataChannelArray.add(chan);
-		}
-	}
-}
-
-void GenericProcessor::createEventChannels()
-{
-	int nSub = getNumSubProcessors();
-	for (int sub = 0; sub < nSub; sub++)
-	{
-		Array<DefaultEventInfo> events;
-		getDefaultEventInfo(events, sub);
-		int nChans = events.size();
-		for (int i = 0; i < nChans; i++)
-		{
-			const DefaultEventInfo& info = events[i];
-			if (info.type != EventChannel::INVALID && info.nChannels > 0 && info.length > 0)
-			{
-				EventChannel* chan = new EventChannel(info.type, info.nChannels, info.length, info.sampleRate, this, sub);
-				chan->m_nodeID = nodeId;
-				if (info.name.isNotEmpty())
-					chan->setName(info.name);
-				if (info.description.isNotEmpty())
-					chan->setDescription(info.description);
-				if (info.identifier.isNotEmpty())
-					chan->setIdentifier(info.identifier);
-				eventChannelArray.add(chan);
-			}
-		}
-	}
-}
 
 void GenericProcessor::getDefaultEventInfo(Array<DefaultEventInfo>& events, int subproc) const
 {
 	events.clear();
 }
 
-void GenericProcessor::createSpikeChannels() {};
-void GenericProcessor::createConfigurationObjects() {};
 
-void GenericProcessor::setAllChannelsToRecord()
+uint32 GenericProcessor::getNumSamplesInBlock(uint16 streamId) const
 {
-	m_recordStatus.resize(dataChannelArray.size());
+    
+	return numSamplesInBlock.at(streamId);
+}
 
-	for (int i = 0; i < dataChannelArray.size(); ++i)
-	{
-		m_recordStatus.set(i, true);
-	}
+int64 GenericProcessor::getFirstSampleNumberForBlock(uint16 streamId) const
+{
+	return startSamplesForBlock.at(streamId);
+}
 
-	// std::cout << "Setting all channels to record for source." << std::endl;
+double GenericProcessor::getFirstTimestampForBlock(uint16 streamId) const
+{
+    return startTimestampsForBlock.at(streamId);
 }
 
 
-void GenericProcessor::setRecording(bool state)
+void GenericProcessor::setTimestampAndSamples(int64 sampleNumber,
+                                              double timestamp,
+                                              uint32 nSamples,
+                                              uint16 streamId)
 {
-	GenericEditor* ed = getEditor();
-	if (state)
-	{
-		if (ed != 0)
-			ed->startRecording();
-
-		startRecording();
-		if (isGeneratesTimestamps())
-		{
-			m_needsToSendTimestampMessages.clearQuick();
-			m_needsToSendTimestampMessages.insertMultiple(-1, true, getNumSubProcessors());
-		}
-	}
-	else
-	{
-		if (ed != 0)
-			ed->stopRecording();
-
-		stopRecording();
-		m_needsToSendTimestampMessages.clearQuick();
-		m_needsToSendTimestampMessages.insertMultiple(-1, false, getNumSubProcessors());
-	}
-}
-
-
-void GenericProcessor::enableEditor()
-{
-	GenericEditor* ed = getEditor();
-
-	if (ed != 0)
-		ed->editorStartAcquisition();
-}
-
-
-void GenericProcessor::disableEditor()
-{
-	GenericEditor* ed = getEditor();
-
-	if (ed != nullptr)
-		ed->editorStopAcquisition();
-}
-
-
-/** Used to get the number of samples in a given buffer, for a given channel. */
-uint32 GenericProcessor::getNumSamples(int channelNum) const
-{
-	int sourceNodeId = 0;
-	int subProcessorId = 0;
-	int nSamples = 0;
-
-	if (channelNum >= 0
-		&& channelNum < dataChannelArray.size())
-	{
-		sourceNodeId = dataChannelArray[channelNum]->getSourceNodeID();
-		subProcessorId = dataChannelArray[channelNum]->getSubProcessorIdx();
-	}
-	else
-	{
-		return 0;
-	}
-
-	// std::cout << "Requesting samples for channel " << channelNum << " with source node " << sourceNodeId << std::endl;
-	uint32 sourceID = getProcessorFullId(sourceNodeId, subProcessorId);
-	try
-	{
-		nSamples = numSamples.at(sourceID);
-	}
-	catch (...)
-	{
-		return 0;
-	}
-
-	//std::cout << nSamples << " were found." << std::endl;
-
-	return nSamples;
-}
-
-
-/** Used to get the timestamp for a given buffer, for a given source node. */
-juce::uint64 GenericProcessor::getTimestamp(int channelNum) const
-{
-	int sourceNodeId = 0;
-	int subProcessorIdx = 0;
-	int64 ts = 0;
-
-	if (channelNum >= 0
-		&& channelNum < dataChannelArray.size())
-	{
-		sourceNodeId = dataChannelArray[channelNum]->getSourceNodeID();
-		subProcessorIdx = dataChannelArray[channelNum]->getSubProcessorIdx();
-	}
-	else
-	{
-		return 0;
-	}
-
-	uint32 sourceID = getProcessorFullId(sourceNodeId, subProcessorIdx);
-	try
-	{
-		ts = timestamps.at(sourceID);
-	}
-	catch (...)
-	{
-		return 0;
-	}
-
-	return ts;
-}
-
-uint32 GenericProcessor::getNumSourceSamples(uint16 processorID, uint16 subProcessorIdx) const
-{
-	return getNumSourceSamples(getProcessorFullId(processorID, subProcessorIdx));
-}
-
-uint32 GenericProcessor::getNumSourceSamples(uint32 fullSourceID) const
-{
-	uint32 nSamples;
-	try
-	{
-		nSamples = numSamples.at(fullSourceID);
-	}
-	catch (...)
-	{
-		return 0;
-	}
-	return nSamples;
-}
-
-juce::uint64 GenericProcessor::getSourceTimestamp(uint16 processorID, uint16 subProcessorIdx) const
-{
-	return getSourceTimestamp(getProcessorFullId(processorID, subProcessorIdx));
-}
-
-juce::uint64 GenericProcessor::getSourceTimestamp(uint32 fullSourceID) const
-{
-	juce::uint64 ts;
-	try
-	{
-		ts = timestamps.at(fullSourceID);
-	}
-	catch (...)
-	{
-		return 0;
-	}
-	return ts;
-}
-
-
-/** Used to set the timestamp for a given buffer, for a given channel. */
-void GenericProcessor::setTimestampAndSamples(juce::uint64 timestamp, uint32 nSamples, int subProcessorIdx)
-{
-
-	MidiBuffer& eventBuffer = *m_currentMidiBuffer;
-	//std::cout << "Setting timestamp to " << timestamp << std:;endl;
-
+    
 	HeapBlock<char> data;
-	size_t dataSize = SystemEvent::fillTimestampAndSamplesData(data, this, subProcessorIdx, timestamp, nSamples);
+	size_t dataSize = SystemEvent::fillTimestampAndSamplesData(data, 
+		this, 
+		streamId,
+        sampleNumber,
+        timestamp,
+		nSamples,
+		m_initialProcessTime);
 
+    
 
-	eventBuffer.addEvent(data, dataSize, 0);
-
-	uint32 sourceID = getProcessorFullId(nodeId, subProcessorIdx);
+	m_currentMidiBuffer->addEvent(data, dataSize, 0);
 
 	//since the processor generating the timestamp won't get the event, add it to the map
-	timestamps[sourceID] = timestamp;
-	numSamples[sourceID] = nSamples;
+    startTimestampsForBlock[streamId] = timestamp;
+    startSamplesForBlock[streamId] = sampleNumber;
+	processStartTimes[streamId] = m_initialProcessTime;
 
-	if (m_needsToSendTimestampMessages[subProcessorIdx] && nSamples > 0)
-	{
-		HeapBlock<char> data;
-		size_t dataSize = SystemEvent::fillTimestampSyncTextData(data, this, subProcessorIdx, timestamp, false);
-
-		eventBuffer.addEvent(data, dataSize, 0);
-
-		m_needsToSendTimestampMessages.set(subProcessorIdx, false);
-	}
 }
 
+int GenericProcessor::getGlobalChannelIndex(uint16 streamId, int localIndex) const
+{
+    return getDataStream(streamId)->getContinuousChannels()[localIndex]->getGlobalIndex();
+}
 
 int GenericProcessor::processEventBuffer()
 {
@@ -720,35 +1210,51 @@ int GenericProcessor::processEventBuffer()
 	//
 	int numRead = 0;
 
-	MidiBuffer& eventBuffer = *m_currentMidiBuffer;
-
-	if (eventBuffer.getNumEvents() > 0)
+	if (m_currentMidiBuffer->getNumEvents() > 0)
 	{
-		MidiBuffer::Iterator i(eventBuffer);
-
-		const uint8* dataptr;
-		int dataSize;
-
-		int samplePosition = -1;
-
-		while (i.getNextEvent(dataptr, dataSize, samplePosition))
-		{
-			//TODO: remove the mask when the probe system is implemented
-			if (static_cast<EventType>(*(dataptr + 0) & 0x7F) == SYSTEM_EVENT && static_cast<SystemEventType>(*(dataptr + 1) == TIMESTAMP_AND_SAMPLES))
+        
+        for (const auto meta : *m_currentMidiBuffer)
+        {
+            const uint8* dataptr = meta.data;
+            
+			if (static_cast<Event::Type> (*dataptr) == Event::Type::SYSTEM_EVENT 
+				&& static_cast<SystemEvent::Type>(*(dataptr + 1) == SystemEvent::Type::TIMESTAMP_AND_SAMPLES))
 			{
-				uint16 sourceNodeID = *reinterpret_cast<const uint16*>(dataptr + 2);
-				uint16 sourceSubProcessorIdx = *reinterpret_cast<const uint16*>(dataptr + 4);
-				uint32 sourceID = getProcessorFullId(sourceNodeID, sourceSubProcessorIdx);
+				uint16 sourceProcessorId = *reinterpret_cast<const uint16*>(dataptr + 2);
+				uint16 sourceStreamId = *reinterpret_cast<const uint16*>(dataptr + 4);
+				uint32 sourceChannelIndex = *reinterpret_cast<const uint16*>(dataptr + 6);
+                
+				int64 startSample = *reinterpret_cast<const int64*>(dataptr + 8);
+                double startTimestamp = *reinterpret_cast<const double*>(dataptr + 16);
+				uint32 nSamples = *reinterpret_cast<const uint32*>(dataptr + 24);
+				int64 initialTicks = *reinterpret_cast<const int64*>(dataptr + 28);
 
-				juce::uint64 timestamp = *reinterpret_cast<const juce::uint64*>(dataptr + 8);
-				uint32 nSamples = *reinterpret_cast<const uint32*>(dataptr + 16);
-				numSamples[sourceID] = nSamples;
-				timestamps[sourceID] = timestamp;
+               // if (startSamplesForBlock[sourceStreamId] > startSample)
+                //    std::cout << "GET: " << getNodeId() << " " << sourceStreamId << " " << startSamplesForBlock[sourceStreamId] << " " << startSample << std::endl;
+				
+                startSamplesForBlock[sourceStreamId] = startSample;
+                startTimestampsForBlock[sourceStreamId] = startTimestamp;
+                numSamplesInBlock[sourceStreamId] = nSamples;
+				processStartTimes[sourceStreamId] = initialTicks;
+					
 			}
-			//set the "recorded" bit on the first byte. This will go away when the probe system is implemented.
-			//doing a const cast is always a bad idea, but there's no better way to do this until whe change the event record system
-			if (nodeId < 900) //If the processor is not a specialized one
-				*const_cast<uint8*>(dataptr + 0) = *(dataptr + 0) | 0x80;
+            else if (static_cast<Event::Type> (*dataptr) == Event::Type::PROCESSOR_EVENT
+                     && static_cast<EventChannel::Type>(*(dataptr + 1) == EventChannel::Type::TTL))
+            {
+                uint16 sourceStreamId = *reinterpret_cast<const uint16*>(dataptr + 4);
+                uint8 eventBit = *reinterpret_cast<const uint8*>(dataptr + 24);
+                bool eventState = *reinterpret_cast<const bool*>(dataptr + 25);
+                
+                getEditor()->setTTLState(sourceStreamId, eventBit, eventState);
+                
+            } else if (static_cast<Event::Type> (*dataptr) == Event::Type::PROCESSOR_EVENT
+            && static_cast<EventChannel::Type>(*(dataptr + 1) == EventChannel::Type::TEXT))
+            {
+
+                TextEventPtr textEvent = TextEvent::deserialize(dataptr, getMessageChannel());
+
+                handleBroadcastMessage(textEvent->getText());
+            }
 		}
 	}
 
@@ -758,215 +1264,454 @@ int GenericProcessor::processEventBuffer()
 
 int GenericProcessor::checkForEvents(bool checkForSpikes)
 {
+
 	if (m_currentMidiBuffer->getNumEvents() > 0)
 	{
-		//Since adding events to the buffer inside this loop could be dangerous, create a temporal event buffer
-		//so any call to addEvent will operate on it;
-		MidiBuffer temporalEventBuffer;
+		/** Since adding events to the buffer inside this loop could be dangerous, create a temporary event buffer
+		    so any call to addEvent will operate on it; */
+		MidiBuffer temporaryEventBuffer;
 		MidiBuffer* originalEventBuffer = m_currentMidiBuffer;
-		m_currentMidiBuffer = &temporalEventBuffer;
-		// int m = midiMessages.getNumEvents();
-		//std::cout << m << " events received by node " << getNodeId() << std::endl;
+		m_currentMidiBuffer = &temporaryEventBuffer;
 
-		MidiBuffer::Iterator i(*originalEventBuffer);
-		MidiMessage message(0xf4);
+		for (const auto meta : *originalEventBuffer) {
 
-		int samplePosition = 0;
-		i.setNextSamplePosition(samplePosition);
+			uint16 sourceProcessorId = EventBase::getProcessorId(meta.data);
+			uint16 sourceStreamId = EventBase::getStreamId(meta.data);
+			uint16 sourceChannelIdx = EventBase::getChannelIndex(meta.data);
 
-		while (i.getNextEvent(message, samplePosition))
-		{
-			uint16 sourceId = EventBase::getSourceID(message);
-			uint16 subProc = EventBase::getSubProcessorIdx(message);
-			uint16 index = EventBase::getSourceIndex(message);
-			if (EventBase::getBaseType(message) == EventType::PROCESSOR_EVENT)
+			if (EventBase::getBaseType(meta.data) == Event::Type::PROCESSOR_EVENT)
 			{
-				int eventIndex = getEventChannelIndex(index, sourceId, subProc);
-				if (eventIndex >= 0)
-					handleEvent(eventChannelArray[eventIndex], message, samplePosition);
+                
+                if (static_cast<EventChannel::Type>(*(meta.data + 1) != EventChannel::Type::TEXT))
+                {
+                    const EventChannel* eventChannel = getEventChannel(sourceProcessorId, sourceStreamId, sourceChannelIdx);
+                    
+                    if (eventChannel != nullptr)
+                    {
+                        handleTTLEvent(TTLEvent::deserialize(meta.data, eventChannel));
+                    }
+                }
+
 			}
-			else if (EventBase::getBaseType(message) == EventType::SYSTEM_EVENT && SystemEvent::getSystemEventType(message) == SystemEventType::TIMESTAMP_SYNC_TEXT)
+			else if (checkForSpikes && EventBase::getBaseType(meta.data) == Event::Type::SPIKE_EVENT)
 			{
-				handleTimestampSyncTexts(message);
-			}
-			else if (checkForSpikes && EventBase::getBaseType(message) == EventType::SPIKE_EVENT)
-			{
-				int spikeIndex = getSpikeChannelIndex(index, sourceId, subProc);
-				if (spikeIndex >= 0)
-					handleSpike(spikeChannelArray[index], message, samplePosition);
+				const SpikeChannel* spikeChannel = getSpikeChannel(sourceProcessorId, sourceStreamId, sourceChannelIdx);
+
+                if (spikeChannel != nullptr)
+                {
+                    handleSpike(Spike::deserialize(meta.data, spikeChannel));
+                }
+					
 			}
 		}
-		//Restore the original buffer pointer and, if some new event has been added here, copy it to the original buffer
+		// Restore the original buffer pointer and, if some new events have 
+		// been added here, copy them to the original buffer
 		m_currentMidiBuffer = originalEventBuffer;
-		if (temporalEventBuffer.getNumEvents() > 0)
-			m_currentMidiBuffer->addEvents(temporalEventBuffer, 0, -1, 0);
 
+		if (temporaryEventBuffer.getNumEvents() > 0)
+		{
+			m_currentMidiBuffer->addEvents(temporaryEventBuffer, 0, -1, 0);
+		}
+			
 		return 0;
 	}
 
 	return -1;
 }
 
-void GenericProcessor::addEvent(int channelIndex, const Event* event, int sampleNum)
+void GenericProcessor::addEvent(const Event* event, int sampleNum)
 {
-	addEvent(eventChannelArray[channelIndex], event, sampleNum);
-}
-
-void GenericProcessor::addEvent(const EventChannel* channel, const Event* event, int sampleNum)
-{
-	size_t size = channel->getDataSize() + channel->getTotalEventMetaDataSize() + EVENT_BASE_SIZE;
+	size_t size = event->getChannelInfo()->getDataSize() + event->getChannelInfo()->getTotalEventMetadataSize() + EVENT_BASE_SIZE;
+	
 	HeapBlock<char> buffer(size);
+
 	event->serialize(buffer, size);
+
 	m_currentMidiBuffer->addEvent(buffer, size, sampleNum >= 0 ? sampleNum : 0);
+    
+    if (event->getBaseType() == Event::Type::PROCESSOR_EVENT)
+    {
+        if (event->getEventType() == EventChannel::Type::TTL)
+        {
+            
+            const uint8* dataptr = reinterpret_cast<const uint8*>(event->getRawDataPointer());
+            
+            getEditor()->setTTLState(event->getStreamId(),
+                                     *(dataptr),
+                                     *(dataptr+1));
+        }
+    }
+    
 }
 
-void GenericProcessor::addSpike(int channelIndex, const SpikeEvent* event, int sampleNum)
+void GenericProcessor::addTTLChannel(String name)
 {
-	addSpike(spikeChannelArray[channelIndex], event, sampleNum);
+    if (dataStreams.size() == 0)
+    {
+        return;
+    }
+
+	if (ttlEventChannel == nullptr)
+	{
+
+		EventChannel::Settings settings{
+			EventChannel::Type::TTL,
+			name,
+			"Default TTL event channel",
+			"ttl.events",
+			dataStreams[0]
+		};
+
+		eventChannels.add(new EventChannel(settings));
+		ttlEventChannel = eventChannels.getLast();
+
+        ttlLineStates.clear();
+
+		for (int i = 0; i < 8; i++)
+            ttlLineStates.add(false);
+    }
+    else {
+        jassert(false); // this shouldn't be called twice in updateSettings()
+    }
+
 }
 
-void GenericProcessor::addSpike(const SpikeChannel* channel, const SpikeEvent* event, int sampleNum)
+
+void GenericProcessor::flipTTLState(int sampleIndex, int lineIndex)
 {
-	size_t size = channel->getDataSize() + channel->getTotalEventMetaDataSize() + SPIKE_BASE_SIZE + channel->getNumChannels()*sizeof(float);
+	if (lineIndex < 0 || lineIndex >= 8)
+		return;
+
+	bool currentState = ttlLineStates[lineIndex];
+    ttlLineStates.set(lineIndex, !currentState);
+
+	int64 startSample = startSamplesForBlock[ttlEventChannel->getStreamId()] + sampleIndex;
+
+	TTLEventPtr eventPtr = TTLEvent::createTTLEvent(ttlEventChannel, startSample, lineIndex, !currentState);
+
+	addEvent(eventPtr, sampleIndex);
+}
+
+void GenericProcessor::setTTLState(int sampleIndex, int lineIndex, bool state)
+{
+    if (lineIndex < 0 || lineIndex >= 8)
+        return;
+
+    ttlLineStates.set(lineIndex, state);
+
+    int64 startSample = startSamplesForBlock[ttlEventChannel->getStreamId()] + sampleIndex;
+
+    TTLEventPtr eventPtr = TTLEvent::createTTLEvent(ttlEventChannel, startSample, lineIndex, state);
+
+    addEvent(eventPtr, sampleIndex);
+}
+
+bool GenericProcessor::getTTLState(int lineIndex)
+{
+	if (lineIndex < 0 || lineIndex >= 8)
+		return false;
+
+	return ttlLineStates[lineIndex];
+}
+
+void GenericProcessor::broadcastMessage(String msg)
+{
+	AccessClass::getMessageCenter()->broadcastMessage(msg);
+}
+
+void GenericProcessor::addSpike(const Spike* spike)
+{
+	size_t size = SPIKE_BASE_SIZE
+        + spike->spikeChannel->getDataSize()
+		+ spike->spikeChannel->getTotalEventMetadataSize()
+		+ spike->spikeChannel->getNumChannels() * sizeof(float);
+
 	HeapBlock<char> buffer(size);
-	event->serialize(buffer, size);
-	m_currentMidiBuffer->addEvent(buffer, size, sampleNum >= 0 ? sampleNum : 0);
+
+	spike->serialize(buffer, size);
+
+	m_currentMidiBuffer->addEvent(buffer, size, 0);
 }
 
 
-void GenericProcessor::processBlock(AudioSampleBuffer& buffer, MidiBuffer& eventBuffer)
+void GenericProcessor::processBlock(AudioBuffer<float>& buffer, MidiBuffer& eventBuffer)
 {
+    
+	if (isSource())
+		m_initialProcessTime = Time::getHighResolutionTicks();
+
 	m_currentMidiBuffer = &eventBuffer;
+    
 	processEventBuffer(); // extract buffer sizes and timestamps,
-	// set flag on all TTL events to zero
 
-	m_lastProcessTime = Time::getHighResolutionTicks();
 	process(buffer);
-
+    
+	latencyMeter->setLatestLatency(processStartTimes);
 }
 
-const DataChannel* GenericProcessor::getDataChannel(int index) const
+Array<const EventChannel*> GenericProcessor::getEventChannels()
 {
-	return dataChannelArray[index];
+	Array<const EventChannel*> channels;
+
+	for (int i = 0; i < eventChannels.size(); i++)
+	{
+		channels.add(eventChannels[i]);
+	}
+
+	return channels;
 }
 
-const EventChannel* GenericProcessor::getEventChannel(int index) const
+Array< const DataStream*> GenericProcessor::getStreamsForDestNode(GenericProcessor* p)
 {
-	return eventChannelArray[index];
+	Array<const DataStream*> streams;
+
+	for (int i = 0; i < dataStreams.size(); i++)
+	{
+		streams.add(dataStreams[i]);
+	}
+
+	return streams;
 }
 
-const SpikeChannel* GenericProcessor::getSpikeChannel(int index) const
+Array< const DataStream*> GenericProcessor::getDataStreams() const
 {
-	return spikeChannelArray[index];
+	Array<const DataStream*> streams;
+
+	for (int i = 0; i < dataStreams.size(); i++)
+	{
+		streams.add(dataStreams[i]);
+	}
+
+	return streams;
+}
+
+const ContinuousChannel* GenericProcessor::getContinuousChannel(uint16 processorId, uint16 streamId, uint16 localIndex) const
+{
+	return continuousChannelMap.at(processorId).at(streamId).at(localIndex);
+}
+
+int GenericProcessor::getIndexOfMatchingChannel(const ContinuousChannel* channel) const
+{
+
+	for (int index = 0; index < continuousChannels.size(); index++)
+	{
+		if (*continuousChannels[index] == *channel) // check for matching Uuid
+		{
+			return index;
+		}	
+	}
+
+	return -1;
+}
+
+int GenericProcessor::getIndexOfMatchingChannel(const EventChannel* channel) const
+{
+
+	for (int index = 0; index < eventChannels.size(); index++)
+	{
+		if (*eventChannels[index] == *channel) // check for matching Uuid
+		{
+			return index;
+		}
+	}
+
+	return -1;
+}
+
+int GenericProcessor::getIndexOfMatchingChannel(const SpikeChannel* channel) const
+{
+
+	for (int index = 0; index < spikeChannels.size(); index++)
+	{
+		if (*spikeChannels[index] == *channel) // check for matching Uuid
+		{
+			return index;
+		}
+	}
+
+	return -1;
+}
+
+const EventChannel* GenericProcessor::getEventChannel(uint16 processorId, uint16 streamId, uint16 localIndex) const
+{
+	if (eventChannelMap.find(processorId) != eventChannelMap.end())
+		return eventChannelMap.at(processorId).at(streamId).at(localIndex);
+
+	return getMessageChannel();
+}
+
+const EventChannel* GenericProcessor::getMessageChannel() const
+{
+    return messageChannel.get();
+}
+
+const SpikeChannel* GenericProcessor::getSpikeChannel(uint16 processorId, uint16 streamId, uint16 localIndex) const
+{
+	return spikeChannelMap.at(processorId).at(streamId).at(localIndex);
+}
+
+DataStream* GenericProcessor::getDataStream(uint16 streamId) const
+{
+	return dataStreamMap.at(streamId);
+}
+
+uint16 GenericProcessor::findSimilarStream(int sourceNodeId, String name, float sample_rate, bool sourceNodeIdMustMatch)
+{
+
+    if (dataStreams.size() > 0)
+    {
+
+        if (sourceNodeId == 0) // previously empty stream
+            return dataStreams[0]->getStreamId(); // add to first stream
+
+        for (auto stream : dataStreams)
+        {
+            if (stream->getSourceNodeId() == sourceNodeId
+                && stream->getName() == name 
+                && stream->getSampleRate() == sample_rate)
+            {
+                // perfect match
+                return stream->getStreamId();
+            }
+        }
+
+        if (!sourceNodeIdMustMatch)
+        {
+            for (auto stream : dataStreams)
+            {
+                if (stream->getName() == name
+                    && stream->getSampleRate() == sample_rate)
+                {
+                    // name and sample rate match
+                    return stream->getStreamId();
+                }
+            }
+
+            for (auto stream : dataStreams)
+            {
+                if (stream->getSampleRate() == sample_rate)
+                {
+                    // sample rate match
+                    return stream->getStreamId();
+                }
+            }
+        }   
+    }
+
+    // no streams with any matching characteristics
+    return 0;
 }
 
 const ConfigurationObject* GenericProcessor::getConfigurationObject(int index) const
 {
-	return configurationObjectArray[index];
+	return configurationObjects[index];
 }
 
-int GenericProcessor::getTotalDataChannels() const
+int GenericProcessor::getTotalContinuousChannels() const
 {
-	return dataChannelArray.size();
+	return continuousChannels.size();
 }
+
 
 int GenericProcessor::getTotalEventChannels() const
 {
-	return eventChannelArray.size();
+	return eventChannels.size();
 }
 
 int GenericProcessor::getTotalSpikeChannels() const
 {
-	return spikeChannelArray.size();
+	return spikeChannels.size();
 }
 
 int GenericProcessor::getTotalConfigurationObjects() const
 {
-	return configurationObjectArray.size();
+	return configurationObjects.size();
 }
 
-int GenericProcessor::getDataChannelIndex(int channelIdx, int processorID, int subProcessorIdx) const
+const ContinuousChannel* GenericProcessor::getContinuousChannel(int globalIndex) const
 {
-	uint32 sourceID = getProcessorFullId(processorID, subProcessorIdx);
-	try
-	{
-		return dataChannelMap.at(sourceID).at(channelIdx);
-	}
-	catch (...)
-	{
-		return -1;
-	}
+	if (globalIndex < continuousChannels.size())
+		return continuousChannels[globalIndex];
+	else
+		return nullptr;
 }
 
-int GenericProcessor::getEventChannelIndex(int channelIdx, int processorID, int subProcessorIdx) const
+const SpikeChannel* GenericProcessor::getSpikeChannel(int globalIndex) const
 {
-	uint32 sourceID = getProcessorFullId(processorID, subProcessorIdx);
-	try
-	{
-		return eventChannelMap.at(sourceID).at(channelIdx);
-	}
-	catch (...)
-	{
-		return -1;
-	}
+	if (globalIndex < spikeChannels.size())
+		return spikeChannels[globalIndex];
+	else
+		return nullptr;
 }
 
-int GenericProcessor::getEventChannelIndex(const Event* event) const
+const EventChannel* GenericProcessor::getEventChannel(int globalIndex) const
 {
-	return getEventChannelIndex(event->getSourceIndex(), event->getSourceID(), event->getSubProcessorIdx());
-}
-
-int GenericProcessor::getSpikeChannelIndex(int channelIdx, int processorID, int subProcessorIdx) const
-{
-	uint32 sourceID = getProcessorFullId(processorID, subProcessorIdx);
-	try
-	{
-		return spikeChannelMap.at(sourceID).at(channelIdx);
-	}
-	catch (...)
-	{
-		return -1;
-	}
-}
-
-int GenericProcessor::getSpikeChannelIndex(const SpikeEvent* event) const
-{
-	return getSpikeChannelIndex(event->getSourceIndex(), event->getSourceID(), event->getSubProcessorIdx());
+	if (globalIndex < eventChannels.size())
+		return eventChannels[globalIndex];
+	else
+		return nullptr;
 }
 
 
-/////// ---- LOADING AND SAVING ---- //////////
-
-
-void GenericProcessor::saveToXml(XmlElement* parentElement)
+void GenericProcessor::saveToXml(XmlElement* xml)
 {
-	parentElement->setAttribute("NodeId", nodeId);
+	xml->setAttribute("nodeId", nodeId);
+    
+    XmlElement* paramsXml = xml->createNewChildElement("GLOBAL_PARAMETERS");
+    
+    for (auto param : getParameters())
+    {
+        param->toXml(paramsXml);
+    }
 
-	saveCustomParametersToXml(parentElement);
-
-	// loop through the channels
-
-	for (int i = 0; i < dataChannelArray.size(); ++i)
+	for (auto stream : dataStreams)
 	{
-		if (!isSplitter() && !isMerger())
-			saveChannelParametersToXml(parentElement, i, InfoObjectCommon::DATA_CHANNEL);
+		XmlElement* streamXml = xml->createNewChildElement("STREAM");
+        
+        streamXml->setAttribute("name",stream->getName());
+        streamXml->setAttribute("description", stream->getDescription());
+        streamXml->setAttribute("sample_rate", stream->getSampleRate());
+        streamXml->setAttribute("channel_count", stream->getChannelCount());
+        
+        if (stream->hasDevice())
+            streamXml->setAttribute("device_name", stream->device->getName());
+
+        XmlElement* streamParamsXml = streamXml->createNewChildElement("PARAMETERS");
+        
+		for (auto param : stream->getParameters())
+            param->toXml(streamParamsXml);
+        
+        /*for (auto eventChannel : stream->getEventChannels())
+        {
+            if (eventChannel->numParameters() > 0)
+            {
+                XmlElement* eventParamsXml = streamXml->createNewChildElement("EVENT_CHANNEL");
+                eventParamsXml->setAttribute("name",eventChannel->getName());
+                eventParamsXml->setAttribute("description", eventChannel->getDescription());
+                
+                for (auto param : eventChannel->getParameters())
+                    param->toXml(eventParamsXml);
+            }
+        }
+        
+        for (auto continuousChannel : stream->getContinuousChannels())
+        {
+            if (continuousChannel->numParameters() > 0)
+            {
+                XmlElement* continuousParamsXml = streamXml->createNewChildElement("CONTINUOUS_CHANNEL");
+                continuousParamsXml->setAttribute("name",continuousChannel->getName());
+                continuousParamsXml->setAttribute("description", continuousChannel->getDescription());
+                
+                for (auto param : continuousChannel->getParameters())
+                    param->toXml(continuousParamsXml);
+            }
+        }*/
+
 	}
 
-	for (int i = 0; i < eventChannelArray.size(); ++i)
-	{
-		if (!isSplitter() && !isMerger())
-			saveChannelParametersToXml(parentElement, i, InfoObjectCommon::EVENT_CHANNEL);
-	}
+	saveCustomParametersToXml(xml->createNewChildElement("CUSTOM_PARAMETERS"));
 
-	for (int i = 0; i < spikeChannelArray.size(); ++i)
-	{
-		if (!isSplitter() && !isMerger())
-			saveChannelParametersToXml(parentElement, i, InfoObjectCommon::SPIKE_CHANNEL);
-	}
-
-	// Save editor parameters:
-	XmlElement* editorChildNode = parentElement->createNewChildElement("EDITOR");
-	getEditor()->saveEditorParameters(editorChildNode);
+	getEditor()->saveToXml(xml->createNewChildElement("EDITOR"));
 }
 
 
@@ -974,241 +1719,258 @@ void GenericProcessor::saveCustomParametersToXml(XmlElement* parentElement)
 {
 }
 
-void GenericProcessor::saveChannelParametersToXml(XmlElement* parentElement, int channelNumber, InfoObjectCommon::InfoObjectType type)
-{
-	XmlElement* channelInfo;
-	if (type == InfoObjectCommon::DATA_CHANNEL)
-	{
-		channelInfo = parentElement->createNewChildElement("CHANNEL");
-		channelInfo->setAttribute("name", String(channelNumber));
-		channelInfo->setAttribute("number", channelNumber);
-
-		bool p, r, a;
-
-		getEditor()->getChannelSelectionState(channelNumber, &p, &r, &a);
-
-		XmlElement* selectionState = channelInfo->createNewChildElement("SELECTIONSTATE");
-		selectionState->setAttribute("param", p);
-		selectionState->setAttribute("record", r);
-		selectionState->setAttribute("audio", a);
-	}
-	else if (type == InfoObjectCommon::EVENT_CHANNEL)
-	{
-		channelInfo = parentElement->createNewChildElement("EVENTCHANNEL");
-		channelInfo->setAttribute("name", String(channelNumber));
-		channelInfo->setAttribute("number", channelNumber);
-
-	}
-	else if (type == InfoObjectCommon::SPIKE_CHANNEL)
-	{
-		channelInfo = parentElement->createNewChildElement("SPIKECHANNEL");
-		channelInfo->setAttribute("name", String(channelNumber));
-		channelInfo->setAttribute("number", channelNumber);
-	}
-	saveCustomChannelParametersToXml(channelInfo, channelNumber, type);
-
-	// deprecated parameter configuration:
-	//std::cout <<"Creating Parameters" << std::endl;
-	// int maxsize = parameters.size();
-	// String parameterName;
-	// String parameterValue;
-	// XmlElement* parameterChildNode;
-
-	// // save any attributes that belong to "Parameter" objects
-	// for (int n = 0; n < maxsize; n++)
-	// {
-	//     parameterName = getParameterName(n);
-
-	//     parameterChildNode = channelParent->createNewChildElement("PARAMETER");
-	//     parameterChildNode->setAttribute("name", parameterName);
-
-	//     var parameterVar = getParameterVar(n, channelNumber-1);
-	//     parameterValue = parameterVar.toString();
-	//     parameterChildNode->addTextElement(parameterValue);
-	// }
-}
-
-void GenericProcessor::saveCustomChannelParametersToXml(XmlElement* channelInfo, int channelNum, InfoObjectCommon::InfoObjectType type)
-{
-}
-
-
 void GenericProcessor::loadFromXml()
 {
-	update(); // make sure settings are updated
+
 	if (parametersAsXml != nullptr)
 	{
-		if (!m_isParamsWereLoaded)
-		{
-			std::cout << "Loading parameters for " << m_name << std::endl;
 
-			// use parametersAsXml to restore state
-			loadCustomParametersFromXml();
+        LOGG("Loading parameters for ", getName(), " (", getNodeId(), ")");
 
-			// load editor parameters
-			forEachXmlChildElement(*parametersAsXml, xmlNode)
-			{
-				if (xmlNode->hasTagName("EDITOR"))
-				{
-					getEditor()->loadEditorParameters(xmlNode);
-				}
-			}
-		}
-		forEachXmlChildElement(*parametersAsXml, xmlNode)
-		{
-			if (xmlNode->hasTagName("CHANNEL"))
-			{
-				loadChannelParametersFromXml(xmlNode, InfoObjectCommon::DATA_CHANNEL);
-			}
-			else if (xmlNode->hasTagName("EVENTCHANNEL"))
-			{
-				loadChannelParametersFromXml(xmlNode, InfoObjectCommon::EVENT_CHANNEL);
-			}
-			else if (xmlNode->hasTagName("SPIKECHANNEL"))
-			{
-				loadChannelParametersFromXml(xmlNode, InfoObjectCommon::SPIKE_CHANNEL);
-			}
-		}
+        int64 start = Time::getHighResolutionTicks();
 
+        for (auto* xmlNode : parametersAsXml->getChildIterator())
+        {
+            if (xmlNode->hasTagName("GLOBAL_PARAMETERS"))
+            {
+                for (int i = 0; i < xmlNode->getNumAttributes(); i++)
+                {
+                    auto param = getParameter(xmlNode->getAttributeName(i));
+                    param->fromXml(xmlNode);
+                    parameterValueChanged(param);
+                }
+            }
+
+            if (xmlNode->hasTagName("STREAM") && dataStreams.size() > 0)
+            {
+
+                ParameterCollection* parameterCollection = new ParameterCollection();
+
+                parameterCollection->owner.channel_count = xmlNode->getIntAttribute("channel_count");
+                parameterCollection->owner.name = xmlNode->getStringAttribute("name");
+                parameterCollection->owner.sample_rate = xmlNode->getDoubleAttribute("sample_rate");
+                
+                if (xmlNode->hasAttribute("device_name"))
+                    parameterCollection->owner.deviceName = xmlNode->getStringAttribute("device_name");
+
+                for (auto* streamParams : xmlNode->getChildIterator())
+                {
+                    if (streamParams->hasTagName("PARAMETERS"))
+                    {
+                        for (int i = 0; i < streamParams->getNumAttributes(); i++)
+                        {
+
+                            Parameter* parameter;
+
+                            if (dataStreams[0]->hasParameter(streamParams->getAttributeName(i)))
+                            {
+                                parameter = dataStreams[0]->getParameter(streamParams->getAttributeName(i));
+                                parameter->fromXml(streamParams);
+
+                                if (parameter->getType() == Parameter::INT_PARAM)
+                                {
+                                    IntParameter* p = (IntParameter*)parameter;
+                                    parameterCollection->addParameter(new IntParameter(*p));
+                                }
+                                else if (parameter->getType() == Parameter::BOOLEAN_PARAM)
+                                {
+                                    BooleanParameter* p = (BooleanParameter*)parameter;
+                                    parameterCollection->addParameter(new BooleanParameter(*p));
+                                }
+                                else if (parameter->getType() == Parameter::STRING_PARAM)
+                                {
+                                    StringParameter* p = (StringParameter*)parameter;
+                                    parameterCollection->addParameter(new StringParameter(*p));
+                                }
+                                else if (parameter->getType() == Parameter::SELECTED_CHANNELS_PARAM)
+                                {
+                                    SelectedChannelsParameter* p = (SelectedChannelsParameter*)parameter;
+                                    
+                                    SelectedChannelsParameter* p2 = new SelectedChannelsParameter(this,
+                                                                                          p->getScope(),
+                                                                                          p->getName(),
+                                                                                          p->getDescription(),
+                                                                                          p->getValue(),
+                                                                                          p->getMaxSelectableChannels(),
+                                                                                          p->shouldDeactivateDuringAcquisition());
+                                    p2->fromXml(streamParams);
+                                    parameterCollection->addParameter(p2);
+                                }
+                                else if (parameter->getType() == Parameter::MASK_CHANNELS_PARAM)
+                                {
+                                    MaskChannelsParameter* p = (MaskChannelsParameter*)parameter;
+                                    MaskChannelsParameter* p2 = new MaskChannelsParameter(this,
+                                                                                          p->getScope(),
+                                                                                          p->getName(),
+                                                                                          p->getDescription(),
+                                                                                          p->shouldDeactivateDuringAcquisition());
+                                    p2->setChannelCount(4096); // max number of channels per stream
+                                    p2->fromXml(streamParams);
+                                    parameterCollection->addParameter(p2);
+                                }
+                                else if (parameter->getType() == Parameter::CATEGORICAL_PARAM)
+                                {
+                                    CategoricalParameter* p = (CategoricalParameter*)parameter;
+                                    parameterCollection->addParameter(new CategoricalParameter(*p));
+                                }
+                                else if (parameter->getType() == Parameter::FLOAT_PARAM)
+                                {
+                                    FloatParameter* p = (FloatParameter*)parameter;
+                                    parameterCollection->addParameter(new FloatParameter(*p));
+                                }
+                            }
+                            else
+                            {
+                                continue;
+                            }
+                        }
+                    }
+                }
+
+                savedDataStreamParameters.add(parameterCollection);
+            }
+        }
+
+        for (auto stream : dataStreams)
+        {
+            if (savedDataStreamParameters.size() > 0)
+            {
+
+                int index = findMatchingStreamParameters(stream);
+
+                if (index > -1)
+                {
+                    savedDataStreamParameters[index]->copyParameterValuesTo(stream);
+
+                    for (auto param : savedDataStreamParameters[index]->getParameters())
+                    {
+                        if (param->getName() == "enable_stream" && isFilter())
+                        {
+                            getEditor()->streamEnabledStateChanged(stream->getStreamId(),
+                                (bool)param->getValue(),
+                                true);
+                        }
+                            
+                    }
+
+                    savedDataStreamParameters.remove(index);
+                }
+
+            }
+        }
+
+        savedDataStreamParameters.clear();
+
+        LOGG("    Loaded stream parameters in ", MS_FROM_START, " milliseconds");
+
+        for (auto* xmlNode : parametersAsXml->getChildWithTagNameIterator("CUSTOM_PARAMETERS"))
+        {
+            loadCustomParametersFromXml(xmlNode);
+        }
+
+        LOGG("    Loaded custom parameters in ", MS_FROM_START, " milliseconds");
+
+        for (auto* xmlNode : parametersAsXml->getChildWithTagNameIterator("EDITOR"))
+        {
+            getEditor()->loadFromXml(xmlNode);
+        }
+
+        LOGG("    Loaded editor parameters in ", MS_FROM_START, " milliseconds");
 	}
 
-	m_isParamsWereLoaded = true;
+	m_paramsWereLoaded = true;
 }
 
-
-void GenericProcessor::loadChannelParametersFromXml(XmlElement* channelInfo, InfoObjectCommon::InfoObjectType type)
-{
-	int channelNum = channelInfo->getIntAttribute("number");
-
-	if (type == InfoObjectCommon::DATA_CHANNEL)
-	{
-		forEachXmlChildElement(*channelInfo, subNode)
-		{
-			if (subNode->hasTagName("SELECTIONSTATE"))
-			{
-				getEditor()->setChannelSelectionState(channelNum,
-					subNode->getBoolAttribute("param"),
-					subNode->getBoolAttribute("record"),
-					subNode->getBoolAttribute("audio"));
-			}
-		}
-	}
-
-	loadCustomChannelParametersFromXml(channelInfo, type);
-}
-
-
-void GenericProcessor::loadCustomParametersFromXml() { }
-void GenericProcessor::loadCustomChannelParametersFromXml(XmlElement* channelInfo, InfoObjectCommon::InfoObjectType type) { }
-
-void GenericProcessor::reset() {}
-
-void GenericProcessor::setCurrentProgramStateInformation(const void* data, int sizeInBytes) {}
-void GenericProcessor::setStateInformation(const void* data, int sizeInBytes) {}
-
-void GenericProcessor::getCurrentProgramStateInformation(MemoryBlock& destData) {}
-void GenericProcessor::getStateInformation(MemoryBlock& destData) {}
-
-void GenericProcessor::changeProgramName(int index, const String& newName) {}
-void GenericProcessor::setCurrentProgram(int index) {}
+void GenericProcessor::loadCustomParametersFromXml(XmlElement*) { }
 
 void GenericProcessor::setCurrentChannel(int chan)
 {
 	currentChannel = chan;
 }
 
-
-void GenericProcessor::setProcessorType(PluginProcessorType processorType)
+void GenericProcessor::setProcessorType(Plugin::Processor::Type processorType)
 {
 	m_processorType = processorType;
 }
 
-
-//<DEPRECATED>
-// ==================================================================
-const String GenericProcessor::getInputChannelName(int channelIndex) const { return GenericProcessor::m_unusedNameString; }
-const String GenericProcessor::getOutputChannelName(int channelIndex) const { return GenericProcessor::m_unusedNameString; }
-// ==================================================================
-
-void GenericProcessor::getEventChannelNames(StringArray& Names) { }
-
-const String GenericProcessor::getProgramName(int index)   { return ""; }
-const String GenericProcessor::getName() const              { return m_name; }
-
-int GenericProcessor::getCurrentChannel() const { return currentChannel; }
-
-PluginProcessorType GenericProcessor::getProcessorType() const { return m_processorType; }
-
-bool GenericProcessor::hasEditor() const { return false; }
-
-bool GenericProcessor::isInputChannelStereoPair(int index) const { return true; }
-bool GenericProcessor::isOutputChannelStereoPair(int index) const { return true; }
-
-bool GenericProcessor::acceptsMidi() const  { return true; }
-bool GenericProcessor::producesMidi() const { return true; }
-
-bool GenericProcessor::silenceInProducesSilenceOut() const  { return false; }
-
-bool GenericProcessor::stillHasSource() const { return true; }
-
-bool GenericProcessor::isParameterAutomatable(int parameterIndex) const { return false; }
-bool GenericProcessor::isMetaParameter(int parameterIndex) const { return false; }
-
 bool GenericProcessor::canSendSignalTo(GenericProcessor*) const { return true; }
 
-bool GenericProcessor::isReady()                { return isEnabled; }
-bool GenericProcessor::isEnabledState() const   { return isEnabled; }
+bool GenericProcessor::generatesTimestamps() const { return false; }
 
-bool GenericProcessor::isGeneratesTimestamps() const { return false; }
+bool GenericProcessor::isFilter()        const  { return getProcessorType() == Plugin::Processor::FILTER; }
+bool GenericProcessor::isSource()        const  { return getProcessorType() == Plugin::Processor::SOURCE; }
+bool GenericProcessor::isSink()          const  { return getProcessorType() == Plugin::Processor::SINK; }
+bool GenericProcessor::isSplitter()      const  { return getProcessorType() == Plugin::Processor::SPLITTER; }
+bool GenericProcessor::isMerger()        const  { return getProcessorType() == Plugin::Processor::MERGER; }
+bool GenericProcessor::isAudioMonitor()  const  { return getProcessorType() == Plugin::Processor::AUDIO_MONITOR; }
+bool GenericProcessor::isUtility()       const  { return getProcessorType() == Plugin::Processor::UTILITY; }
+bool GenericProcessor::isRecordNode()    const  { return getProcessorType() == Plugin::Processor::RECORD_NODE; }
 
-bool GenericProcessor::isFilter()        const  { return getProcessorType() == PROCESSOR_TYPE_FILTER; }
-bool GenericProcessor::isSource()        const  { return getProcessorType() == PROCESSOR_TYPE_SOURCE; }
-bool GenericProcessor::isSink()          const  { return getProcessorType() == PROCESSOR_TYPE_SINK; }
-bool GenericProcessor::isSplitter()      const  { return getProcessorType() == PROCESSOR_TYPE_SPLITTER; }
-bool GenericProcessor::isMerger()        const  { return getProcessorType() == PROCESSOR_TYPE_MERGER; }
-bool GenericProcessor::isUtility()       const  { return getProcessorType() == PROCESSOR_TYPE_UTILITY; }
-
-int GenericProcessor::getNumParameters()    { return parameters.size(); }
-int GenericProcessor::getNumPrograms()      { return 0; }
-int GenericProcessor::getCurrentProgram()   { return 0; }
-
-int GenericProcessor::getNumInputs() const                  { return settings.numInputs; }
-int GenericProcessor::getNumOutputs() const                 { return settings.numOutputs; }
-int GenericProcessor::getNumOutputs(int subProcessorIdx) const
+Plugin::Processor::Type GenericProcessor::getProcessorType() const
 {
-	uint32 sourceId = getProcessorFullId(nodeId, subProcessorIdx);
-	try
+	return m_processorType;
+}
+
+String GenericProcessor::getProcessorTypeString() const
+{
+    if (isSource())
+        return "Source";
+    else if (isSink())
+        return "Sink";
+    else if (isFilter())
+        return "Filter";
+    else
+        return "Utility";
+}
+
+Plugin::Processor::Type GenericProcessor::typeFromString(String typeName)
+{
+    if (typeName.equalsIgnoreCase("Source"))
+        return Plugin::Processor::SOURCE;
+    else if (typeName.equalsIgnoreCase("Filter"))
+        return Plugin::Processor::FILTER;
+    else if (typeName.equalsIgnoreCase("Sink"))
+        return Plugin::Processor::SINK;
+    else if (typeName.equalsIgnoreCase("Utility"))
+        return Plugin::Processor::UTILITY;
+    else
+        return Plugin::Processor::INVALID;
+}
+
+int GenericProcessor::getNumInputs() const  
+{ 
+	if (sourceNode != nullptr)
 	{
-		return dataChannelMap.at(sourceId).size();
+		return continuousChannels.size();
 	}
-	catch (...)
-	{
+	else {
 		return 0;
 	}
 }
 
-int GenericProcessor::getDefaultNumDataOutputs(DataChannel::DataChannelTypes, int) const        { return 0; }
+int GenericProcessor::getNumOutputs() const   
+{ 
+	return continuousChannels.size(); 
+}
+
+int GenericProcessor::getNumOutputsForStream(int streamIdx) const
+{
+	return dataStreams[streamIdx]->getChannelCount();
+}
 
 int GenericProcessor::getNodeId() const                     { return nodeId; }
-int GenericProcessor::getTotalNumberOfChannels() const      { return dataChannelArray.size() + eventChannelArray.size() + spikeChannelArray.size(); }
 
-double GenericProcessor::getTailLengthSeconds() const       { return 1.0f; }
-
-float GenericProcessor::getParameter(int parameterIndex)   { return 1.0; }
 float GenericProcessor::getDefaultSampleRate() const        { return 44100.0; }
 float GenericProcessor::getSampleRate(int) const               { return getDefaultSampleRate(); }
-float GenericProcessor::getDefaultBitVolts() const          { return 1.0; }
-float GenericProcessor::getBitVolts(int) const				{ return getDefaultBitVolts(); }
-float GenericProcessor::getBitVolts(const DataChannel* chan) const   { return 1.0; }
 
 GenericProcessor* GenericProcessor::getSourceNode() const { return sourceNode; }
 GenericProcessor* GenericProcessor::getDestNode()   const { return destNode; }
 
-int GenericProcessor::getNumSubProcessors() const { return 1; }
+int GenericProcessor::getNumDataStreams() const { return dataStreams.size(); }
 
-GenericEditor* GenericProcessor::getEditor() const { return editor; }
+GenericEditor* GenericProcessor::getEditor() const { return editor.get(); }
 
-AudioSampleBuffer* GenericProcessor::getContinuousBuffer() const { return 0; }
+AudioBuffer<float>* GenericProcessor::getContinuousBuffer() const { return 0; }
 MidiBuffer* GenericProcessor::getEventBuffer() const             { return 0; }
 
 void GenericProcessor::switchIO(int)   { }
@@ -1218,48 +1980,12 @@ void GenericProcessor::setPathToProcessor(GenericProcessor* p)   { }
 void GenericProcessor::setMergerSourceNode(GenericProcessor* sn)  { }
 void GenericProcessor::setSplitterDestNode(GenericProcessor* dn)  { }
 
-void GenericProcessor::startRecording() { }
-void GenericProcessor::stopRecording()  { }
+bool GenericProcessor::startAcquisition() { return true; }
+bool GenericProcessor::stopAcquisition() { return true; }
 
-void GenericProcessor::updateSettings() { }
-
-void GenericProcessor::enableCurrentChannel(bool) {}
-
-void GenericProcessor::handleEvent(const EventChannel* eventInfo, const MidiMessage& event, int samplePosition) {}
-
-void GenericProcessor::handleSpike(const SpikeChannel* spikeInfo, const MidiMessage& event, int samplePosition) {}
-
-void GenericProcessor::handleTimestampSyncTexts(const MidiMessage& event) {};
-
-void GenericProcessor::setEnabledState(bool t)
-{
-	isEnabled = t;
-}
-
-bool GenericProcessor::enableProcessor()
-{
-	m_lastProcessTime = Time::getHighResolutionTicks();
-	return enable();
-}
-
-bool GenericProcessor::disableProcessor()
-{
-	return disable();
-}
-
-bool GenericProcessor::enable()
-{
-	return isEnabled;
-}
-
-bool GenericProcessor::disable()
-{
-	return true;
-}
-
-GenericProcessor::DefaultEventInfo::DefaultEventInfo(EventChannel::EventChannelTypes t, unsigned int c, unsigned int l, float s)
+GenericProcessor::DefaultEventInfo::DefaultEventInfo(EventChannel::Type t, unsigned int c, unsigned int l, float s)
 	:type(t),
-	nChannels(c),
+    nChannels(c),
 	length(l),
 	sampleRate(s)
 {
@@ -1272,32 +1998,65 @@ GenericProcessor::DefaultEventInfo::DefaultEventInfo()
 	sampleRate(44100)
 {}
 
-uint32 GenericProcessor::getProcessorFullId(uint16 sid, uint16 subid)
+
+LatencyMeter::LatencyMeter(GenericProcessor* processor_)
+	: processor(processor_),
+	counter(0)
 {
-	return (uint32(sid) << 16) + subid;
+
 }
 
-uint16 GenericProcessor::getNodeIdFromFullId(uint32 fid)
+void LatencyMeter::update(Array<const DataStream*>dataStreams)
 {
-	return (fid & 0xFFFF0000 ) >> 16;
+	latencies.clear();
+
+	for (auto dataStream : dataStreams)
+		latencies[dataStream->getStreamId()].insertMultiple(0, 0, 5);
+
 }
 
-uint16 GenericProcessor::getSubProcessorFromFullId(uint32 fid)
+void LatencyMeter::setLatestLatency(std::map<uint16, juce::int64>& processStartTimes)
 {
-	return (fid & 0x0000FFFF);
-}
 
-int64 GenericProcessor::getLastProcessedsoftwareTime() const
-{
-	return m_lastProcessTime;
-}
+	if (counter % 10 == 0) // update latency estimate every 10 process blocks
+	{
 
-void ChannelCreationIndexes::clearChannelCreationCounts()
-{
-	dataChannelCount = 0;
-	dataChannelTypeCount.clear();
-	eventChannelCount = 0;
-	eventChannelTypeCount.clear();
-	spikeChannelCount = 0;
-	spikeChannelTypeCount.clear();
+		std::map<uint16, juce::int64>::iterator it = processStartTimes.begin();
+
+		int64 currentTime = Time::getHighResolutionTicks();
+
+		while (it != processStartTimes.end())
+		{
+			latencies[it->first].set(counter % 5, currentTime - it->second);
+			it++;
+		}
+
+		if (counter % 50 == 0) // compute mean latency every 50 process blocks
+		{
+
+			std::map<uint16, juce::int64>::iterator it = processStartTimes.begin();
+
+			while (it != processStartTimes.end())
+			{
+				float totalLatency = 0.0f;
+
+				for (int i = 0; i < 10; i++)
+					totalLatency += float(latencies[it->first][i]);
+
+				totalLatency = totalLatency 
+					/ float(Time::getHighResolutionTicksPerSecond())
+					* 1000.0f;
+
+				processor->getEditor()->setMeanLatencyMs(it->first, totalLatency);
+
+				it++;
+
+			}
+			
+		}
+			
+	}
+
+	counter++;
+
 }

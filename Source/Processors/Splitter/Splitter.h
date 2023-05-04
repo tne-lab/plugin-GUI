@@ -29,6 +29,7 @@
 
 #include <stdio.h>
 
+class DataStream;
 
 /**
 
@@ -47,32 +48,69 @@ class Splitter : public GenericProcessor
 {
 public:
 
+    /** Available splitter output paths */
+    enum Output {
+
+        OUTPUT_A,
+        OUTPUT_B
+
+    };
+
+    /** Constructor*/
     Splitter();
+
+    /** Destructor */
     ~Splitter();
 
+    /** Create the Splitter's custom editor */
     AudioProcessorEditor* createEditor();
 
     /** Nothing happens here, because Splitters are not part of the ProcessorGraph. */
     void process(AudioSampleBuffer& buffer) override {}
 
-    bool isSplitter()
-    {
-        return true;
-    }
+    /** Selects which streams are sent down each path. */
+    void updateSettings() override;
 
-    void switchIO(int);
+    /** Set the currently displayed path (0 or 1) */
+    void switchIO(int output);
+
+    /** Get the currently displayed path (0 or 1) */
+    int getPath();
+
+    /** Switch the currently displayed path */
     void switchIO();
+    
+    /** Set the destination processor for the currently displayed path*/
     void setSplitterDestNode(GenericProcessor* dn);
 
-    void setPathToProcessor(GenericProcessor* processor);
+    /** Return the destination processor for a particular path (0 or 1)*/
+    GenericProcessor* getDestNode(int);
 
-    int getPath();
+    /** Return the streams to be sent to the selected destination node*/
+    Array<const DataStream*> getStreamsForDestNode(GenericProcessor* destNode) override;
+
+    /** Checks whether or not a particular stream should be sent down a particular path */
+    bool checkStream(const DataStream* stream, Output output);
+    
+    /** Display the path that leads to a particular processor*/
+    void setPathToProcessor(GenericProcessor* processor);
+    
+    /** Saves Splitter parameters to XML file*/
+    void saveCustomParametersToXml(XmlElement* parentElement) override;
+
+    /** Loads Splitter parameters from XML file*/
+    void loadCustomParametersFromXml(XmlElement* xml) override;
 
 private:
 
     GenericProcessor* destNodeA;
+
     GenericProcessor* destNodeB;
+    
     int activePath;
+
+    Array<const DataStream*> streamsForPathA;
+    Array<const DataStream*> streamsForPathB;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Splitter);
 

@@ -26,6 +26,7 @@
 
 #include "../../JuceLibraryCode/JuceHeader.h"
 #include "../AccessClass.h"
+#include "../Processors/PluginManager/OpenEphysPlugin.h"
 
 class ProcessorListItem;
 class UIComponent;
@@ -47,13 +48,17 @@ class UIComponent;
 
 class ProcessorList : public Component,
     public DragAndDropContainer,
-    public ChangeListener
+    public ChangeListener,
+    public Timer
 
 {
 public:
 
-    ProcessorList();
-    ~ProcessorList();
+    /** Constructor**/
+    ProcessorList(Viewport* v);
+    
+    /** Destructor*/
+    ~ProcessorList() {}
 
     /** Switches the open/closed state of the ProcessorList.*/
     void toggleState();
@@ -82,7 +87,16 @@ public:
 	/** Fill item list **/
 	void fillItemList();
 
+    /** Get list of processors **/
+    Array<String> getItemList();
+
+    Plugin::Description getItemDescriptionfromList(const String& processorName);
+
+    /** Set component bounds */
     void resized();
+    
+    /** Used to animate list item location */
+    void timerCallback();
 
     /** Returns the height requested by the ProcessorList. Determines whether or not
     to draw scroll bars.*/
@@ -98,9 +112,6 @@ private:
 
     /** Draws the name of a single item within the ProcessorList.*/
     void drawItemName(Graphics& g, ProcessorListItem*);
-
-    /** Draws the open/close button.*/
-    void drawButton(Graphics& g, bool isOpen);
 
     /** Returns the ProcessorListItem that sits at a given y coordinate.*/
     ProcessorListItem* getListItemForYPos(int y);
@@ -119,6 +130,12 @@ private:
 
     String category;
 
+    /** Called when the mouse moves within the boundaries of the ProcessorList.*/
+    void mouseMove(const MouseEvent& e);
+    
+    /** Called when the mouse exits the boundaries of the ProcessorList.*/
+    void mouseExit(const MouseEvent& e);
+    
     /** Called when a mouse click begins within the boundaries of the ProcessorList.*/
     void mouseDown(const MouseEvent& e);
 
@@ -126,10 +143,15 @@ private:
     void mouseDrag(const MouseEvent& e);
 
     /** The base item in the list.*/
-    ScopedPointer<ProcessorListItem> baseItem;
+    std::unique_ptr<ProcessorListItem> baseItem;
 
     Font listFontLight;
     Font listFontPlain;
+    
+    ProcessorListItem* hoverItem;
+    int maximumNameOffset;
+
+    Viewport* viewport;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ProcessorList);
 
@@ -151,8 +173,14 @@ private:
 class ProcessorListItem : public Component
 {
 public:
-    ProcessorListItem(const String& name, int pid = -1, int ptype = -1);
-    ~ProcessorListItem();
+    /** Constructor*/
+    ProcessorListItem(const String& name,
+                      int processorId = -1,
+                      Plugin::Type type = Plugin::INVALID,
+                      Plugin::Processor::Type processorType = Plugin::Processor::INVALID);
+    
+    /** Destructor*/
+    ~ProcessorListItem() { }
 
     /** Returns the number of sub-items for a given ProcessorListItem. */
     int getNumSubItems();
@@ -208,16 +236,17 @@ public:
     /** Determines the color of the ProcessorListItem (based on enumerator defined in setParentName() method). */
     int colorId;
 
-	const int processorId;
+	const int index;
 
-	const int processorType;
+    const Plugin::Type pluginType;
+    
+	const Plugin::Processor::Type processorType;
 private:
 
     bool selected;
     bool open;
     const String name;
     String parentName;
-	
 
     /** An array of all the sub-items (if any) that belong to this ProcessorListItem. */
     OwnedArray<ProcessorListItem> subItems;

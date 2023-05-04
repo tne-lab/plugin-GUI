@@ -24,214 +24,304 @@
 #define __PARAMETEREDITOR_H_44537DA9__
 
 #include "../../../JuceLibraryCode/JuceHeader.h"
-#include "../GenericProcessor/GenericProcessor.h"
-#include "../Editors/ChannelSelector.h"
-#include "../PluginManager/OpenEphysPlugin.h"
+
 #include "Parameter.h"
-#include <stdio.h>
+#include "../Editors/PopupChannelSelector.h"
 
-class ParameterButton;
-class ParameterSlider;
-class ParameterCheckbox;
+class UtilityButton;
 
+/** 
+    Base class for ParameterEditors
 
-/** Used to edit numeric parameters.  */
-class PLUGIN_API ParameterLabel : public Component
-                                , public Label::Listener
+    All custom ParameterEditors must inherit from this class.
+*/
+class ParameterEditor : public Component
 {
 public:
-    class Listener
+
+    /** Constructor */
+    ParameterEditor(Parameter* param_) : param(param_), name(param_->getName()) { }
+
+    /** Destructor */
+    virtual ~ParameterEditor() { }
+
+    /** Must ensure that editor state matches underlying parameter */
+    virtual void updateView() = 0;
+
+    /** Sets the parameter corresponding to this editor*/
+    void setParameter(Parameter* param_)
     {
-    public:
-        virtual ~Listener() {}
+        param = param_;
+        updateView();
+    }
 
-        virtual void parameterLabelValueChanged (ParameterLabel* label) = 0;
-    };
+    /** Returns true if this editor should be disabled during acquisition*/
+    bool shouldDeactivateDuringAcquisition()
+    {
+        if (param != nullptr)
+            return param->shouldDeactivateDuringAcquisition();
+        else
+            return false;
+    }
 
-    ParameterLabel (const String& labelName, double minValue, double maxValue, double defaultValue);
+    /** Returns the name of the underlying parameter*/
+    const String getParameterName() { return name; }
 
-    void resized() override;
+protected:
+    Parameter* param;
+    
+    String name;
+};
 
-    void labelTextChanged (Label* label) override;
+/** 
+    Allows parameters to be changed via text box.
 
-    double getValue() const noexcept;
+    Only valid for IntParameter and FloatParameter
 
-    void setValue (double value, NotificationType notificationType = sendNotificationAsync);
-    void setInfoFont  (Font font);
-    void setValueFont (Font font);
+*/
+class PLUGIN_API TextBoxParameterEditor : public ParameterEditor,
+    public Label::Listener
+{
+public:
 
-    void addListener    (Listener* listener);
-    void removeListener (Listener* listener);
+    /** Constructor */
+    TextBoxParameterEditor(Parameter* param);
 
-    bool isEnabled;
+    /** Destructor */
+    virtual ~TextBoxParameterEditor() { }
+
+    /** Called when the text box contents are changed*/
+    void labelTextChanged(Label* label) override;
+
+    /** Must ensure that editor state matches underlying parameter */
+    virtual void updateView() override;
+
+    /** Sets sub-component locations */
+    virtual void resized() override;
 
 private:
-    double m_minValue;
-    double m_maxValue;
-    double m_defaultValue;
+    std::unique_ptr<Label> parameterNameLabel;
+    std::unique_ptr<Label> valueTextBox;
 
-    Label m_infoLabel;
-    Label m_valueLabel;
-
-    Font m_infoFont;
-    Font m_valueFont;
-
-    ListenerList<Listener> m_listeners;
-
-    // ========================================================================
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ParameterLabel);
+    int finalWidth;
 };
 
 
 /**
-    Automatically creates an interactive editor for a particular
-    parameter.
+    Allows parameters to be changed via a check box.
 
-    @see GenericEditor, GenericProcessor, Parameter
+    Only valid for BooleanParameter
+
 */
-class PLUGIN_API ParameterEditor : public Component
-                                 , public Button::Listener
-                                 , public Slider::Listener
-                                 , public ParameterLabel::Listener
+class PLUGIN_API CheckBoxParameterEditor : public ParameterEditor,
+    public Button::Listener
 {
 public:
-    ParameterEditor (GenericProcessor* proccessor, Parameter* parameter, Font labelFont);
 
-    /** Returns true if the editor should be treated as standalone and should
-        have his own custom bounds. */
-    bool hasCustomBounds() const noexcept;
+    /** Constructor */
+    CheckBoxParameterEditor(Parameter* param);
 
-    /** Returns the desired bounds for editor. */
-    const juce::Rectangle<int>& getDesiredBounds() const noexcept;
+    /** Destructor */
+    virtual ~CheckBoxParameterEditor() { }
 
-    void parentHierarchyChanged() override;
+    /** Responds to checkbox clicks */
+    void buttonClicked(Button* label) override;
 
-    void buttonClicked (Button* buttonThatWasClicked) override;
-    void sliderValueChanged (Slider* sliderWhichValueHasChanged) override;
+    /** Must ensure that editor state matches underlying parameter */
+    virtual void updateView() override;
 
-    void parameterLabelValueChanged (ParameterLabel* parameterLabel) override;
-
-    void setChannelSelector (ChannelSelector* channelSelector);
-
-    // for inactivation during acquisition:
-    void setEnabled (bool isEnabled);
-    void updateChannelSelectionUI();
-
-    int desiredWidth;
-    int desiredHeight;
-
-    bool shouldDeactivateDuringAcquisition;
-
+    /** Sets sub-component locations */
+    virtual void resized() override;
 
 private:
-    bool m_activationState;
-
-    Parameter* m_parameter;
-    GenericProcessor* m_processor;
-    ChannelSelector* m_channelSelector;
-
-    OwnedArray<ParameterSlider>     m_sliderArray;
-    OwnedArray<ParameterButton>     m_buttonArray;
-    OwnedArray<ParameterCheckbox>   m_checkboxArray;
-    OwnedArray<ParameterLabel>      m_parameterLabelsArray;
-    OwnedArray<Label>               m_labelsArray;
-
-    Array<int> m_buttonIdArray;
-    Array<int> m_sliderIdArray;
-    Array<int> m_checkboxIdArray;
-
-    juce::Rectangle<int> m_desiredBounds;
-
-    enum
-    {
-        LEFT,
-        MIDDLE,
-        RIGHT
-    };
+    std::unique_ptr<Label> parameterNameLabel;
+    std::unique_ptr<ToggleButton> valueCheckBox;
 };
 
 
-/** Used to edit discrete parameters.  */
-class PLUGIN_API ParameterButton : public Button
+/**
+    Allows parameters to be changed via combo box.
+
+    Only valid for BooleanParameter, IntParameter, and CategoricalParameter
+
+*/
+class PLUGIN_API ComboBoxParameterEditor : public ParameterEditor,
+    public ComboBox::Listener
 {
 public:
-    ParameterButton (var value, int buttonType, Font labelFont);
 
-    bool isEnabled;
-    //Used to mark if unused, usedByActive, or usedby inactive
-    int colorState;
+    /** Constructor */
+    ComboBoxParameterEditor(Parameter* param);
 
+    /** Destructor */
+    virtual ~ComboBoxParameterEditor() { }
+
+    /** Responds to checkbox clicks */
+    void comboBoxChanged(ComboBox* comboBox) override;
+
+    /** Must ensure that editor state matches underlying parameter */
+    virtual void updateView() override;
+
+    /** Sets sub-component locations */
+    virtual void resized() override;
 
 private:
-    void paintButton (Graphics& g, bool isMouseOver, bool isButtonDown) override;
+    std::unique_ptr<Label> parameterNameLabel;
+    std::unique_ptr<ComboBox> valueComboBox;
 
-    void resized() override;
-
-    int type;
-
-    Path outlinePath;
-
-    const String valueString;
-
-    Font font;
-
-    ColourGradient selectedGrad;
-    ColourGradient selectedOverGrad;
-    ColourGradient usedByNonActiveGrad;
-    ColourGradient usedByNonActiveOverGrad;
-    ColourGradient neutralGrad;
-    ColourGradient neutralOverGrad;
-    ColourGradient deactivatedGrad;
-
-    enum
-    {
-        LEFT,
-        MIDDLE,
-        RIGHT
-    };
+    int offset;
 };
 
-
-/** Used to edit boolean parameters.  */
-class PLUGIN_API ParameterCheckbox : public Button
+class SliderLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
-    ParameterCheckbox (bool defaultState);
 
-    void clicked() override;
+    /** Constructor */
+    SliderLookAndFeel() { }
+
+    /** Destructor */
+    ~SliderLookAndFeel() { }
+
+    Slider::SliderLayout getSliderLayout (Slider& slider) override;
+
+    void drawRotarySlider (Graphics&, int x, int y, int width, int height,
+                           float sliderPosProportional, float rotaryStartAngle,
+                           float rotaryEndAngle, Slider&) override;
+
+    Label* createSliderTextBox (Slider& slider) override;
+
+private:
+    Colour blue      = Colour::fromFloatRGBA (0.43f, 0.83f, 1.0f,  1.0f);
+    Colour offWhite  = Colour::fromFloatRGBA (0.83f, 0.84f, 0.9f,  1.0f);
+    Colour grey      = Colour::fromFloatRGBA (0.42f, 0.42f, 0.42f, 1.0f);
+    Colour blackGrey = Colour::fromFloatRGBA (0.2f,  0.2f,  0.2f,  1.0f);
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SliderLookAndFeel);
+};
+
+class PLUGIN_API CustomSlider : public Slider
+{
+public:
+    CustomSlider();
+    ~CustomSlider();
+
+    void mouseDown (const MouseEvent& event) override;
+    void mouseUp (const MouseEvent& event) override;
+    void mouseDrag(const MouseEvent& event) override;
+    
+    SliderLookAndFeel sliderLookAndFeel;
+
+    void setEnabled(bool isEnabled_) { isEnabled = isEnabled_; }
+
+private:
 
     bool isEnabled;
 
-
-private:
-    void paintButton (Graphics& g, bool isMouseOver, bool isButtonDown);
-
-    ColourGradient selectedGrad;
-    ColourGradient selectedOverGrad;
-    ColourGradient neutralGrad;
-    ColourGradient neutralOverGrad;
-    ColourGradient deactivatedGrad;
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustomSlider)
 };
 
 
-/** Used to edit continuous parameters.  */
-class PLUGIN_API ParameterSlider : public Slider
+/**
+    Allows parameters to be changed via a slider
+
+    Only valid for IntParameter and FloatParameter
+
+*/
+class PLUGIN_API SliderParameterEditor : public ParameterEditor,
+    public Slider::Listener
 {
 public:
-    ParameterSlider (float minValue, float maxValue, float defaultValue, Font f);
 
-    bool isEnabled;
+    /** Constructor */
+    SliderParameterEditor(Parameter* param);
 
+    /** Destructor */
+    virtual ~SliderParameterEditor() { }
+    
+    /** Responds to slider value changes */
+    void sliderValueChanged(Slider* slider) override;
+
+    /** Must ensure that editor state matches underlying parameter */
+    virtual void updateView() override;
+
+    /** Sets sub-component locations */
+    virtual void resized() override;
 
 private:
-    void paint (Graphics& g);//Button(Graphics& g, bool isMouseOver, bool isButtonDown);
-
-    Path makeRotaryPath (double minValue, double maxValue, double value);
-
-    Font font;
+    std::unique_ptr<Label> parameterNameLabel;
+    std::unique_ptr<CustomSlider> slider;
+    
 };
 
+/**
+    Creates a special editor for a SelectedChannelsParameter
 
+    Displays all of the channels in the currently active DataStream,
+    and makes it possible to select them by clicking.
 
+*/
+class PLUGIN_API SelectedChannelsParameterEditor : 
+    public ParameterEditor,
+    public Button::Listener,
+    public PopupChannelSelector::Listener
+{
+public:
+
+    /** Constructor */
+    SelectedChannelsParameterEditor(Parameter* param);
+
+    /** Destructor */
+    virtual ~SelectedChannelsParameterEditor() { }
+
+    /** Displays the PopupChannelSelector*/
+    void buttonClicked(Button* label) override;
+
+    /** Must ensure that editor state matches underlying parameter */
+    virtual void updateView() override;
+
+    /** Responds to changes in the PopupChannelSelector*/
+    void channelStateChanged(Array<int> selectedChannels) override;
+
+    /** Sets sub-component locations */
+    virtual void resized() override;
+
+private:
+    std::unique_ptr<UtilityButton> button;
+};
+
+/**
+    Creates a special editor for a MaskChannelsParameter
+
+    Displays all of the channels in the currently active DataStream,
+    and makes it possible to select them by clicking.
+
+*/
+class PLUGIN_API MaskChannelsParameterEditor : public ParameterEditor,
+    public Button::Listener,
+    public PopupChannelSelector::Listener
+{
+public:
+
+    /** Constructor */
+    MaskChannelsParameterEditor(Parameter* param);
+
+    /** Destructor */
+    virtual ~MaskChannelsParameterEditor() { }
+
+    /** Displays the PopupChannelSelector*/
+    void buttonClicked(Button* label) override;
+
+    /** Must ensure that editor state matches underlying parameter */
+    virtual void updateView() override;
+
+    /** Responds to changes in the PopupChannelSelector*/
+    void channelStateChanged(Array<int> selectedChannels) override;
+
+    /** Sets sub-component locations */
+    virtual void resized() override;
+
+private:
+    std::unique_ptr<UtilityButton> button;
+};
 
 #endif  // __PARAMETEREDITOR_H_44537DA9__

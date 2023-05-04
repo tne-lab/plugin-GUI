@@ -28,105 +28,113 @@
 #include "../Visualization/DataWindow.h"
 #include "../Visualization/Visualizer.h"
 
-
 class DataWindow;
 class Visualizer;
 
-
 /**
     Button for selecting the location of a visualizer.
+    (either in a tab or a separate window)
 
     @see VisualizerEditor
 */
 class PLUGIN_API SelectorButton : public Button
 {
 public:
+
+    /** Constructor */
     SelectorButton (const String& buttonName);
-    ~SelectorButton();
+
+    /** Destructor */
+    ~SelectorButton() { }
 
 private:
+
+    /** Renders the button*/
     void paintButton (Graphics& g, bool isMouseOver, bool isButtonDown) override;
 
+    /** Returns true if it's a window button*/
     bool isOpenWindowButton() const;
+
+    /** Returns true if it's a tab button*/
     bool isOpenTabButton() const;
 };
 
 
 /**
-    @brief
-    Base class for creating editors with visualizers.
+    Base class for creating editors with visualizers (large graphical displays
+    that appear in a tab or a separate window).
 
-    @details
     Automatically adds buttons (and their handlers) which open the canvas in a window or
-    a tab. Just like any other editor, do not override VisualizerEditor::buttonClicked.
+    a tab.
+
     @see GenericEditor, Visualizer
 
-    If you must add buttons to your editor, handle them by overiding VisualizerEditor::buttonEvent
-    @see RHD2000Editor, PCIeRhythm::RHD2000Editor
 */
-
-
 class PLUGIN_API VisualizerEditor : public GenericEditor
                                   , public DataWindow::Listener
 {
 public:
-    /**
-        @brief      Prefer this constructor to properly "size" the editor widget.
-        @details    Unlike other editors, setting GenericEditor::desiredWidth
-        @code{cpp}
-          desiredWidth = <width-that-you-need>;
-        @endcode
-        will not work.
-
-        @param      processor                   The processor
-        @param[in]  desired_width               The desired width
-        @param[in]  useDefaultParameterEditors  ``true`` if you want a _default_ editor.
-
-        @see GenericEditor
+    /** Constructor 
+    *   Sets the text that will appear in the Visualizer's tab or window
+    *   Optionally defines the desired width of the editor
     */
-    VisualizerEditor (GenericProcessor* processor, int desired_width, bool useDefaultParameterEditors = true);
+    VisualizerEditor (GenericProcessor* processor, String tabText, int desiredWidth = 180);
 
-    VisualizerEditor (GenericProcessor* processor, bool useDefaultParameterEditors = true);
+    /** Destructor -- closes the tab if it's still open */
     ~VisualizerEditor();
 
-    void resized() override;
+    // ------------------------------------------------------------
+    //                  PURE VIRTUAL METHOD 
+    //     (must be implemented by all VisualizerEditors)
+    // ------------------------------------------------------------
 
-    /**
-        @brief      This method handles the button evnets which open visualizer in a tab or window.
-        @warning    Do not override this function unless you call ``VisualizerEditor::buttonClicked``
-                    somewhere!
-    */
-    void buttonClicked (Button* button) override;
-
-    /**
-        @brief      All additional buttons that you create _for the editor_ should be handled here.
-    */
-    virtual void buttonEvent (Button* button) override;
-
-    /**
-        @brief      Creates a new canvas. This is like a factory method and must be defined in your sub-class.
-    */
+    /** Creates a new Visualizer canvas. This is like a factory method and must be defined in your sub-class. */
     virtual Visualizer* createNewCanvas() = 0;
 
+    // ------------------------------------------------------------
+    //                   VIRTUAL METHODS 
+    //       (can optionally be overriden by sub-classes)
+    // ------------------------------------------------------------
+
+    /** Use this method to save custom editor parameters */
+    virtual void saveVisualizerEditorParameters(XmlElement* xml) { }
+
+    /** Use this method to load custom editor parameters */
+    virtual void loadVisualizerEditorParameters(XmlElement* xml) { }
+
+    /** Called when the Visualizer window is closed */
+    virtual void windowClosed() override { }
+
+    /** Calls Visualizer's beginAnimation() method */
     virtual void enable();
+
+    /** Calls Visualizer's endAnimation() method */
     virtual void disable();
 
+    // ------------------------------------------------------------
+    //                     OTHER METHODS
+    // ------------------------------------------------------------
+
+    /** Sets the location of the window + tab buttons*/
+    void resized() override;
+
+    /** Brings the Visualizer to the foreground  */
     void editorWasClicked() override;
+
+    /** Calls the Visualizer's update() method */
     void updateVisualizer() override;
 
-    virtual void windowClosed();
+    /** Saves Visualizer open/closed state to XML */
+    void saveCustomParametersToXml (XmlElement* xml) override;
 
-    void saveCustomParameters (XmlElement* xml) override;
-    void loadCustomParameters (XmlElement* xml) override;
+    /** Loads Visualizer open/closed state from XML */
+    void loadCustomParametersFromXml (XmlElement* xml) override;
 
-    virtual void saveVisualizerParameters (XmlElement* xml);
-    virtual void loadVisualizerParameters (XmlElement* xml);
+    std::unique_ptr<DataWindow> dataWindow;
+    std::unique_ptr<Visualizer> canvas;
 
-    ScopedPointer<DataWindow> dataWindow;
-    ScopedPointer<Visualizer> canvas;
-
+    /** The text shown in this visualizer's tab*/
     String tabText;
-
 
 protected:
     /**
@@ -190,15 +198,32 @@ protected:
     */
     int addTab (String textOfTab, Visualizer* contentComponent);
 
+    /**
+        @brief      Checks and creates a canvas if one doesn't exist. Also, updates the canvas 
+    */
+    void checkForCanvas();
+
     bool isPlaying; /**< Acquisition status flag */
 
     // So that we can override buttonClick. That's not possible if these are private.
-    SelectorButton* windowSelector;
-    SelectorButton* tabSelector;
+    std::unique_ptr<SelectorButton> windowSelector;
+    std::unique_ptr<SelectorButton> tabSelector;
+    
     int tabIndex;
 
-
 private:
+
+    class ButtonResponder : public Button::Listener
+    {
+    public:
+        ButtonResponder(VisualizerEditor* editor_) : editor(editor_) { }
+        void buttonClicked(Button* button);
+    private:
+        VisualizerEditor* editor;
+    };
+
+    ButtonResponder dataWindowButtonListener;
+
     void initializeSelectors();
 
     // Some constants

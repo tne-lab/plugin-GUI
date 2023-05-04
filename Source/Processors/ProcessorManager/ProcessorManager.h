@@ -26,19 +26,25 @@
 
 #include "../PluginManager/OpenEphysPlugin.h"
 
-class GenericProcessor;
+#include "../ProcessorGraph/ProcessorGraph.h"
 
-enum ProcessorClasses
-{
-	BuiltInProcessor, PluginProcessor, DataThreadProcessor
-};
-
+/**
+ Creates processors (including built-in ones)
+ */
 namespace ProcessorManager
 {
-	int getNumProcessors(ProcessorClasses pClass);
-	void getProcessorNameAndType(ProcessorClasses pClass, int index, String& name, int& type);
-	GenericProcessor* createProcessor(ProcessorClasses pClass, int index);
-	GenericProcessor* createProcessorFromPluginInfo(Plugin::PluginType type, int index, String procName, String libName, int libVersion, bool source = false, bool sink = false);
+
+    /** Returns the types of plugins that can generate processors*/
+    Array<Plugin::Type> getAvailablePluginTypes();
+
+    /** Returns the number of processors available for a given plugin type*/
+	int getNumProcessorsForPluginType(Plugin::Type type);
+	
+    /** Returns info about a plugin at a particular index*/
+    Plugin::Description getPluginDescription(Plugin::Type type, int index);
+
+    /** Creates a new processor from its description*/
+    std::unique_ptr<GenericProcessor> createProcessor(Plugin::Description description);
 };
 
 

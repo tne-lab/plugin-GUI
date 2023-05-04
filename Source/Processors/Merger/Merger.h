@@ -46,41 +46,76 @@ class Merger : public GenericProcessor
 {
 public:
 
+    /** Constructor*/
     Merger();
-    ~Merger();
 
+    /** Destructor */
+    ~Merger() { }
+
+    /** Create the Merger's custom editor */
     AudioProcessorEditor* createEditor();
 
     /** Nothing happens here, because Mergers are not part of the ProcessorGraph. */
     void process(AudioSampleBuffer& buffer) override {}
 
-    bool isMerger() const override
-    {
-        return true;
-    }
+    /** Selects which input streams are connected to the output. */
+    void updateSettings() override;
 
+    /** Called during updateSettings(), once for each input processor*/
+    int addSettingsFromSourceNode(GenericProcessor* sn, int globalIndex);
+
+    /** Checks whether or not a particular stream should be sent to the Merger output */
+    bool checkStream(const DataStream* stream);
+
+    /** Set the currently displayed path (0 or 1) */
     void switchIO(int) override;
+
+    /** Get the currently displayed path (0 or 1) */
+    int getPath() { return activePath;}
+
+    /** Switch the currently displayed path */
     void switchIO() override;
+    
+    /** An upstream processor was deleted -- reorganize sources if necessary*/
+    void lostInput();
+
+    /** Switches the currently viewed path to a particular input processor*/
     int switchToSourceNode(GenericProcessor* sn);
+
+    /** Sets the source node for the currently selected path*/
     void setMergerSourceNode(GenericProcessor* sn) override;
 
-    void updateSettings() override;
-    void addSettingsFromSourceNode(GenericProcessor* sn);
+    /** Returns the source node for a particular path (0 or 1)*/
+    GenericProcessor* getSourceNode(int);
+    
+    /** Return the streams to be sent to the selected destination node*/
+    Array<const DataStream*> getStreamsForDestNode(GenericProcessor* destNode) override;
 
+
+    /** Called while loading the signal chain */
+    void restoreConnections();
+
+    /** Returns true if at least one source node is connected and enabled*/
     bool stillHasSource() const override;
 
+    /** Saves Merger parameters to XML file*/
     void saveCustomParametersToXml(XmlElement* parentElement) override;
-    void loadCustomParametersFromXml() override;
 
+    /** Loads Merger parameters from XML file*/
+    void loadCustomParametersFromXml(XmlElement* xml) override;
+
+    /** Returns true if the Merger transmits continuous data for a particular source node*/
     bool sendContinuousForSource(GenericProcessor* sn);
+
+    /** Returns true if the Merger transmits event data for a particular source node*/
     bool sendEventsForSource(GenericProcessor* sn);
 
     bool mergeEventsA, mergeContinuousA, mergeEventsB, mergeContinuousB;
 
-private:
-
     GenericProcessor* sourceNodeA;
     GenericProcessor* sourceNodeB;
+
+private:
 
     int activePath;
 

@@ -26,97 +26,268 @@
 
 #include "../AccessClass.h"
 #include "../Processors/Editors/GenericEditor.h"
+#include "../Processors/Visualization/Visualizer.h"
 
 #include "../../JuceLibraryCode/JuceHeader.h"
 
+class DataStream;
+class GraphViewer;
+
+
 /**
- 
- Displays the full processor graph for a given session.
- 
- Inhabits a tab in the DataViewport.
- 
- @see UIComponent, DataViewport, ProcessorGraph, EditorViewport
- 
- */
+ Represents a DataStream handled by a given processor.
 
+ @see GraphViewer, GraphNode
+*/
 
-class GraphNode : public Component
+class DataStreamInfo : public Component
 {
 public:
+
+    /** Constructor */
+    DataStreamInfo(const DataStream* stream);
+
+    /** Destructor */
+    ~DataStreamInfo();
+
+    /** Paint component */
+    void paint(Graphics& g);
+
+private:
+
+    const DataStream* stream;
+
+};
+
+/**
+ Represents a DataStream handled by a given processor.
+
+ @see GraphViewer, GraphNode
+*/
+
+class DataStreamButton : public Button
+{
+public:
+
+    /** Constructor */
+    DataStreamButton(Colour colour, const DataStream* stream, DataStreamInfo* info);
+
+    /** Destructor */
+    ~DataStreamButton();
+
+    /** Paint component */
+    void paintButton(Graphics& g, bool isHighlighted, bool isDown);
+
+    Component* getComponent() const { return (Component*)info; }
+
+private:
+
+    const DataStream* stream;
+    DataStreamInfo* info;
+    Path pathOpen;
+    Path pathClosed;
+    Colour colour;
+
+};
+
+/**
+ Represents an individual processor/plugin in the GraphViewer.
+ 
+ @see GraphViewer
+*/
+
+class GraphNode : public Component,
+    public Button::Listener
+{
+public:
+    
+    /** Constructor */
     GraphNode (GenericEditor* editor, GraphViewer* g);
+    
+    /** Destructor */
     ~GraphNode();
     
+    /** Paint component */
     void paint (Graphics& g)    override;
-    
+
+    /** Behavior on start of mouse hover */
     void mouseEnter (const MouseEvent& event) override;
+    
+    /** Behavior on end of mouse hover */
     void mouseExit  (const MouseEvent& event) override;
+    
+    /** Behavior on mouse click */
     void mouseDown  (const MouseEvent& event) override;
     
+    /** Indicates whether node has an editor component */
     bool hasEditor (GenericEditor* editor) const;
+
+    /** To respond to clicks in the DataStreamPanel*/
+    void buttonClicked(Button* button);
     
-    Point<float> getCenterPoint() const;
+    /** Returns location of component center point */
+    juce::Point<float> getCenterPoint() const;
+    
+    /** Returns editor of downstream node */
     GenericEditor* getDest()    const;
+    
+    /** Returns editor of upstream node */
     GenericEditor* getSource()  const;
+    
+    /** Returns array of editors for all connected nodes (splitter and merger only) */
     Array<GenericEditor*> getConnectedEditors() const;
     
+    /** Returns true if node is a splitter */
     bool isSplitter() const;
+    
+    /** Returns true if node is a merger */
     bool isMerger()   const;
     
+    /** Returns name of the underlying processor */
     const String getName() const;
     
+    /** Returns level (y-position) of node in graph display */
     int getLevel()     const;
+    
+    /** Returns horizontal shift (x-position of node in graph display */
     int getHorzShift() const;
     
+    /** Sets the level (y-position) of node in graph display */
     void setLevel (int newLevel);
+    
+    /** Sets the width of node in graph display */
+    void setWidth (int newWidth);
+    
+    /** Sets the horizontal shift (x-position of node in graph display) */
     void setHorzShift (int newHorizontalShift);
     
-    void updateBoundaries();
-    void switchIO (int path);
+    /** Not currently used (consider deleting) */
+    //void switchIO (int path);
+    void verticalShift(int pixels);
     
-    int horzShift;
-    int vertShift;
+    /** Adjusts the boundaries of this node, based on its inputs and outputs*/
+    void updateBoundaries();
+
+    /** True if processor still exists */
+    bool stillNeeded;
     
 private:
     GenericEditor* editor;
+    GenericProcessor* processor;
     GraphViewer* gv;
     
+
+    String getInfoString();
+
+    ConcertinaPanel dataStreamPanel;
+    Array<DataStreamButton*> dataStreamButtons;
+    
     bool isMouseOver;
+    int horzShift;
+    int vertShift;
+    int nodeWidth;
+    
+    int nodeId;
+
+    int previousHeight;
+
+    int verticalOffset;
 };
 
 
+/**
+    Allows the GraphViewer to be scrolled
+
+ */
+class GraphViewport : public Visualizer
+{
+public:
+    /** Constructor */
+    GraphViewport(GraphViewer* gv);
+
+    /** Destructor */
+    ~GraphViewport() { }
+
+    /** Draws the Open Ephys Logo*/
+    void paint(Graphics& g) override;
+
+    /** Visualizer virtual functions */
+    void refresh() { }
+    void update() { }
+    void refreshState() { }
+
+    /** Sets viewport bounds*/
+    void resized() override;
+
+    /** Scroll area*/
+    std::unique_ptr<Viewport> viewport;
+
+    /** Holds the Open Ephys application version*/
+    String currentVersionText;
+
+    /** Logo to display*/
+    Image bw_logo;
+};
+
+/**
+
+ Displays the full processor graph for a given session.
+
+ Inhabits a tab in the DataViewport, and allows the user to select processor editors by clicking on their icons inside the graph.
+
+@see UIComponent, DataViewport, ProcessorGraph, EditorViewport
+
+*/
 class GraphViewer : public Component
 {
 public:
+    
+    /** Constructor */
     GraphViewer();
-    ~GraphViewer();
+    
+    /** Destructor */
+    ~GraphViewer() { }
     
     /** Draws the GraphViewer.*/
     void paint (Graphics& g)    override;
+
+    /** Resizes the component, based on the bottom-most node*/
+    void updateBoundaries();
     
-    void addNode    (GenericEditor* editor);
-    void removeNode (GenericEditor* editor);
+    /** Adds a graph node for a particular processor */
+    void updateNodes    (Array<GenericProcessor*> rootProcessors);
+    
+    /** Adds a graph node for a particular processor */
+    void addNode    (GenericEditor* editor, int level, int offset);
+    
+    /** Clears the graph */
     void removeAllNodes();
-    void updateNodeLocations();
     
-    int nodesAtLevel (int lvl) const;
-    int getHorizontalShift (GraphNode*) const;
+    /** Returns the graph node for a particular processor editor */
     GraphNode* getNodeForEditor (GenericEditor* editor) const;
     
+    int getIndexOfEditor(GenericEditor* editor) const;
+    
+    /** Checks if a node exists for a given processor*/
+    bool nodeExists(GenericProcessor* processor);
+
+    /** Returns a pointer to the top-level component */
+    GraphViewport* getGraphViewport() { return graphViewport.get(); }
     
 private:
     void connectNodes (int, int, Graphics&);
-    void checkLayout (GraphNode*);
-    
-    int getIndexOfEditor (GenericEditor* editor) const;
-    
+
     int rootNum;
-    
-    String currentVersionText;
-    
+
     OwnedArray<GraphNode> availableNodes;
-    
+
+    std::unique_ptr<GraphViewport> graphViewport;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GraphViewer);
 };
+
+
+
 
 
 #endif  // __GRAPHVIEWER_H_4E971BF9__

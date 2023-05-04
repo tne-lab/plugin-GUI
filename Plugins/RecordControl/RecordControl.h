@@ -35,27 +35,23 @@
 class RecordControl : public GenericProcessor
 {
 public:
-    RecordControl();
-    ~RecordControl();
 
+    /** Constructor */
+    RecordControl();
+
+    /** Destructor */
+    ~RecordControl() { }
+
+    /** Create Record Control Editor*/
     AudioProcessorEditor* createEditor() override;
 
-    void process (AudioSampleBuffer& buffer) override;
+    /** Call handleEvent() */
+    void process (AudioBuffer<float>& buffer) override;
 
-    void setParameter (int parameterIndex, float newValue) override;
-    void handleEvent (const EventChannel* eventInfo, const MidiMessage& event, int) override;
-
-    bool enable() override;
+    /** Respond to incoming events */
+    void handleTTLEvent (TTLEventPtr event) override;
 
 private:
-    std::atomic<int> triggerEvent;
-	std::atomic<int> triggerChannel;
-
-    enum Edges { RISING = 0, FALLING = 1 };
-    enum Types { SET = 0, TOGGLE = 1};
-
-    Edges triggerEdge;
-    Types triggerType;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RecordControl);
 };

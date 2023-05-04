@@ -26,6 +26,8 @@
 
 #include <ProcessorHeaders.h>
 #include "LfpDisplayEditor.h"
+#include "LfpDisplayCanvas.h"
+#include "DisplayBuffer.h"
 
 #include <map>
 
@@ -46,67 +48,76 @@ class LfpDisplayNode :  public GenericProcessor
 
 {
 public:
-    LfpDisplayNode();
-    ~LfpDisplayNode();
 
+    /** Constructor */
+    LfpDisplayNode();
+
+    /** Destructor*/
+    ~LfpDisplayNode() { }
+
+    /** Creates the LfpDisplayEditor*/
     AudioProcessorEditor* createEditor() override;
 
-    void process (AudioSampleBuffer& buffer) override;
+    /** Pushes incoming data into a drawing buffer*/
+    void process (AudioBuffer<float>& buffer) override;
 
+    /** Used to set display trigger channels*/
     void setParameter (int parameterIndex, float newValue) override;
 
+    /** Creates buffers for incoming data streams*/
     void updateSettings() override;
 
-    bool enable()   override;
-    bool disable()  override;
+    /** Informs editor whether or not the signal chain is loading, to prevent unnecessary redraws*/
+    void initialize(bool signalChainIsLoading) override;
 
-	void handleEvent (const EventChannel* eventInfo, const MidiMessage& event, int samplePosition = 0) override;
+    /** Starts display animation */
+    bool startAcquisition()   override;
 
-    AudioSampleBuffer* getDisplayBufferAddress() const { return displayBuffer; }
+    /** Stops display animations*/
+    bool stopAcquisition()  override;
 
-    int getDisplayBufferIndex (int chan) const { return displayBufferIndex[chan]; }
+    /** Highlights recorded channels */
+    void startRecording()   override;
 
-    CriticalSection* getMutex() { return &displayMutex; }
+    /** Un-highlights recorded channels*/
+    void stopRecording()  override;
 
-	void setSubprocessor(uint32 sp);
-    uint32 getSubprocessor() const;
+    /** Used for TTL event overlay*/
+    void handleTTLEvent (TTLEventPtr event) override;
 
-	int getNumSubprocessorChannels();
+    /** Returns an array of pointers to the availble displayBuffers*/
+    Array<DisplayBuffer*> getDisplayBuffers();
 
-    float getSubprocessorSampleRate(uint32 subprocId);
+    /** Map between data stream IDs and display buffer pointers*/
+    std::map<uint16, DisplayBuffer*> displayBufferMap;
 
-    uint32 getDataSubprocId(int chan) const;
+    /** Sets an array of pointers to the 3 available split displays*/
+    void setSplitDisplays(Array<LfpDisplaySplitter*>);
+
+    /** Returns the latest sample number that triggered a given split display*/
+    int64 getLatestTriggerTime(int splitId) const;
+
+    /** Acknowledges receipt of a trigger for a given split display*/
+    void acknowledgeTrigger(int splitId);
 
 private:
+
+    /** Initializes trigger channels within a process block*/
     void initializeEventChannels();
+
+    /** Called after all events have been received within a process block*/
     void finalizeEventChannels();
 
-    ScopedPointer<AudioSampleBuffer> displayBuffer;
+    OwnedArray<DisplayBuffer> displayBuffers;
 
-    Array<int> displayBufferIndex;
-    Array<uint32> eventSourceNodes;
+    Array<LfpDisplaySplitter*> splitDisplays;
 
-    float displayGain; //
-    float bufferLength; // s
+    Array<int> triggerChannels;
+    Array<int64> latestTrigger; // overall timestamp
+    Array<int> latestCurrentTrigger; // within current input buffer
 
-    AbstractFifo abstractFifo;
-
-    int64 bufferTimestamp;
-    std::map<uint32, uint64> ttlState;
-    float* arrayOfOnes;
-    int totalSamples;
-
-    bool resizeBuffer();
-
-    int numSubprocessors;
-	uint32 subprocessorToDraw;
-	std::map<uint32, int> numChannelsInSubprocessor;
-	std::map<uint32, float> subprocessorSampleRate;
-
-    CriticalSection displayMutex;
-
-    static uint32 getEventSourceId(const EventChannel* event);
-    static uint32 getChannelSourceId(const InfoObjectCommon* chan);
+    static uint16 getEventSourceId(const EventChannel* event);
+    static uint16 getChannelSourceId(const ChannelInfoObject* chan);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LfpDisplayNode);
 };

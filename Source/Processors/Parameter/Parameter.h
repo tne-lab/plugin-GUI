@@ -26,214 +26,525 @@
 #include <JuceHeader.h>
 #include "../PluginManager/OpenEphysPlugin.h"
 
-#include <stdio.h>
-
-
 /**
     Class for holding user-definable processor parameters.
 
-    Parameters can either hold boolean, categorical, or continuous (float) values.
+    Parameters can either hold boolean, categorical, continuous (float) values,
+    or a list of selected channels.
 
     Using the Parameter class makes it easier to create a graphical interface for editing
-    parameters, because each Parameter has a ParameterEditor that is created automatically.
+    parameters, because each Parameter has a ParameterEditor that can be generated automatically.
 
     @see GenericProcessor, GenericEditor
 */
-class PLUGIN_API Parameter : private Value::Listener
+
+class SpikeChannel;
+class ContinuousChannel;
+class EventChannel;
+class DataStream;
+
+/** 
+
+    Base class for all Parameter objects.
+
+    The Parameter class facilitates the following functions:
+     - Keeping track of parameter settings for different streams
+     - Loading and saving parameter values
+     - Ensuring that parameters are safely updated while acquisition
+       is active
+     - Auto-generating user interfaces for individual parameters
+
+    It's recommended that all plugins use the Parameter class
+    and default or custom ParameterEditors to handle getting
+    and setting parameters.
+
+    Parameters can be associated with:
+     - Plugins (GLOBAL_SCOPE)
+     - Data streams (STREAM_SCOPE)
+     - Event channels (EVENT_CHANNEL_SCOPE)
+     - Continuous channels (CONTINUOUS_CHANNEL_SCOPE)
+     - Spike channels (SPIKE_CHANNEL_SCOPE)
+
+    Only Parameters associated with plugins and data streams
+    will be saved as loaded automatically.
+
+*/
+class PLUGIN_API Parameter
 {
 public:
-    class Listener
-    {
-    public:
-        virtual ~Listener() {}
-
-        virtual void parameterValueChanged (Value& valueThatWasChanged) = 0;
-    };
 
     enum ParameterType
     {
-        PARAMETER_TYPE_BOOLEAN = 0
-        , PARAMETER_TYPE_CONTINUOUS
-        , PARAMETER_TYPE_DISCRETE
-        , PARAMETER_TYPE_NUMERICAL
+        BOOLEAN_PARAM = 1,
+        CATEGORICAL_PARAM,
+        STRING_PARAM,
+        FLOAT_PARAM,
+        INT_PARAM,
+        SELECTED_CHANNELS_PARAM,
+        MASK_CHANNELS_PARAM
+    };
+    
+    enum ParameterScope
+    {
+        GLOBAL_SCOPE = 1,
+        STREAM_SCOPE,
+        EVENT_CHANNEL_SCOPE,
+        CONTINUOUS_CHANNEL_SCOPE,
+        SPIKE_CHANNEL_SCOPE
     };
 
-    /** Constructor for boolean parameters.*/
-    Parameter (const String& name,
-               bool defaultValue,
-               int ID,
-               bool deactivateDuringAcquisition = false);
+    /** Parameter constructor.*/
+    Parameter(GenericProcessor* processor_,
+        ParameterType type_,
+        ParameterScope scope_,
+        const String& name_,
+        const String& description_,
+        var defaultValue_,
+        bool deactivateDuringAcquisition_ = false)
+        : processor(processor_),
+        dataStream(nullptr),
+        spikeChannel(nullptr),
+        eventChannel(nullptr),
+        continuousChannel(nullptr),
+        m_parameterType(type_),
+        m_parameterScope(scope_),
+        m_name(name_),
+        m_description(description_),
+        currentValue(defaultValue_),
+        defaultValue(defaultValue_),
+        newValue(defaultValue_),
+        m_deactivateDuringAcquisition(deactivateDuringAcquisition_)
+    {
+    }
 
-    /** Constructor for continuous (float) parameters.*/
-    Parameter (const String& name,
-               float minPossibleValue, float maxPossibleValue, float defaultValue,
-               int ID,
-               bool deactivateDuringAcquisition = false);
-
-    /** Constructor for categorical parameters.*/
-    Parameter (const String& name,
-               Array<var> possibleValues,
-               int defaultValue, int ID,
-               bool deactivateDuringAcquisition = false);
-
-    /** Constructor for numerical parameters (label). */
-    Parameter (const String& name, const String& labelName,
-               double minPossibleValue, double maxPossibleValue, double defaultValue,
-               int ID,
-               bool deactivateDuringAcquisition = false);
-
-
-    // Value::Listener
-    void valueChanged (Value& valueThatWasChanged) override;
+    /** Destructor */
+    virtual ~Parameter() { }
 
     /** Returns the name of the parameter.*/
-    String getName() const noexcept;
+    String getName() const noexcept { return m_name; }
 
     /** Returns a description of the parameter.*/
-    String getDescription() const noexcept;
-
-    /** Returns the unique integer ID of a parameter.*/
-    int getID() const noexcept;
-
-    /** Returns the default value of a parameter (can be boolean, int, or float).*/
-    var getDefaultValue() const noexcept;
-
-    /** Returns the value of a parameter for a given channel.*/
-    var getValue (int chan) const;
-
-    /** Returns the value of a parameter for a given channel.*/
-    var operator[](int chan) const;
-
-    /** Returns all the possible values that a parameter can take for Boolean and Discrete parameters;
-        Returns the minimum and maximum value that a parameter can take for Continuous parameters.*/
-    const Array<var>& getPossibleValues() const;
+    String getDescription() const noexcept { return m_description; }
 
     /** Returns the type of the parameter. */
-    ParameterType getParameterType() const noexcept;
+    ParameterType getType() const noexcept { return m_parameterType; }
+    
+    /** Returns the scope of the parameter. */
+    ParameterScope getScope() const noexcept { return m_parameterScope; }
 
-    /** Returns the type of the parameter in string representation. */
-    String getParameterTypeString() const noexcept;
+    /** Returns the streamId for this parameter (if available)*/
+    uint16 getStreamId();
 
-    /** Returns true if a parameter is boolean, false otherwise.*/
-    bool isBoolean() const noexcept;
+    /** Sets the streamId for this parameter*/
+    void setDataStream(DataStream* dataStream_) { dataStream = dataStream_;  }
+    
+    /** Returns the SpikeChannel for this parameter (if available)*/
+    SpikeChannel* getSpikeChannel() { return spikeChannel; }
 
-    /** Returns true if a parameter is continuous, false otherwise.*/
-    bool isContinuous() const noexcept;
+    /** Sets the SpikeChannel for this parameter*/
+    void setSpikeChannel(SpikeChannel* spikeChannel_) { spikeChannel = spikeChannel_;  }
+    
+    /** Returns the EventChannel for this parameter (if available)*/
+    EventChannel* getEventChannel() { return eventChannel; }
 
-    /** Returns true if a parameter is discrete, false otherwise.*/
-    bool isDiscrete() const noexcept;
+    /** Sets the EventChannel for this parameter*/
+    void setEventChannel(EventChannel* eventChannel_) { eventChannel = eventChannel_;  }
+    
+    /** Returns the ContinuousChannel for this parameter (if available)*/
+    ContinuousChannel* getContinuousChannel() { return continuousChannel; }
 
-    /** Returns true if a parameter is numerical, false otherwise.*/
-    bool isNumerical() const noexcept;
+    /** Sets the ContinuousChannel for this parameter*/
+    void setContinuousChannel(ContinuousChannel* continuousChannel_) { continuousChannel = continuousChannel_;  }
 
-    /** Returns true if a user set custom bounds for the possible parameter editor, false otherwise. */
-    bool hasCustomEditorBounds() const noexcept;
+    /** Determines whether the parameter's editor is accessible after acquisition starts*/
+    bool shouldDeactivateDuringAcquisition() {
+        return m_deactivateDuringAcquisition;
+    }
 
-    /** Returns the recommended width value for the parameter editor if parameter has it. */
-    int getEditorRecommendedWidth() const noexcept;
+    /** Sets the parameter value*/
+    virtual void setNextValue(var newValue) = 0;
 
-    /** Returns the recommended height value for the parameter editor if parameter has it. */
-    int getEditorRecommendedHeight() const noexcept;
+    /** Returns the parameter value*/
+    var getValue() {
+        return currentValue;
+    }
 
-    /** Returns the desired bounds for editor if parameter has it. */
-    const juce::Rectangle<int>& getEditorDesiredBounds() const noexcept;
+    /** Updates parameter value (called by GenericProcessor::setParameter)*/
+    void updateValue()
+    {
+        previousValue = currentValue;
+        currentValue = newValue;
+    }
 
-    /** Sets the name of a parameter. */
-    void setName (const String& newName);
+    /** Returns a string describing this parameter's type*/
+    String getParameterTypeString() const;
 
-    /** Sets the description of the parameter.*/
-    void setDescription (const String& desc);
+    /** Saves the parameter to an XML Element*/
+    virtual void toXml(XmlElement*) = 0;
 
-    /** Sets the value of a parameter for a given channel.*/
-    void setValue (float val, int chan);
+    /** Loads the parameter from an XML Element*/
+    virtual void fromXml(XmlElement*) = 0;
+    
+    /** Returns the value as a string**/
+    virtual String getValueAsString() = 0;
+    
+    /** Can be used to directly set the parameter value (but be careful with this)*/
+    var currentValue;
 
-    /** Sets the possible values. It makes sense only for discrete parameters. */
-    void setPossibleValues (Array<var> possibleValues);
+    /** Can be used to restore the previous value if the new value is out of range*/
+    void restorePreviousValue() 
+    {
+        currentValue = previousValue;
+    }
+    
+    /** Returns a pointer to the processor this parameter is associated with**/
+    GenericProcessor* getProcessor() {return processor; }
+    
+protected:
 
-    /** Sets desired size for the parameter editor. */
-    void setEditorDesiredSize (int desiredWidth, int desiredHeight);
+    GenericProcessor* processor;
+    
+    DataStream* dataStream;
+    SpikeChannel* spikeChannel;
+    EventChannel* eventChannel;
+    ContinuousChannel* continuousChannel;
 
-    /** Sets desired bounds for the parameter editor. */
-    void setEditorDesiredBounds (int x, int y, int width, int height);
-
-    /** Sets desired bounds for the parameter editor. */
-    void setEditorDesiredBounds (const juce::Rectangle<int>& desiredBounds);
-
-    /** Returns the appropriate parameter type from string. */
-    static ParameterType getParameterTypeFromString (const String& parameterTypeString);
-
-    /** Creates value tree for given parameter. */
-    static ValueTree createValueTreeForParameter (Parameter* parameter);
-
-    /** Creates parameter from a given value tree. */
-    static Parameter* createParameterFromValueTree (ValueTree parameterValueTree);
-
-    /** Certain parameters should not be changed while data acquisition is active.
-         This variable indicates whether or not these parameters can be edited.*/
-    bool shouldDeactivateDuringAcquisition;
-
-    // Accessors for values
-    // ========================================================================
-    Value& getValueObjectForID()                noexcept;
-    Value& getValueObjectForName()              noexcept;
-    Value& getValueObjectForDescription()       noexcept;
-    Value& getValueObjectForDefaultValue()      noexcept;
-    Value& getValueObjectForMinValue()          noexcept;
-    Value& getValueObjectForMaxValue()          noexcept;
-    Value& getValueObjectForPossibleValues()    noexcept;
-    Value& getValueObjectForDesiredX()          noexcept;
-    Value& getValueObjectForDesiredY()          noexcept;
-    Value& getValueObjectForDesiredWidth()      noexcept;
-    Value& getValueObjectForDesiredHeight()     noexcept;
-    // ========================================================================
-
-    void addListener    (Listener* listener);
-    void removeListener (Listener* listener);
-
+    var newValue;
+    var previousValue;
+   
+    var defaultValue;
 
 private:
-    void registerValueListeners();
-
-    //String m_name;
-    //String m_description;
-
-    //int m_parameterId;
-
-    bool m_hasCustomEditorBounds { false };
-
-    juce::Rectangle<int> m_editorBounds;
-
-    //var m_defaultValue;
-    Array<var> m_values;
-    Array<var> m_possibleValues;
 
     ParameterType m_parameterType;
+    ParameterScope m_parameterScope;
+    String m_name;
+    String m_description;
 
-    // Different values to be able to set any needed fields for parameters
-    // without any effort when using property editors
-    // ========================================================================
-    Value m_nameValueObject;
-    Value m_descriptionValueObject;
-    Value m_parameterIdValueObject;
-    Value m_defaultValueObject;
-    Value m_minValueObject;
-    Value m_maxValueObject;
-    Value m_possibleValuesObject;
-    Value m_desiredXValueObject;
-    Value m_desiredYValueObject;
-    Value m_desiredWidthValueObject;
-    Value m_desiredHeightValueObject;
-    // ========================================================================
+    bool m_deactivateDuringAcquisition;
 
-    ListenerList<Listener> m_listeners;
 };
 
+/** 
+* 
+    Represents a Parameter that can take two values,
+    true or false.
 
-class ParameterFactory
+*/
+class PLUGIN_API BooleanParameter : public Parameter
 {
 public:
-    /** Creates and returns the parameter of given type. */
-    static Parameter* createEmptyParameter (Parameter::ParameterType parameterType, int parameterId);
+    /** Parameter constructor.*/
+    BooleanParameter(GenericProcessor* processor,
+        ParameterScope scope,
+        const String& name,
+        const String& description,
+        bool defaultValue,
+        bool deactivateDuringAcquisition = false);
+
+    /** Stages a value, to be changed by the processor*/
+    virtual void setNextValue(var newValue) override;
+
+    /** Gets the value as a boolean*/
+    bool getBoolValue();
+    
+    /** Gets the value as a string**/
+    virtual String getValueAsString() override;
+
+    /** Saves the parameter to an XML Element*/
+    virtual void toXml(XmlElement*) override;
+
+    /** Loads the parameter from an XML Element*/
+    virtual void fromXml(XmlElement*) override;
+
+};
+
+/**
+*
+    Represents a Parameter that can take a finite 
+    number of custom values (strings).
+
+*/
+class PLUGIN_API CategoricalParameter : public Parameter
+{
+public:
+    /** Parameter constructor.*/
+    CategoricalParameter(GenericProcessor* processor,
+        ParameterScope scope,
+        const String& name,
+        const String& description,
+        StringArray categories,
+        int defaultIndex,
+        bool deactivateDuringAcquisition = false);
+
+    /** Stages a value, to be changed by the processor*/
+    virtual void setNextValue(var newValue) override;
+
+    /** Gets the index as an integer*/
+    int getSelectedIndex();
+
+    /** Gets the index as an integer*/
+    String getSelectedString();
+    
+    /** Gets the value as a string**/
+    virtual String getValueAsString() override;
+
+    /** Updates the categories*/
+    void setCategories(StringArray categories);
+
+    /** Updates the categories*/
+    const StringArray& getCategories();
+
+    /** Saves the parameter to an XML Element*/
+    virtual void toXml(XmlElement*) override;
+
+    /** Loads the parameter from an XML Element*/
+    virtual void fromXml(XmlElement*) override;
+
+private:
+
+    StringArray categories;
+
+};
+
+/**
+*
+    Represents a Parameter that can take any integer values
+    in a given range.
+
+*/
+class PLUGIN_API IntParameter : public Parameter
+{
+public:
+    /** Parameter constructor.*/
+    IntParameter(GenericProcessor* processor,
+        ParameterScope scope,
+        const String& name,
+        const String& description,
+        int defaultValue,
+        int minValue = 0,
+        int maxValue = 100,
+        bool deactivateDuringAcquisition = false);
+
+    /** Sets the current value*/
+    virtual void setNextValue(var newValue) override;
+
+    /** Gets the value as an integer*/
+    int getIntValue();
+    
+    /** Gets the value as a string**/
+    virtual String getValueAsString() override;
+
+    int getMinValue() { return minValue; }
+
+    int getMaxValue() { return maxValue; }
+
+    /** Saves the parameter to an XML Element*/
+    virtual void toXml(XmlElement*) override;
+
+    /** Loads the parameter from an XML Element*/
+    virtual void fromXml(XmlElement*) override;
+
+private:
+    int maxValue;
+    int minValue;
+};
+
+/**
+*
+    Represents a Parameter with a string value.
+
+*/
+class PLUGIN_API StringParameter : public Parameter
+{
+public:
+    /** Parameter constructor.*/
+    StringParameter(GenericProcessor* processor,
+        ParameterScope scope,
+        const String& name,
+        const String& description,
+        String defaultValue,
+        bool deactivateDuringAcquisition = false);
+
+    /** Sets the current value*/
+    virtual void setNextValue(var newValue) override;
+
+    /** Gets the value as an integer*/
+    String getStringValue();
+    
+    /** Gets the value as a string**/
+    virtual String getValueAsString() override;
+
+    /** Saves the parameter to an XML Element*/
+    virtual void toXml(XmlElement*) override;
+
+    /** Loads the parameter from an XML Element*/
+    virtual void fromXml(XmlElement*) override;
+};
+
+/**
+*
+    Represents a Parameter that can take any float value
+    within a given range.
+
+*/
+class PLUGIN_API FloatParameter : public Parameter
+{
+public:
+    /** Parameter constructor.*/
+    FloatParameter(GenericProcessor* processor,
+        ParameterScope scope,
+        const String& name,
+        const String& description,
+        float defaultValue,
+        float minValue = 0.f,
+        float maxValue = 100.f,
+        float stepSize = 1.f,
+        bool deactivateDuringAcquisition = false);
+
+    /** Sets the current value*/
+    virtual void setNextValue(var newValue) override;
+
+    /** Gets the value as an integer*/
+    float getFloatValue();
+    
+    /** Gets the value as a string**/
+    virtual String getValueAsString() override;
+
+    /** Gets the minimum value for this parameter*/
+    float getMinValue() { return minValue; }
+
+    /** Gets the maximum value for this parameter*/
+    float getMaxValue() { return maxValue; }
+
+    /** Gets the step size for this parameter*/
+    float getStepSize() { return stepSize; }
+
+    /** Saves the parameter to an XML Element*/
+    virtual void toXml(XmlElement*) override;
+
+    /** Loads the parameter from an XML Element*/
+    virtual void fromXml(XmlElement*) override;
+
+private:
+    float maxValue;
+    float minValue;
+    float stepSize;
+};
+
+/**
+*
+    Represents a Parameter that holds the selection
+    state of all continuous channels in a given data stream.
+
+    Defaults to all channels de-selected (false).
+
+    (Optional) The maximum number of selectable channels
+               can be specified.
+
+    See: @MaskChannelsParameter
+
+*/
+class PLUGIN_API SelectedChannelsParameter : public Parameter
+{
+public:
+    /** Parameter constructor.*/
+    SelectedChannelsParameter(GenericProcessor* processor,
+        ParameterScope scope,
+        const String& name,
+        const String& description,
+        Array<var> defaultValue,
+        int maxSelectableChannels = std::numeric_limits<int>::max(),
+        bool deactivateDuringAcquisition = false);
+
+    /** Sets the current value*/
+    virtual void setNextValue(var newValue) override;
+
+    /** Gets the value as an integer*/
+    Array<int> getArrayValue();
+
+    /** Returns the max selectable channels*/
+    int getMaxSelectableChannels() {
+        return maxSelectableChannels;
+    }
+    
+    void setMaxSelectableChannels(int m_) {
+        maxSelectableChannels = m_;
+     }
+    
+    /** Returns a vector of channel selection states (true or false)*/
+    std::vector<bool> getChannelStates();
+    
+    /** Gets the value as a string**/
+    virtual String getValueAsString() override;
+
+    /** Sets the total number of available channels in this stream*/
+    void setChannelCount(int count);
+
+    /** Saves the parameter to an XML Element*/
+    virtual void toXml(XmlElement*) override;
+
+    /** Loads the parameter from an XML Element*/
+    virtual void fromXml(XmlElement*) override;
+
+private:
+
+    String selectedChannelsToString();
+
+    Array<var> parseSelectedString(const String& input);
+
+    int maxSelectableChannels;
+    int channelCount;
+};
+
+/**
+*
+    Represents a Parameter that holds the selection
+    state of all continuous channels in a given data stream.
+
+    Defaults to all channels selected (true).
+
+    See: @SelectedChannelsParameter
+
+*/
+class PLUGIN_API MaskChannelsParameter : public Parameter
+{
+public:
+    /** Parameter constructor.*/
+    MaskChannelsParameter(GenericProcessor* processor,
+        ParameterScope scope,
+        const String& name,
+        const String& description,
+        bool deactivateDuringAcquisition = false);
+
+    /** Sets the current value*/
+    virtual void setNextValue(var newValue) override;
+
+    /** Gets the value as an integer*/
+    Array<int> getArrayValue();
+    
+    /** Returns a vector of channel selection states (true or false)*/
+    std::vector<bool> getChannelStates();
+    
+    /** Gets the value as a string**/
+    virtual String getValueAsString() override;
+
+    /** Sets the total number of available channels in this stream*/
+    void setChannelCount(int count);
+
+    /** Saves the parameter to an XML Element*/
+    virtual void toXml(XmlElement*) override;
+
+    /** Loads the parameter from an XML Element*/
+    virtual void fromXml(XmlElement*) override;
+
+private:
+
+    String maskChannelsToString();
+
+    Array<var> parseMaskString(const String& input);
+
+    int channelCount;
 };
 
 

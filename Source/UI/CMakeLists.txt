@@ -1,4 +1,4 @@
-#Open Ephys GUI direcroty-specific file
+#Open Ephys GUI directory-specific file
 
 #add files in this folder
 add_sources(open-ephys 
@@ -8,20 +8,24 @@ add_sources(open-ephys
 	CustomArrowButton.h
 	DataViewport.cpp
 	DataViewport.h
+	DefaultConfig.cpp
+	DefaultConfig.h
 	EditorViewport.cpp
 	EditorViewport.h
+	EditorViewportActions.cpp
+	EditorViewportActions.h
 	EditorViewportButtons.cpp
 	EditorViewportButtons.h
+	FilenameConfigWindow.cpp
+	FilenameConfigWindow.h
 	GraphViewer.cpp
 	GraphViewer.h
 	InfoLabel.cpp
 	InfoLabel.h
+	PluginInstaller.cpp 
+	PluginInstaller.h
 	ProcessorList.cpp
 	ProcessorList.h
-	SignalChainManager.cpp
-	SignalChainManager.h
-	TimestampSourceSelection.cpp
-	TimestampSourceSelection.h
 	UIComponent.cpp
 	UIComponent.h
 )

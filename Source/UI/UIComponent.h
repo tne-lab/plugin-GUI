@@ -25,8 +25,10 @@
 #define __UICOMPONENT_H_D97C73CF__
 
 #include "../../JuceLibraryCode/JuceHeader.h"
-#include "TimestampSourceSelection.h"
 
+#include "PluginInstaller.h"
+#include "MessageCenterButton.h"
+#include "DefaultConfig.h"
 
 class MainWindow;
 class ProcessorList;
@@ -40,7 +42,8 @@ class MessageCenterEditor;
 class InfoLabel;
 class DataViewport;
 class EditorViewport;
-class TimestampSourceSelectionWindow;
+class SignalChainTabComponent;
+class DefaultConfigWindow;
 
 /**
 
@@ -58,6 +61,7 @@ class UIComponent : public Component,
     public ActionBroadcaster,
     public MenuBarModel,
     public ApplicationCommandTarget,
+    public Button::Listener,
     public DragAndDropContainer // required for
 // drag-and-drop
 // internal components
@@ -65,7 +69,11 @@ class UIComponent : public Component,
 
 {
 public:
+
+    /** Constructor */
     UIComponent(MainWindow* mainWindow_, ProcessorGraph* pgraph, AudioComponent* audio);
+
+    /** Destructor */
     ~UIComponent();
 
     /** Returns a pointer to the EditorViewport. */
@@ -96,6 +104,11 @@ public:
 	AudioComponent* getAudioComponent();
 
 	PluginManager* getPluginManager();
+    
+    PluginInstaller* getPluginInstaller();
+    
+    /** Called by the MessageCenterButton */
+    void buttonClicked(Button* button);
 
     /** Stops the callbacks to the ProcessorGraph which drive data acquisition. */
     void disableCallbacks();
@@ -142,8 +155,10 @@ public:
 private:
 
     ScopedPointer<DataViewport> dataViewport;
-    ScopedPointer<EditorViewport> editorViewport;
+    EditorViewport* editorViewport;
+    ScopedPointer<SignalChainTabComponent> signalChainTabComponent;
     ScopedPointer<EditorViewportButton> editorViewportButton;
+    MessageCenterButton messageCenterButton;
     ScopedPointer<ProcessorList> processorList;
     ScopedPointer<ControlPanel> controlPanel;
     MessageCenterEditor* messageCenterEditor; // owned by ProcessorGraph
@@ -151,7 +166,9 @@ private:
     ScopedPointer<GraphViewer> graphViewer;
 	ScopedPointer<PluginManager> pluginManager;
 
-	WeakReference<TimestampSourceSelectionWindow> timestampWindow;
+    WeakReference<PluginInstaller> pluginInstaller;
+
+    std::unique_ptr<DefaultConfigWindow> defaultConfigWindow;
 
     Viewport processorListViewport;
 
@@ -175,8 +192,8 @@ private:
     /** Contains codes for common user commands to which the application must react.*/
     enum CommandIDs
     {
-        openConfiguration 		= 0x2001,
-        saveConfiguration		= 0x2002,
+        openSignalChain 		= 0x2001,
+        saveSignalChain 		= 0x2002,
         undo					= 0x2003,
         redo 					= 0x2004,
         copySignalChain			= 0x2005,
@@ -185,14 +202,24 @@ private:
         toggleProcessorList 	= 0x2008,
         toggleSignalChain	    = 0x2009,
         toggleFileInfo			= 0x2010,
+        setClockModeDefault     = 0x2111,
+		setClockModeHHMMSS      = 0x2112,
+        toggleHttpServer        = 0x4001,
         showHelp				= 0x2011,
         resizeWindow            = 0x2012,
         reloadOnStartup         = 0x2013,
-        saveConfigurationAs     = 0x2014,
-		openTimestampSelectionWindow = 0x2015
+        saveSignalChainAs       = 0x2014,
+        openPluginInstaller     = 0x2016,
+        openDefaultConfigWindow = 0x2017,
+        loadPluginSettings      = 0x3001,
+        savePluginSettings      = 0x3002,
+        lockSignalChain         = 0x5001
+        
     };
 
     File currentConfigFile;
+    
+    bool messageCenterIsCollapsed;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(UIComponent);
 

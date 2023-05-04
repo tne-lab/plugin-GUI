@@ -31,6 +31,9 @@
 #include "../GenericProcessor/GenericProcessor.h"
 #include "FileSource.h"
 
+#include "../../Utils/Utils.h"
+
+
 #define BUFFER_WINDOW_CACHE_SIZE 10
 
 
@@ -39,66 +42,134 @@
 
   @see GenericProcessor
 */
-class FileReader : public GenericProcessor,
+class FileReader : 
+    public GenericProcessor,
     private Thread
 {
 public:
+
+    /** Constructor */
     FileReader();
+
+    /** Destructor */
     ~FileReader();
 
-    void process (AudioSampleBuffer& buffer) override;
+    /** Add latest samples to the signal chain buffer */
+    void process (AudioBuffer<float>& buffer) override;
+
+    /** Makes it possible to set the selected file remotely */
+    String handleConfigMessage(String msg) override;
+
+    /** Allows parameters to change during acquisition*/
     void setParameter (int parameterIndex, float newValue) override;
 
+    /** Creates the editor */
     AudioProcessorEditor* createEditor() override;
 
-    bool hasEditor()                const  override { return true; }
-    bool isGeneratesTimestamps()    const  override { return true; }
-    bool isReady()                  override;
+    /** Flags that this processor does generate timestamps */
+    bool generatesTimestamps() const override { return true; }
 
-    int getDefaultNumDataOutputs(DataChannel::DataChannelTypes type, int)        const override;
+    /** Get the default data sample rate */
+    float getDefaultSampleRate() const override;
 
-    float getDefaultSampleRate()        const override;
-    float getBitVolts (const DataChannel* chan)   const override;
-
+    /* Updates the FileReader settings*/
     void updateSettings() override;
-    void setEnabledState (bool t)  override;
-	bool enable() override;
-	bool disable() override;
 
-    String getFile() const;
+    /* Called at start of acquisition */
+	bool startAcquisition() override;
+
+    /* Called at end of acquisition */
+	bool stopAcquisition() override;
+
+    /* Load default example data */
+    void initialize(bool signalChainIsLoading) override;
+
+    /* Set the current file */
     bool setFile (String fullpath);
 
-    bool isFileSupported          (const String& filename) const;
-    bool isFileExtensionSupported (const String& ext) const;
-    void createEventChannels();
+    /* Get the active file's name */
+    String getFile() const;
+
+    /* Returns true if input file format is supported */
+    bool isFileSupported (const String& filename) const;
+
+    /* Returns a list of file formats supported by the GUI */
 	StringArray getSupportedExtensions() const;
 
+    /** Returns the total number of samples per channel */
+    int64 getCurrentNumTotalSamples();
+
+    /** Returns a list of EventInfo for the current stream */
+    Array<EventInfo> getActiveEventInfo();
+
+    /** Returns the data sample rate of the current stream */
+    float getCurrentSampleRate() const;
+
+    /** Returns the current sample (timestamp) */
+    int64 getCurrentSample();
+
+    /** Sets the timestamp at which to start playback */
+    void setPlaybackStart(int64 timestamp);
+
+    /** Returns the timestamp at which to start playback */
+    int getPlaybackStart();
+
+    /** Sets the timestamp at which to stop playback */
+    void setPlaybackStop(int64 timestamp);
+
+    /** Returns the timestamp at which to stop playback */
+    int getPlaybackStop();
+
+    /** Toggles playback on/off */
+    void togglePlayback();
+
+    /** Returns true if playback is currently active */
+    bool playbackIsActive();
+
+    /** Flag whether to loop or stop at the end of playback */
+    bool loopPlayback;
+
+    /** Converts samples to milliseconds using current stream's sample rate */
+    unsigned int samplesToMilliseconds (int64 samples) const;
+
+    /** Converts milliseconds to samples using current stream's sample rate */
+    int64 millisecondsToSamples (unsigned int ms) const;
+
+        /** Swaps the backbuffer to the front and flags the background readerthread to update the new backbuffer */
+    void switchBuffer();
+
 private:
-    Array<const EventChannel*> moduleEventChannels;
-    unsigned int count = 0;
+
+    /** Currently only support one event channel per stream */
+    ScopedPointer<EventChannel> eventChannel;
+
+    /** Generates any events found within the current continuous buffer interval */
+    void addEventsInRange(int64 start, int64 stop);
+
+    /** Flag if a new file has been loaded */
+    bool gotNewFile;
     
+    /** Sets the current stream to read data from */
     void setActiveRecording (int index);
 
-    unsigned int samplesToMilliseconds (int64 samples)  const;
-    int64 millisecondsToSamples (unsigned int ms)       const;
-
-    int64 timestamp;
+    int64 totalSamplesAcquired;
 
     float currentSampleRate;
     int currentNumChannels;
     int64 currentSample;
-    int64 currentNumSamples;
+    int64 currentNumTotalSamples;
+    int64 currentNumScrubbedSamples;
     int64 startSample;
     int64 stopSample;
     int64 bufferCacheWindow; // the current buffer window to read from readBuffer
     Array<RecordedChannelInfo> channelInfo;
-
-    // for testing purposes only
-    int counter;
+    int64 loopCount;
+    bool playbackActive;
 
     ScopedPointer<FileSource> input;
 
-    HeapBlock<int16> * readBuffer;      // Ptr to the current "front" buffer
+    /* Pointer to current front buffer */
+    HeapBlock<int16> * readBuffer;      
     HeapBlock<int16> bufferA;
     HeapBlock<int16> bufferB;
 
@@ -110,29 +181,23 @@ private:
 	unsigned int m_bufferSize;
 	float m_sysSampleRate;
     
-    /** Swaps the backbuffer to the front and flags the background reader
-        thread to update the new backbuffer */
-    void switchBuffer();
-    
     HeapBlock<int16>* getFrontBuffer();
     HeapBlock<int16>* getBackBuffer();
     
     /** Executes the background thread task */
     void run() override;
     
-    /** Reads a chunk of the file that fills an entire buffer cache.
-     
-        This method will read into the buffer that passed in by the param 
-     */
+    /** Reads a chunk of the file that fills an entire buffer cache. */
     void readAndFillBufferCache(HeapBlock<int16> &cacheBuffer);
 
-	//Methods for built-in file sources
+	/** Returns the number of included file sources */
 	int getNumBuiltInFileSources() const;
 
+    /** Returns the extension for a given file source */
 	String getBuiltInFileSourceExtensions(int index) const;
 
+    /** Returns a new FileSource object for a given file source */
 	FileSource* createBuiltInFileSource(int index) const;
-
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FileReader);
 };

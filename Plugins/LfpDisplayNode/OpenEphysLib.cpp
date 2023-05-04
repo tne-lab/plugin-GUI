@@ -24,7 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <PluginInfo.h>
 #include "LfpDisplayNode.h"
 #include <string>
-#ifdef WIN32
+#ifdef _WIN32
 #include <Windows.h>
 #define EXPORT __declspec(dllexport)
 #else
@@ -40,7 +40,7 @@ extern "C" EXPORT void getLibInfo(Plugin::LibraryInfo* info)
 {
 	info->apiVersion = PLUGIN_API_VER;
 	info->name = "LFP viewer";
-	info->libVersion = 1;
+	info->libVersion = "0.1.0";
 	info->numPlugins = NUM_PLUGINS;
 }
 
@@ -49,9 +49,9 @@ extern "C" EXPORT int getPluginInfo(int index, Plugin::PluginInfo* info)
 	switch (index)
 	{
 	case 0:
-		info->type = Plugin::PLUGIN_TYPE_PROCESSOR;
+		info->type = Plugin::PROCESSOR;
 		info->processor.name = "LFP Viewer";
-		info->processor.type = Plugin::SinkProcessor;
+		info->processor.type = Plugin::Processor::SINK;
 		info->processor.creator = &(Plugin::createProcessor<LfpViewer::LfpDisplayNode>);
 		break;
 	default:
@@ -61,7 +61,7 @@ extern "C" EXPORT int getPluginInfo(int index, Plugin::PluginInfo* info)
 	return 0;
 }
 
-#ifdef WIN32
+#ifdef _WIN32
 BOOL WINAPI DllMain(IN HINSTANCE hDllHandle,
 	IN DWORD     nReason,
 	IN LPVOID    Reserved)

@@ -1,11 +1,11 @@
-#Open Ephys GUI direcroty-specific file
+#Open Ephys GUI directory-specific file
 
 #add files in this folder
 add_sources(open-ephys 
 	DataWindow.cpp
 	DataWindow.h
-	MatlabLikePlot.cpp
-	MatlabLikePlot.h
+	InteractivePlot.cpp
+	InteractivePlot.h
 	Visualizer.cpp
 	Visualizer.h
 )
