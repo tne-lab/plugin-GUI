@@ -228,8 +228,10 @@ namespace CoreServices
 		{
 			for (auto* node : getProcessorGraph()->getRecordNodes())
 			{
-				if (node->getNodeId() == nodeId || applyToAll)
+				if (node->getNodeId() == nodeId || applyToAll) {
 					static_cast<RecordNodeEditor*>(node->getEditor())->setDataDirectory(dir);
+					node->createNewDirectory();
+				}
 			}
 		}
 
